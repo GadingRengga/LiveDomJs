@@ -1,6 +1,6 @@
 # LiveDomJs for Laravel
 
-LiveDomJs adalah framework JavaScript ringan berbasis DOM dinamis dengan fitur SPA, event binding, AJAX reactivity, dan komponen reaktif. Package ini menyediakan integrasi langsung dengan Laravel untuk auto-binding dan AJAX action handler.
+LiveDomJs adalah framework JavaScript ringan Untuk Laravel berbasis DOM dinamis dengan fitur SPA, event binding, AJAX reactivity, dan komponen reaktif. Package ini menyediakan integrasi langsung dengan Laravel untuk auto-binding dan AJAX action handler.
 
 ## ✨ Fitur
 - SPA (Single Page Application) dengan pushState
@@ -20,6 +20,6 @@ composer require gadingrengga/livedomjs
 php artisan livedomjs:install
 
 ### 3. Tambahkan LiveDomJs ke Blade
-```bash
+script
 <script src="{{ asset('vendor/livedomjs/livedom.js') }}"></script>
 
