@@ -1,25 +1,68 @@
-# LiveDomJs for Laravel
+# ⚡ LiveDomJs for Laravel
 
-LiveDomJs adalah framework JavaScript ringan Untuk Laravel berbasis DOM dinamis dengan fitur SPA, event binding, AJAX reactivity, dan komponen reaktif. Package ini menyediakan integrasi langsung dengan Laravel untuk auto-binding dan AJAX action handler.
+**LiveDomJs** adalah framework JavaScript ringan untuk Laravel yang memungkinkan manipulasi DOM dinamis, komunikasi AJAX reaktif, dan SPA (Single Page Application) tanpa konfigurasi rumit. Cocok untuk membuat UI interaktif langsung dari Laravel Blade, tanpa harus menggunakan framework frontend besar seperti Vue atau React.
 
-## ✨ Fitur
-- SPA (Single Page Application) dengan pushState
-- Dynamic event binding
-- `live-action`, `live-event`, `live-if`, dan `live-compute`
-- AJAX controller handler otomatis (`/ajax/{controller}/{action}`)
-- Auto-publish assets ke `public/vendor/livedomjs`
+> 🚀 *Integrasi cepat. Interaksi reaktif. Tanpa ribet.*
 
-## 📦 Instalasi
+---
 
-### 1. Install via Composer
+## ✨ Fitur Unggulan
+
+- 🔁 **SPA Routing** dengan `pushState` tanpa reload  
+- ⚡ **Event binding dinamis** (`live-action`, `live-event`, dll)  
+- 🔄 **Reaktivitas otomatis** via `live-compute`, `live-if`  
+- 🌐 **AJAX handler otomatis** untuk endpoint seperti `/ajax/{controller}/{action}`  
+- 📦 **Asset publishing otomatis** ke `public/vendor/livedomjs`  
+- 🛠️ **Integrasi langsung ke Laravel** melalui `composer` & `artisan`  
+
+---
+
+## 📦 Instalasi Laravel
+
+### 1. Install package via Composer
+
 ```bash
 composer require gadingrengga/livedomjs
 
-### 2. Jalankan perintah instalasi
+
+2. Jalankan perintah instalasi
 ```bash
 php artisan livedomjs:install
 
-### 3. Tambahkan LiveDomJs ke Blade
-script
+
+3. Tambahkan script ke layout Blade
+```blade
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="{{ asset('vendor/livedomjs/livedom.js') }}"></script>
+
+🗂️ Struktur Package
+LiveDomJs/
+├── composer.json
+├── resources/
+│   └── js/
+│       └── livedom.js
+├── src/
+│   ├── Console/
+│   ├── Http/
+│   └── Providers/
+├── docs/
+│   └── index.html
+└── README.md
+
+🚀 Roadmap
+ SPA pushState navigation
+
+ AJAX dynamic binding
+
+ Error modal system
+
+📖 Dokumentasi Lengkap
+👉 Buka dokumentasi online:
+🌐 https://gadingrengga.github.io/LiveDomJs
+
+👤 Author
+Gading Rengga
+📧 gading.rengga@gmail.com
+🐙 github.com/GadingRengga
+
 
