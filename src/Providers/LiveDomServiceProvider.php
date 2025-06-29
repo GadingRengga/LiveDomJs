@@ -19,8 +19,8 @@ class LiveDomServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->publishes([
-            __DIR__ . '/../../../resources/js' => public_path('vendor/livedomjs'),
-            __DIR__ . '/../../../resources/views' => resource_path('views/vendor/livedomjs'),
+            dirname(__DIR__, 3) . '/resources/js' => public_path('vendor/livedomjs'),
+            dirname(__DIR__, 3) . '/resources/views' => resource_path('views/vendor/livedomjs'),
         ], 'livedomjs-assets');
     }
 }
