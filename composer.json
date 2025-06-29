@@ -1,5 +1,5 @@
 {
-    "name": "GadingRengga/livedomjs",
+    "name": "gadingrengga/livedomjs",
     "description": "Integrasi LiveDomJS untuk Laravel",
     "type": "library",
     "license": "MIT",
@@ -13,7 +13,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Namakamu\\LiveDomJS\\": "src/"
+            "GadingRengga\\LiveDomJS\\": "src/"
         }
     },
     "extra": {
