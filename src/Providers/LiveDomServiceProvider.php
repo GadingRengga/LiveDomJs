@@ -7,12 +7,17 @@ use GadingRengga\LiveDomJS\Console\InstallCommand;
 
 class LiveDomServiceProvider extends ServiceProvider
 {
-    public function boot()
+    public function register()
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([InstallCommand::class]);
+            $this->commands([
+                InstallCommand::class,
+            ]);
         }
+    }
 
+    public function boot()
+    {
         $this->publishes([
             __DIR__ . '/../../../resources/js' => public_path('vendor/livedomjs'),
             __DIR__ . '/../../../resources/views' => resource_path('views/vendor/livedomjs'),
