@@ -3,7 +3,7 @@
 namespace GadingRengga\LiveDomJS\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Namakamu\LiveDomJS\Console\InstallCommand;
+use GadingRengga\LiveDomJS\Console\InstallCommand;
 
 class LiveDomServiceProvider extends ServiceProvider
 {
