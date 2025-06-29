@@ -1,12 +1,29 @@
 {
     "name": "gadingrengga/livedomjs",
-    "description": "Integrasi LiveDomJS untuk Laravel",
+    "description": "Integrasi LiveDomJS untuk Laravel: SPA, Live DOM binding, AJAX, dan reaktivitas.",
     "type": "library",
     "license": "MIT",
-    "authors": [{
-        "name": "Gading Rengga",
-        "email": "gading.rengga@gmail.com"
-    }],
+    "homepage": "https://github.com/GadingRengga/LiveDomJs",
+    "keywords": [
+        "laravel",
+        "javascript",
+        "spa",
+        "ajax",
+        "dom",
+        "live",
+        "livedomjs",
+        "reactivity",
+        "frontend",
+        "dynamic-ui",
+        "binding",
+        "laravel-package"
+    ],
+    "authors": [
+        {
+            "name": "Gading Rengga",
+            "email": "gading.rengga@gmail.com"
+        }
+    ],
     "require": {
         "php": "^8.0",
         "laravel/framework": "^9.0|^10.0"
