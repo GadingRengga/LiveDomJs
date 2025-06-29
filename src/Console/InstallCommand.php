@@ -12,13 +12,22 @@ class InstallCommand extends Command
 
     public function handle()
     {
-        // Publish assets
+        // Publish asset
         $this->call('vendor:publish', ['--tag' => 'livedomjs-assets']);
 
-        // Add route
-        $route = "\nRoute::any('/ajax/{controller}/{action}', [\\GadingRengga\\LiveDomJS\\Http\\Controllers\\AjaxController::class, 'handle']);\n";
-        File::append(base_path('routes/web.php'), $route);
+        // Tambahkan route ajax jika belum ada
+        $routeFile = base_path('routes/web.php');
+        $routeDefinition = "Route::any('/ajax/{controller}/{action}', [\\GadingRengga\\LiveDomJS\\Http\\Controllers\\AjaxController::class, 'handle']);";
 
-        $this->info('LiveDomJS berhasil diinstall!');
+        $existing = File::get($routeFile);
+
+        if (!str_contains($existing, $routeDefinition)) {
+            File::append($routeFile, "\n\n// LiveDomJs AJAX Route\n" . $routeDefinition . "\n");
+            $this->info('✅ Route AJAX LiveDomJs berhasil ditambahkan.');
+        } else {
+            $this->info('ℹ️ Route AJAX LiveDomJs sudah ada.');
+        }
+
+        $this->info('🎉 LiveDomJS berhasil diinstall!');
     }
 }
