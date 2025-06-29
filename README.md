@@ -21,21 +21,19 @@
 
 ### 1. Install package via Composer
 
-```bash
 composer require gadingrengga/livedomjs
 
+### 2. Jalankan perintah instalasi
 
-2. Jalankan perintah instalasi
-```bash
 php artisan livedomjs:install
 
 
-3. Tambahkan script ke layout Blade
-```blade
+### 3. Tambahkan script ke layout Blade
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="{{ asset('vendor/livedomjs/livedom.js') }}"></script>
 
-🗂️ Struktur Package
+## 🗂️ Struktur Package
 LiveDomJs/
 ├── composer.json
 ├── resources/
@@ -49,18 +47,18 @@ LiveDomJs/
 │   └── index.html
 └── README.md
 
-🚀 Roadmap
+## 🚀 Roadmap
  SPA pushState navigation
 
  AJAX dynamic binding
 
  Error modal system
 
-📖 Dokumentasi Lengkap
+## 📖 Dokumentasi Lengkap
 👉 Buka dokumentasi online:
 🌐 https://gadingrengga.github.io/LiveDomJs
 
-👤 Author
+## 👤 Author
 Gading Rengga
 📧 gading.rengga@gmail.com
 🐙 github.com/GadingRengga
