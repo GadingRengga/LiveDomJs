@@ -1,337 +1,188 @@
 (function ($) {
-  'use strict';
+  
+  /*==============================
+    AJAX DYNAMIC
+  ==============================*/
 
-  /* ==============================
-  CORE AJAX FUNCTIONALITY
-  ============================== */
-  const ajaxControllers = {};
+  const ajaxDynamicControllers = {};
 
-  /**
-   * Handles AJAX requests with advanced features
-   * @param {string} method - HTTP method (GET, POST, etc)
-   * @param {string} controller - Controller name
-   * @param {string} action - Action name
-   * @param {Object|FormData} data - Request data
-   * @param {string} target - Target type ('html' or function name)
-   * @param {string} targetId - DOM selector
-   * @param {boolean} loading - Show loading indicator
-   * @param {function} callback - Custom callback
-   */
-  function ajaxRequest(
-    method = 'POST',
-    controller,
-    action,
-    data = {},
-    target = 'html',
-    targetId = '#',
-    loading = true,
-    callback = null
+  function ajaxDynamic(
+      method = 'POST',
+      controller,
+      action,
+      data = {},
+      target = 'html',
+      targetId = '#',
+      loading = true,
+      callback = null
   ) {
-    const requestKey = targetId || `${controller}_${action}`;
-    
-    // Cancel previous request if exists
-    if (ajaxControllers[requestKey]) {
-      ajaxControllers[requestKey].abort();
-    }
+      // Buat key untuk target agar tiap target punya request sendiri
+      const key = targetId || `${controller}_${action}`;
 
-    const abortController = new AbortController();
-    ajaxControllers[requestKey] = abortController;
+      // Batalkan request sebelumnya jika ada
+      if (ajaxDynamicControllers[key]) {
+          ajaxDynamicControllers[key].abort(); // ⛔ batalkan
+      }
 
-    if (loading) {
-      showLoadingIndicator(targetId);
-    }
+      // Buat controller baru untuk request ini
+      const abortController = new AbortController();
+      ajaxDynamicControllers[key] = abortController;
 
-    const isFormData = data instanceof FormData;
-    const config = {
-      url: `/ajax/${controller}/${action}`,
-      method: method,
-      headers: method !== 'GET' && !isFormData ? {
-        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-      } : {},
-      data: method === 'GET' ? data : (isFormData ? data : JSON.stringify(data)),
-      contentType: method === 'GET' ? undefined : (isFormData ? false : 'application/json'),
-      processData: isFormData ? false : true,
-      cache: false,
-      signal: abortController.signal
-    };
+      if (loading) {
+          showTargetLoading(targetId);
+      }
 
-    $.ajax(config)
-      .done(response => handleSuccess(response, targetId, loading, target, callback))
-      .fail((jqXHR, textStatus) => handleError(jqXHR, textStatus, targetId, loading));
+      const isFormData = data instanceof FormData;
+
+      $.ajax({
+          url: `/ajax/${controller}/${action}`,
+          method: method,
+          headers: method !== 'GET' && !isFormData ? {
+              'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+          } : {},
+          data: method === 'GET' ? data : (isFormData ? data : JSON.stringify(data)),
+          contentType: method === 'GET' ? undefined : (isFormData ? false : 'application/json'),
+          processData: isFormData ? false : true,
+          cache: false,
+          signal: abortController.signal, // ⬅️ tambahkan signal abort
+
+          success: function (response) {
+              if (loading) {
+                  hideTargetLoading(targetId);
+              }
+
+              // Hapus controller agar tidak menumpuk
+              delete ajaxDynamicControllers[key];
+
+              if (typeof callback === 'function') {
+                  callback(response);
+              } else {
+                  callBackAjaxDynamic(target, targetId, response);
+              }
+          },
+
+          error: function (jqXHR, textStatus) {
+              if (loading) {
+                  targetId !== '#' ? hideTargetLoading(targetId) : $(".loading").hide();
+              }
+
+              delete ajaxDynamicControllers[key]; // bersihkan controller
+
+              if (textStatus === 'abort') {
+                  // ❌ Request dibatalkan → jangan lanjut
+                  return;
+              }
+
+              const contentType = jqXHR.getResponseHeader('content-type') || '';
+              const isHtmlResponse = contentType.includes('text/html');
+
+              if (isHtmlResponse) {
+                  showErrorModal(jqXHR.responseText);
+                  return;
+              }
+
+              let json = {};
+              try {
+                  json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
+              } catch (e) {
+                  json = { message: 'Unparsable response', raw: jqXHR.responseText };
+              }
+
+              showErrorModal(json);
+          }
+      });
   }
 
-  function handleSuccess(response, targetId, loading, target, callback) {
-    if (loading) {
-      hideLoadingIndicator(targetId);
-    }
-
-    if (typeof callback === 'function') {
-      callback(response);
-    } else {
-      processResponse(target, targetId, response);
-    }
-  }
-
-  function handleError(jqXHR, textStatus, targetId, loading) {
-    if (loading) {
-      targetId !== '#' ? hideLoadingIndicator(targetId) : $(".loading").hide();
-    }
-
-    if (textStatus === 'abort') return;
-
-    const contentType = jqXHR.getResponseHeader('content-type') || '';
-    const isHtmlResponse = contentType.includes('text/html');
-
-    if (isHtmlResponse) {
-      showErrorModal(jqXHR.responseText);
-      return;
-    }
-
-    let errorData = {};
-    try {
-      errorData = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
-    } catch (e) {
-      errorData = { message: 'Unparsable response', raw: jqXHR.responseText };
-    }
-
-    showErrorModal(errorData);
-  }
-
-  function processResponse(target, targetId, response) {
-    if (response.success) {
-      if (typeof target === "string" && target !== "html" && window[target]) {
-        window[target](response.data, targetId);
-      } else if (target === "html") {
-        $(targetId).html(response.data);
-      } else if (typeof target == "function") {
-        target(response.data, targetId);
-      }
-    } else {
-      console.error('Error:', response.message);
-    }
-  }
-
-  /* ==============================
-    LOADING INDICATORS
-  ============================== */
-  function showLoadingIndicator(targetId) {
-    const $target = $(targetId);
-    if ($target.length === 0) return;
-
-    $target.find('.dynamic-loading-overlay').remove();
-
-    const $overlay = $(`
-      <div class="dynamic-loading-overlay">
-        <div class="spinner-glow"></div>
-      </div>
-    `).css({
-      position: 'absolute',
-      inset: 0,
-      background: 'rgba(255, 255, 255, 0.75)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 50,
-      borderRadius: 'inherit',
-      animation: 'fadeIn 0.3s ease-in-out'
-    });
-
-    injectSpinnerStyles();
-    ensureTargetPositioning($target);
-    $target.append($overlay);
-  }
-
-  function hideLoadingIndicator(targetId) {
-    $(targetId).find('.dynamic-loading-overlay').fadeOut(300, function () {
-      $(this).remove();
-    });
-  }
-
-  function injectSpinnerStyles() {
-    if ($('#spinner-style').length) return;
-
-    const spinnerCSS = `
-      @keyframes spinnerFade {
-        0%, 100% { opacity: 0.3; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
-      .spinner-glow {
-        width: 32px;
-        height: 32px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
-        animation: spinnerFade 1s infinite ease-in-out;
-        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      .dynamic-loading-overlay {
-        transition: opacity 0.3s ease;
-      }
-    `;
-
-    $('head').append(`<style id="spinner-style">${spinnerCSS}</style>`);
-  }
-
-  function ensureTargetPositioning($target) {
-    if ($target.css('position') === 'static') {
-      $target.css('position', 'relative');
-    }
-  }
-
-  /* ==============================
-    ERROR HANDLING
-  ============================== */
-  function showErrorModal(errorContent) {
-    removeExistingModal();
-
-    const modalHTML = `
-      <div id="spa-error-modal">
-        <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
-          <div id="spa-error-header">
-            <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
-            <button id="spa-error-close" aria-label="Close modal">&times;</button>
-          </div>
-          <div id="spa-error-content"></div>
-        </div>
-      </div>
-    `;
-
-    const modalCSS = `
-      #spa-error-modal {
-        position: fixed; inset: 0;
-        background: rgba(0,0,0,0.6);
-        z-index: 99999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: system-ui, sans-serif;
-      }
-      #spa-error-box {
-        position: relative;
-        background: #fff;
-        border-radius: 12px;
-        width: 95%;
-        max-width: 1000px;
-        height: 90%;
-        box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-        border: 1px solid #e5e7eb;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      #spa-error-header {
-        background-color: #fef2f2;
-        padding: 12px 20px;
-        border-bottom: 1px solid #fca5a5;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      #spa-error-header h3 {
-        margin: 0;
-        font-size: 16px;
-        color: #b91c1c;
-      }
-      #spa-error-close {
-        font-size: 22px;
-        font-weight: bold;
-        color: #b91c1c;
-        cursor: pointer;
-        background: transparent;
-        border: none;
-        line-height: 1;
-        padding: 0;
-        user-select: none;
-      }
-      #spa-error-content {
-        padding: 20px;
-        overflow: auto;
-        flex: 1;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        color: #222;
-        background: #fff;
-        border-top: 1px solid #eee;
-      }
-      @media (max-width: 640px) {
-        #spa-error-box {
-          width: 98%;
-          height: 95%;
-        }
-      }
-    `;
-
-    $('head').append(`<style id="error-modal-style">${modalCSS}</style>`);
-    $('body').append(modalHTML);
-
-    const $modal = $('#spa-error-modal');
-    const $content = $('#spa-error-content');
-
-    try {
-      const parsedError = typeof errorContent === 'string' ? 
-        JSON.parse(errorContent) : errorContent;
-      
-      if (parsedError && typeof parsedError === 'object' && parsedError.message) {
-        $content.html(formatErrorDetails(parsedError));
+  function callBackAjaxDynamic(target,targetId, response) {
+      if (response.success) {
+          // Cek jika data berupa HTML dan perlu dimasukkan ke dalam elemen
+          if (typeof target === "string" && target !== "html" && window[target]) {
+              window[target](response.data, targetId);
+          } else if (target === "html") {
+              // Jika response berupa string (HTML), masukkan ke target
+              $(`${targetId}`).html(response.data);
+          }else if (typeof target == "function") {
+              target(response.data, targetId);
+          }
+          
       } else {
-        $content.html(errorContent);
+          console.log('Error', response.message);
       }
-    } catch {
-      $content.html(errorContent);
-    }
-
-    $modal.on('click', '#spa-error-close', () => $modal.remove());
-    $modal.on('click', e => {
-      if (e.target === $modal[0]) $modal.remove();
-    });
   }
 
-  function removeExistingModal() {
-    $('#spa-error-modal').remove();
-    $('#error-modal-style').remove();
+  function showTargetLoading(targetId) {
+      const $target = $(targetId);
+      if ($target.length === 0) return;
+
+      // Hapus loading lama jika ada
+      $target.find('.dynamic-loading-overlay').remove();
+
+      const $overlay = $(`
+          <div class="dynamic-loading-overlay" style="
+              position: absolute;
+              inset: 0;
+              background: rgba(255, 255, 255, 0.75);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 50;
+              border-radius: inherit;
+              animation: fadeIn 0.3s ease-in-out;
+          ">
+              <div class="spinner-glow"></div>
+          </div>
+      `);
+
+      // Tambahkan style untuk spinner
+      const spinnerStyle = `
+      <style>
+      @keyframes spinnerFade {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+      }
+
+      .spinner-glow {
+          width: 32px;
+          height: 32px;
+          border-radius: 9999px;
+          background: linear-gradient(135deg, #6366f1, #ec4899);
+          animation: spinnerFade 1s infinite ease-in-out;
+          box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
+      }
+
+      @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+      }
+
+      .dynamic-loading-overlay {
+          transition: opacity 0.3s ease;
+      }
+      </style>`;
+
+      if (!$('head').find('#spinner-style').length) {
+          $('head').append(`<style id="spinner-style">${spinnerStyle}</style>`);
+      }
+
+      // Pastikan target punya position: relative agar overlay bisa diposisikan
+      if ($target.css('position') === 'static') {
+          $target.css('position', 'relative');
+      }
+
+      $target.append($overlay);
   }
 
-  function formatErrorDetails(error) {
-    const { message = 'Unknown error', exception = '', file = '', line = '', trace = {} } = error;
-
-    const traceItems = Object.values(trace).map((frame, idx) => {
-      const ffile = frame.file || 'unknown file';
-      const fline = frame.line || '';
-      const func = frame.function || '';
-      const className = frame.class || '';
-      const type = frame.type || '';
-      const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
-
-      return `
-        <li style="margin-bottom:6px;">
-          <div><strong>#${idx}</strong> ${fullFunc}</div>
-          <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
-        </li>
-      `;
-    }).join('');
-
-    return `
-      <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
-      <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
-      <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
-      <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
-      <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
-        <summary style="font-weight:bold; cursor:pointer; user-select:none;">
-          Stack Trace (${Object.keys(trace).length} frames)
-        </summary>
-        <ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">
-          ${traceItems}
-        </ol>
-      </details>
-    `;
+  function hideTargetLoading(targetId) {
+      const $target = $(targetId);
+      $target.find('.dynamic-loading-overlay').fadeOut(300, function () {
+          $(this).remove();
+      });
   }
 
-  /* ==============================
-     UTILITY FUNCTIONS
-  ============================== */
+  /*==============================
+    UTILITIES
+  ==============================*/
+
   function debounce(func, wait) {
     let timeout;
     return function (...args) {
@@ -339,6 +190,8 @@
       timeout = setTimeout(() => func.apply(this, args), wait);
     };
   }
+
+  const debouncedAjaxDynamic = debounce(ajaxDynamic, 300);
 
   function camelToKebab(str) {
     return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
@@ -377,59 +230,47 @@
     });
   }
 
-  /* ==============================
-     EVENT HANDLERS
-  ============================== */
+  /*==============================
+    LIVE EVENT HANDLER
+  ==============================*/
+
   function resolveMethodType($el, eventType, formSelector) {
-    let method = 'POST';
+    let methodType = 'POST';
     if (eventType === 'submit' && formSelector) {
-      method = ($(formSelector).attr('method') || 'POST').toUpperCase();
+      methodType = ($(formSelector).attr('method') || 'POST').toUpperCase();
     }
     if ($el.attr('live-method')) {
-      method = $el.attr('live-method').toUpperCase();
+      methodType = $el.attr('live-method').toUpperCase();
     }
-    return method;
+    return methodType;
   }
 
   function extractData($el, formSelector) {
     if (formSelector) {
       const $form = $(formSelector);
       return $form.length ? new FormData($form[0]) : {};
+    } else {
+      const $scope = $el.closest('[live-scope]');
+      const data = {};
+      $scope.find('input[name], select[name], textarea[name]').each(function () {
+        data[$(this).attr('name')] = $(this).val();
+      });
+      return data;
     }
-    
-    const $scope = $el.closest('[live-scope]');
-    const data = {};
-    $scope.find('input[name], select[name], textarea[name]').each(function () {
-      data[$(this).attr('name')] = $(this).val();
-    });
-    return data;
   }
 
-  function extractElementContent($el) {
-    if ($el.is('input, select, textarea')) return $el.val();
-    if ($el.data('content') !== undefined) return $el.data('content');
-    if ($el.attr('live-content') !== undefined) return $el.attr('live-content');
-    
-    const html = $el.html()?.trim();
-    if (html) return html;
-    
-    const text = $el.text()?.trim();
-    if (text) return text;
-    
-    return '';
-  }
+  /*==============================
+    LIVE ANIMATION
+  ==============================*/
 
-  /* ==============================
-     ANIMATION HANDLERS
-  ============================== */
-  function handleAnimation($el) {
+  function handleLiveAnimate($el) {
     const animateType = $el.attr('live-animate');
     if (!animateType) return false;
 
-    const duration = parseInt($el.attr('live-duration') || 300);
+    const duration = parseInt($el.attr('live-duration') || 300, 10);
     const easing = $el.attr('live-easing') || 'swing';
     const targetSelectors = $el.attr('live-target') || '';
-    const $targets = findLiveTargets($el, targetSelectors);
+    const $targets = liveTarget($el, targetSelectors);
 
     if (!$targets.length) return false;
 
@@ -457,42 +298,102 @@
           $target.stop(true, true).slideToggle(duration, easing);
           break;
         case 'slide-left':
-          animateSlide($target, '100%', -100, duration, easing, originalDisplay);
+          $target
+            .css({ transform: 'translateX(100%)', opacity: 0, display: 'block' })
+            .animate({ translateX: 0, opacity: 1 }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform', `translateX(${100 - now}%)`);
+              },
+              duration, easing,
+              complete: () => $target.css('transform', '')
+            });
           break;
         case 'slide-right':
-          animateSlide($target, '-100%', 100, duration, easing, originalDisplay);
+          $target
+            .css({ transform: 'translateX(-100%)', opacity: 0, display: 'block' })
+            .animate({ translateX: 0, opacity: 1 }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform', `translateX(${-100 + now}%)`);
+              },
+              duration, easing,
+              complete: () => $target.css('transform', '')
+            });
           break;
         case 'slide-horizontal-toggle':
           if ($target.is(':visible')) {
-            animateSlideOut($target, 100, duration, easing);
+            $target.animate({ translateX: 100, opacity: 0 }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform', `translateX(${now}%)`);
+              },
+              duration, easing,
+              complete: () => $target.hide().css('transform', '')
+            });
           } else {
-            animateSlide($target, '-100%', 100, duration, easing, originalDisplay);
+            $target
+              .css({ transform: 'translateX(-100%)', opacity: 0, display: 'block' })
+              .animate({ translateX: 0, opacity: 1 }, {
+                step: (now, fx) => {
+                  if (fx.prop === 'translateX') $target.css('transform', `translateX(${-100 + now}%)`);
+                },
+                duration, easing,
+                complete: () => $target.css('transform', '')
+              });
           }
           break;
         case 'zoom-in':
-          animateZoom($target, 0, 1, duration, easing, originalDisplay);
+          $target
+            .css({ transform: 'scale(0)', display: originalDisplay })
+            .animate({ scale: 1 }, {
+              step: (now, fx) => {
+                if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
+              },
+              duration, easing,
+              complete: () => $target.css('transform', 'scale(1)')
+            });
           break;
         case 'zoom-out':
-          animateZoom($target, 1, 0, duration, easing, originalDisplay, true);
+          $target.animate({ scale: 0 }, {
+            step: (now, fx) => {
+              if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
+            },
+            duration, easing,
+            complete: () => $target.hide().css('transform', 'scale(1)')
+          });
           break;
         case 'zoom-toggle':
           $el.attr('live-animate', $target.is(':visible') ? 'zoom-out' : 'zoom-in');
-          handleAnimation($el);
+          handleLiveAnimate($el);
           $el.attr('live-animate', 'zoom-toggle');
           break;
         case 'scale-up':
-          animateScale($target, 0.8, 1, duration, easing, originalDisplay);
+          $target
+            .css({ transform: 'scale(0.8)', display: originalDisplay })
+            .animate({ scale: 1 }, {
+              step: (now, fx) => {
+                if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
+              },
+              duration, easing,
+              complete: () => $target.css('transform', '')
+            });
           break;
         case 'scale-down':
-          animateScale($target, 1, 0.8, duration, easing, originalDisplay, true);
+          $target.animate({ scale: 0.8 }, {
+            step: (now, fx) => {
+              if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
+            },
+            duration, easing,
+            complete: () => $target.hide().css('transform', '')
+          });
           break;
         case 'scale-toggle':
           $el.attr('live-animate', $target.is(':visible') ? 'scale-down' : 'scale-up');
-          handleAnimation($el);
+          handleLiveAnimate($el);
           $el.attr('live-animate', 'scale-toggle');
           break;
         default:
-          handleCustomAnimation($target, animateType, duration);
+          // Animasi custom class CSS
+          $target.addClass(animateType);
+          setTimeout(() => $target.removeClass(animateType), duration);
           break;
       }
     });
@@ -500,88 +401,33 @@
     return true;
   }
 
-  function animateSlide($target, startPos, endPos, duration, easing, display) {
-    $target.css({ transform: `translateX(${startPos})`, opacity: 0, display })
-      .animate({ translateX: endPos, opacity: 1 }, {
-        step: (now, fx) => {
-          if (fx.prop === 'translateX') {
-            $target.css('transform', `translateX(${endPos - now}%)`);
-          }
-        },
-        duration,
-        easing,
-        complete: () => $target.css('transform', '')
-      });
-  }
 
-  function animateSlideOut($target, endPos, duration, easing) {
-    $target.animate({ translateX: endPos, opacity: 0 }, {
-      step: (now, fx) => {
-        if (fx.prop === 'translateX') $target.css('transform', `translateX(${now}%)`);
-      },
-      duration,
-      easing,
-      complete: () => $target.hide().css('transform', '')
-    });
-  }
 
-  function animateZoom($target, startScale, endScale, duration, easing, display, hideOnComplete = false) {
-    $target.css({ transform: `scale(${startScale})`, display })
-      .animate({ scale: endScale }, {
-        step: (now, fx) => {
-          if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-        },
-        duration,
-        easing,
-        complete: () => {
-          if (hideOnComplete) {
-            $target.hide().css('transform', 'scale(1)');
-          } else {
-            $target.css('transform', 'scale(1)');
-          }
-        }
-      });
-  }
 
-  function animateScale($target, startScale, endScale, duration, easing, display, hideOnComplete = false) {
-    $target.css({ transform: `scale(${startScale})`, display })
-      .animate({ scale: endScale }, {
-        step: (now, fx) => {
-          if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-        },
-        duration,
-        easing,
-        complete: () => {
-          if (hideOnComplete) {
-            $target.hide().css('transform', '');
-          } else {
-            $target.css('transform', '');
-          }
-        }
-      });
-  }
 
-  function handleCustomAnimation($target, animateType, duration) {
-    $target.addClass(animateType);
-    setTimeout(() => $target.removeClass(animateType), duration);
-  }
-
-  /* ==============================
-     ACTION HANDLERS
-  ============================== */
-  function handleAction($el) {
+  /*==============================
+    LIVE ACTION
+  ==============================*/
+  function handleLiveAction($el) {
     const actionAttr = $el.attr('live-action');
     if (!actionAttr) return false;
 
     const targetAttr = $el.attr('live-target');
-    const targetList = targetAttr ? targetAttr.split(',').map(s => s.trim()) : ['self'];
-    const actions = actionAttr.split(',').map(a => a.trim()).filter(Boolean);
+    const targetList = targetAttr
+      ? targetAttr.split(',').map(s => s.trim())
+      : ['self']; // fallback default
+
+    const actions = actionAttr
+      .split(',')
+      .map(a => a.trim())
+      .filter(Boolean);
 
     let halted = false;
 
     targetList.forEach((targetExpr, i) => {
-      const actionStr = actions[i] || actions[actions.length - 1];
-      const $targets = findLiveTargets($el, targetExpr);
+      const actionStr = actions[i] || actions[actions.length - 1]; // fallback ke terakhir
+      const $targets = liveTarget($el, targetExpr);
+
       const [type, value] = actionStr.split(':').map(s => s.trim());
 
       $targets.each(function () {
@@ -632,70 +478,69 @@
     return halted;
   }
 
-  function findLiveTargets($el, targetSelector) {
-    const targets = [];
-    const selectors = targetSelector.split(',').map(s => s.trim());
+  function liveTarget($el, targetSelector) {
+      const targets = [];
+      const selectors = targetSelector.split(',').map(s => s.trim());
 
-    for (let sel of selectors) {
+      for (let sel of selectors) {
       let $target = null;
+
       const match = sel.match(/^(\w+)(\(([^)]+)\))?$/);
-
       if (match) {
-        const method = match[1];
-        const param = match[3] ? match[3].trim() : null;
+          const method = match[1];
+          const param = match[3] ? match[3].trim() : null;
 
-        switch (method) {
-          case 'closest':
-            if (param) $target = $el.closest(param);
-            break;
-          case 'find':
-            if (param) $target = $el.find(param);
-            break;
-          case 'parent':
-            $target = $el.parent();
-            break;
-          case 'children':
-            $target = $el.children(param || undefined);
-            break;
-          case 'next':
-            $target = param ? $el.next(param) : $el.next();
-            break;
-          case 'prev':
-            $target = param ? $el.prev(param) : $el.prev();
-            break;
-          case 'siblings':
-            $target = param ? $el.siblings(param) : $el.siblings();
-            break;
-          case 'self':
-            $target = $el;
-            break;
-          default:
-            $target = $(sel);
-            break;
-        }
+          switch (method) {
+              case 'closest':
+                  if (param) $target = $el.closest(param);
+                  break;
+              case 'find':
+                  if (param) $target = $el.find(param);
+                  break;
+              case 'parent':
+                  $target = $el.parent();
+                  break;
+              case 'children':
+                  $target = $el.children(param || undefined);
+                  break;
+              case 'next':
+                  $target = param ? $el.next(param) : $el.next();
+                  break;
+              case 'prev':
+                  $target = param ? $el.prev(param) : $el.prev();
+                  break;
+              case 'siblings':
+                  $target = param ? $el.siblings(param) : $el.siblings();
+                  break;
+              case 'self':
+                  $target = $el;
+                  break;
+              default:
+                  // Jika method tidak dikenali, fallback global selector
+                  $target = $(sel);
+                  break;
+          }
       } else {
-        $target = $(sel);
+          // Tidak match method prefix, fallback global selector
+          $target = $(sel);
       }
 
       if ($target && $target.length) {
-        targets.push(...$target.toArray());
+          targets.push(...$target.toArray());
       }
-    }
-
-    return $(targets);
+  }
+      return $(targets);
   }
 
-  /* ==============================
-     LIVE EVENT PROCESSING
-  ============================== */
   function handleLiveEvent($el, eventType) {
-    if (handleAction($el)) return;
-    if (handleAnimation($el)) return;
+    // Langkah 1: Jalankan action atau animasi jika ada
+    if (handleLiveAction($el)) return;
+    if (handleLiveAnimate($el)) return;
 
     const method = $el.attr(`live-${eventType}`);
     const domAction = $el.attr('live-dom') || 'html';
     const targetSelector = $el.attr('live-target');
-    const $targets = targetSelector ? findLiveTargets($el, targetSelector) : $el;
+    const $targets = targetSelector ? liveTarget($el, targetSelector) : $el;
 
     const formSelector = $el.closest('form').length ? $el.closest('form') : null;
     const controller = $el.closest('[live-scope]').attr('live-scope');
@@ -705,13 +550,23 @@
     const loadingIndicator = $el.attr('live-loading-indicator');
     const dataArgs = $el.attr('live-data');
 
+    // Langkah 2: Callback sebelum eksekusi
     const beforeCallback = $el.attr('live-callback-before');
     if (beforeCallback && typeof window[beforeCallback] === 'function') {
       const result = window[beforeCallback]($el[0]);
-      handleCallbackResult(result, proceed);
+
+      if (result instanceof Promise) {
+        result.then(ok => {
+          if (ok !== false) proceed();
+        }).catch(() => { });
+      } else if (result !== false) {
+        proceed();
+      }
+
       return;
     }
 
+    // Langkah 3: Lanjutkan jika tidak ada before-callback
     proceed();
 
     function proceed() {
@@ -720,6 +575,7 @@
 
       if (loadingIndicator) $(loadingIndicator).show();
 
+      // Langkah 4A: Ajax mode (ada live-click / live-change / etc)
       if (method) {
         const callback = function (response) {
           if (response.success && typeof response.data === 'object') {
@@ -739,6 +595,7 @@
             });
           }
 
+          // After callback
           const afterCallback = $el.attr('live-callback-after');
           if (afterCallback && typeof window[afterCallback] === 'function') {
             window[afterCallback]($el[0], response);
@@ -747,13 +604,15 @@
           document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
         };
 
-        debounce(ajaxRequest, 300)(methodType, controller, method, data, '', '', loading, callback);
+        debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
+
       } else {
+        // Langkah 4B: Local mode (tidak ada live-click / live-change)
         const content = extractElementContent($el);
 
         if (domAction === 'remove') {
           $targets.remove();
-          handleLiveCompute();
+          handleLiveComputeUnified();
           return;
         }
 
@@ -773,19 +632,34 @@
     }
   }
 
-  function handleCallbackResult(result, proceed) {
-    if (result instanceof Promise) {
-      result.then(ok => {
-        if (ok !== false) proceed();
-      }).catch(() => { });
-    } else if (result !== false) {
-      proceed();
+
+
+  function extractElementContent($el) {
+    if ($el.is('input, select, textarea')) {
+      return $el.val();
     }
+
+    if ($el.data('content') !== undefined) {
+      return $el.data('content');
+    }
+
+    if ($el.attr('live-content') !== undefined) {
+      return $el.attr('live-content');
+    }
+
+    const html = $el.html()?.trim();
+    if (html) return html;
+
+    const text = $el.text()?.trim();
+    if (text) return text;
+
+    return '';
   }
 
-  /* ==============================
-     POLLING HANDLERS
-  ============================== */
+  /*==============================
+    POLLERS
+  ==============================*/
+
   function handlePollers() {
     $('[live-poll]').each(function () {
       const $el = $(this);
@@ -795,15 +669,16 @@
       const target = '#' + $el.attr('id');
 
       setInterval(() => {
-        ajaxRequest('GET', controller, method, {}, 'html', target);
+        ajaxDynamic('GET', controller, method, {}, 'html', target);
       }, interval);
     });
   }
 
-  /* ==============================
-     COMPUTATION HANDLERS
-  ============================== */
-  function handleLiveCompute(scope) {
+  /*==============================
+    LIVE-COMPUTE
+  ==============================*/
+
+  function handleLiveComputeUnified(scope) {
     const $scope = $(scope || document);
 
     function toNumber(val) {
@@ -833,7 +708,7 @@
       $scope.find('input[name], select[name], textarea[name]').each(function () {
         const rawName = $(this).attr('name');
         const jsName = sanitizeInputNameToJSVariable(rawName);
-        globalInputs[jsName] = $(this).val();
+        globalInputs[jsName] = $(this).val(); // Simpan string valuenya untuk date
       });
 
       const indices = new Set();
@@ -878,7 +753,7 @@
       }
 
       let result;
-      const context = { rangeDate };
+      const context = { rangeDate }; // context tambahan
 
       if (expr.includes('?')) {
         result = 0;
@@ -912,9 +787,10 @@
     });
   }
 
-  /* ==============================
-     CONDITIONAL HANDLERS
-  ============================== */
+  /*==============================
+    LIVE-IF
+  ==============================*/
+
   function handleLiveIf(scope) {
     const $scope = $(scope || document);
 
@@ -939,6 +815,7 @@
       }
     }
 
+    // Bind event hanya sekali per scope
     if (!$scope.data('live-if-listener-bound')) {
       $scope.on('input change', 'input[name], select[name], textarea[name]', () => {
         handleLiveIf($scope);
@@ -951,7 +828,7 @@
       const expr = $el.attr('live-if');
       const actions = ($el.attr('live-action') || 'show').split(/\s+/).filter(Boolean);
       const targetSelector = $el.attr('live-target');
-      const $targets = targetSelector ? findLiveTargets($el, targetSelector) : $el;
+      const $targets = targetSelector ? liveTarget($el, targetSelector) : $el;
 
       const context = {};
       $scope.find('input[name], select[name], textarea[name]').each(function () {
@@ -994,9 +871,11 @@
     });
   }
 
-  /* ==============================
-     ACCORDION HANDLERS
-  ============================== */
+
+  /*==============================
+    ACCORDION
+  ==============================*/
+  
   function handleAccordionClick($el) {
     const $row = $el.closest('tr');
     if (!$row.length) return;
@@ -1010,9 +889,9 @@
     const $icon = iconSelector ? $el.find(iconSelector) : $el.find('.accordion-icon');
 
     const targetSelector = $el.attr('live-target');
-    const $target = targetSelector ? findLiveTargets($el, targetSelector) : null;
+    const $target = targetSelector ? liveTarget($el, targetSelector) : null;
 
-    // Close accordion
+    // ✅ Tutup Accordion
     if (isOpen) {
       if ($target?.length) {
         $target.slideUp(200, function () { $(this).remove(); });
@@ -1028,20 +907,23 @@
       return;
     }
 
-    // Open accordion
+    // ✅ Buka Accordion
     $icon.removeClass('rotate-0').addClass('rotate-90');
     $el.data('accordion-open', true);
 
+    // Jika panel sudah ada (cached), langsung tampilkan ulang
     if ($row.data('accordion-tr')) {
       $row.data('accordion-tr').slideDown(200);
       return;
     }
 
+    // Jika target sudah ada, langsung tampilkan
     if ($target?.length) {
       $target.slideDown(200);
       return;
     }
 
+    // Jika butuh ambil via Ajax
     const $table = $row.closest('table');
     const colCount = getTableColumnCount($table);
 
@@ -1060,17 +942,20 @@
       const callback = function (res) {
         if (res.success && res.data) {
           const $childRows = $(res.data);
+
           $loadingRow.replaceWith($childRows);
           $row.data('accordion-tr', $childRows);
+
           document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
         } else {
           $loadingRow.find('td').html('<div class="text-red-500">Failed to load content</div>');
         }
       };
 
-      debounce(ajaxRequest, 300)('POST', controller, method, data, '', '', true, callback);
+      debouncedAjaxDynamic('POST', controller, method, data, '', '', true, callback);
     }
   }
+
 
   function getTableColumnCount($table) {
     const $thead = $table.find('thead');
@@ -1081,6 +966,7 @@
       });
       return count;
     } else {
+      // If no thead, find max number of columns in tbody rows
       let maxCount = 0;
       $table.find('tbody tr').each(function () {
         let count = 0;
@@ -1092,11 +978,11 @@
       return maxCount || 1;
     }
   }
+  /*==============================
+    LIVE TRIGGER
+  ==============================*/
 
-  /* ==============================
-     TRIGGER HANDLERS
-  ============================== */
-  function initTriggerEvents() {
+  function initLiveTriggerEvents() {
     $(document).off('.live-trigger');
 
     const triggerAttributes = [
@@ -1120,11 +1006,12 @@
           $(document).on(`${eventName}.live-trigger`, function (e) {
             const $target = $(e.target);
             if (conditionFn($target, e)) {
-              if (!handleAction($el)) $el.trigger(eventType);
+              if (!handleLiveAction($el)) $el.trigger(eventType);
             }
           });
         };
 
+        // ---- outside(...) ----
         if (triggerValue.startsWith('outside(')) {
           const selector = triggerValue.match(/^outside\((.+?)\)$/)?.[1];
           bindHandler(eventType, selector, ($target) =>
@@ -1136,6 +1023,7 @@
           return;
         }
 
+        // ---- inside(...) ----
         if (triggerValue.startsWith('inside(')) {
           const selector = triggerValue.match(/^inside\((.+?)\)$/)?.[1];
           bindHandler(eventType, selector, ($target) =>
@@ -1144,21 +1032,24 @@
           return;
         }
 
+        // ---- this ----
         if (triggerValue === 'this') {
           $el.on(eventType, function () {
-            if (!handleAction($el)) $el.trigger(eventType);
+            if (!handleLiveAction($el)) $el.trigger(eventType);
           });
           return;
         }
 
+        // ---- parent ----
         if (triggerValue === 'parent') {
           const $parent = $el.parent();
           $parent.on(eventType, function (e) {
-            if (!handleAction($el)) $el.trigger(eventType);
+            if (!handleLiveAction($el)) $el.trigger(eventType);
           });
           return;
         }
 
+        // ---- selector langsung (e.g. .class, #id, div) ----
         if (triggerValue.match(/^(\.|#|[a-zA-Z])/)) {
           bindHandler(eventType, triggerValue, () => true);
           return;
@@ -1167,19 +1058,66 @@
     });
   }
 
-  /* ==============================
-     SPA ROUTER
-  ============================== */
-  function initSpaRouter() {
-    let currentController = null;
+  /*==============================
+    BINDING
+  ==============================*/
+
+  $(document).ready(function () {
+    $(document).on('click', '[live-click]', function () {
+      handleLiveEvent($(this), 'click');
+    });
+
+    $(document).on('mouseenter mouseleave', '[live-hover]', function () {
+      handleLiveEvent($(this), 'hover');
+    });
+
+    $(document).on('change', '[live-change]', function () {
+      handleLiveEvent($(this), 'change');
+    
+    });
+
+    $(document).on('submit', '[live-submit]', function (e) {
+      e.preventDefault();
+      handleLiveEvent($(this), 'submit');
+    });
+
+    $(document).on('keyup', '[live-keyup]', function () {
+      handleLiveEvent($(this), 'keyup');
+    });
+
+    $(document).on('input', '[live-input]', function () {
+      handleLiveEvent($(this), 'input');
+    });
+
+    $(document).on('input', '[live-bind]', function () {
+      handleLiveEvent($(this), 'input');
+    });
+
+    $(document).on('input change', '[live-model]', function () {
+      handleLiveEvent($(this), 'model');
+    });
+
+    $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea', function () {
+      handleLiveComputeUnified();
+    });
+
+    $(document).on('click', '[live-accordion]', function () {
+      handleAccordionClick($(this));
+    });
+
+    // ==============================
+    // SPA ROUTER INTEGRATION for liveDomJs
+    // ==============================
+
+    let currentSpaController = null;
 
     function ajaxSpa(method, url, data = null, callback, errorCallback) {
-      if (currentController) {
-        currentController.abort();
+      if (currentSpaController) {
+        currentSpaController.abort();
       }
 
-      currentController = new AbortController();
-      const signal = currentController.signal;
+      currentSpaController = new AbortController();
+      const signal = currentSpaController.signal;
 
       showLoadingBar();
 
@@ -1202,14 +1140,14 @@
         .then(async response => {
           const html = await response.text();
           if (!response.ok) {
-            showErrorModal(html);
+            showErrorModal(html); // ✅ tampilkan modal jika error
             throw new Error(`[${response.status}] ${response.statusText}`);
           }
           callback?.(html);
         })
         .catch(error => {
           if (error.name === 'AbortError') {
-            console.log('[SPA] Request canceled:', url);
+            console.log('[SPA] Request dibatalkan:', url);
             return;
           }
           console.error('ajaxSpa error:', error);
@@ -1224,12 +1162,11 @@
       const parser = new DOMParser();
       const doc = parser.parseFromString(responseHtml, 'text/html');
       const regions = document.querySelectorAll('[live-spa-region]');
-      
       regions.forEach(region => {
         const regionName = region.getAttribute('live-spa-region');
         const newRegion = doc.querySelector(`[live-spa-region="${regionName}"]`);
         if (newRegion) region.innerHTML = newRegion.innerHTML;
-        executeScripts(region);
+        executeSpaScriptsFrom(region); // ✅ Eksekusi ulang <script> di region
       });
     }
 
@@ -1291,6 +1228,7 @@
               clearFormErrors(form);
             },
             success: response => {
+              // Jika response JSON dan ada redirect URL
               if (response && typeof response === 'object' && response.redirect) {
                 const redirectUrl = response.redirect;
                 fetch(redirectUrl, {
@@ -1313,12 +1251,14 @@
                     callbackError?.(err);
                   });
               } else {
+                // Response biasa (HTML string)
                 callbackSuccess?.(response);
                 runAfterCallback(response, false);
               }
             },
             error: function (xhr) {
               if (xhr.status === 422) {
+                // Validasi form
                 const errors = xhr.responseJSON?.errors || {};
                 showFormErrors(form, errors);
               } else {
@@ -1326,9 +1266,9 @@
                 let content = xhr.responseText;
                 try {
                   const json = JSON.parse(content);
-                  showErrorModal(json);
+                  showErrorModal(json); // Modal error Laravel JSON
                 } catch {
-                  showErrorModal(content);
+                  showErrorModal(content); // Fallback HTML dump
                 }
               }
               callbackError?.(xhr);
@@ -1338,9 +1278,10 @@
           });
         })
         .catch(() => {
-          console.log('Form submit canceled by live-callback-before.');
+          console.log('Form submit dibatalkan oleh live-callback-before.');
         });
     }
+
 
     function clearFormErrors(form) {
       $(form).find('.is-invalid').removeClass('is-invalid');
@@ -1360,6 +1301,10 @@
       }
     }
 
+    // ==============================
+    // EVENT BINDING
+    // ==============================
+
     function isSpaExcluded(url) {
       try {
         const path = new URL(url, window.location.origin).pathname;
@@ -1371,11 +1316,15 @@
       }
     }
 
+
+
     $(document).on('click', '[live-spa-region] a[href]:not([href^="#"]):not([href=""])', function (e) {
       const url = $(this).attr('href');
       if (!url) return;
 
-      if (isSpaExcluded(url)) return;
+      if (isSpaExcluded(url)) {
+        return; // biarkan default load page
+      }
 
       e.preventDefault();
       loadSpaContent(url);
@@ -1413,6 +1362,7 @@
         return;
       }
 
+      // Form POST/PUT/DELETE via AJAX
       ajaxSpaFormSubmit(form, function (response) {
         if (typeof response === 'string') {
           updateSpaRegions(response);
@@ -1420,270 +1370,416 @@
           document.dispatchEvent(new CustomEvent('live-dom:afterSpa', { detail: { url } }));
           history.pushState({ spa: true, url }, '', url);
         } else if (response && typeof response === 'object' && response.redirect) {
-          console.log('SPA redirect already handled.');
+          // Redirect sudah ditangani di ajaxSpaFormSubmit, sini bisa kosong atau log
+          console.log('Redirect SPA sudah ditangani.');
         } else {
           console.log('Form SPA submit success:', response);
         }
       });
     });
-  }
 
-  /* ==============================
-     LOADING BAR
-  ============================== */
-  function initLoadingBar() {
-    const $loadingBar = $('<div id="loading-bar"></div>').css({
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      height: '3px',
-      width: '0%',
-      backgroundColor: '#2563eb',
-      zIndex: 99999,
-      transition: 'width 0.3s ease',
-      willChange: 'width',
-      display: 'none'
-    });
-    $('body').append($loadingBar);
-  }
+    // ==============================
+    // LOADING BAR
+    // ==============================
 
-  function showLoadingBar() {
-    $('#loading-bar').stop(true).css({ width: '0%', display: 'block' }).animate({ width: '80%' }, 800);
-  }
-
-  function hideLoadingBar() {
-    $('#loading-bar').stop(true).animate({ width: '100%' }, 300, function () {
-      $(this).fadeOut(200, function () {
-        $(this).css({ width: '0%' });
+    function initLoadingBar() {
+      const $loadingBar = $('<div id="loading-bar"></div>').css({
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '3px',
+        width: '0%',
+        backgroundColor: '#2563eb',
+        zIndex: 99999,
+        transition: 'width 0.3s ease',
+        willChange: 'width',
+        display: 'none'
       });
+      $('body').append($loadingBar);
+    }
+
+    function showLoadingBar() {
+      $('#loading-bar').stop(true).css({ width: '0%', display: 'block' }).animate({ width: '80%' }, 800);
+    }
+
+    function hideLoadingBar() {
+      $('#loading-bar').stop(true).animate({ width: '100%' }, 300, function () {
+        $(this).fadeOut(200, function () {
+          $(this).css({ width: '0%' });
+        });
+      });
+    }
+
+    // ==============================
+    // INIT
+    // ==============================
+
+    $(document).ready(function () {
+      initLoadingBar();
+      if (document.querySelector('[live-spa-region="main"]')) {
+        const currentUrl = window.location.href;
+        history.replaceState({ spa: true, url: currentUrl }, '', currentUrl);
+      }
     });
-  }
 
-  /* ==============================
-     SCRIPT HANDLING
-  ============================== */
-  const scriptCache = new Set();
+    // ==============================
+    // LIVE DOM ERROR HANDLE
+    // ==============================
+  function showErrorModal(rawHtmlOrJson) {
+      // Hapus modal sebelumnya jika ada
+      const existing = document.getElementById('spa-error-modal');
+      if (existing) existing.remove();
 
-  function executeScripts(container) {
-    const scripts = container.querySelectorAll('script');
+      // Modal container
+      const modal = document.createElement('div');
+      modal.id = 'spa-error-modal';
 
-    scripts.forEach(oldScript => {
-      const isExternal = oldScript.src?.trim() !== '';
-
-      if (isExternal) {
-        const src = oldScript.src;
-
-        if (scriptCache.has(src)) return;
-
-        const newScript = document.createElement('script');
-        newScript.src = src;
-        newScript.async = false;
-
-        for (const attr of oldScript.attributes) {
-          if (attr.name !== 'src') {
-            newScript.setAttribute(attr.name, attr.value);
+      modal.innerHTML = `
+        <style>
+          /* ... CSS sama seperti sebelumnya ... */
+          #spa-error-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, sans-serif;
           }
-        }
+          #spa-error-box {
+            position: relative;
+            background: #fff;
+            border-radius: 12px;
+            width: 95%;
+            max-width: 1000px;
+            height: 90%;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+          }
+          #spa-error-header {
+            background-color: #fef2f2;
+            padding: 12px 20px;
+            border-bottom: 1px solid #fca5a5;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          #spa-error-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #b91c1c;
+          }
+          #spa-error-close {
+            font-size: 22px;
+            font-weight: bold;
+            color: #b91c1c;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            line-height: 1;
+            padding: 0;
+            user-select: none;
+          }
+          #spa-error-content {
+            padding: 20px;
+            overflow: auto;
+            flex: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+              Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            color: #222;
+            background: #fff;
+            border-top: 1px solid #eee;
+          }
+          @media (max-width: 640px) {
+            #spa-error-box {
+              width: 98%;
+              height: 95%;
+            }
+          }
+        </style>
 
-        document.head.appendChild(newScript);
-        scriptCache.add(src);
+        <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
+          <div id="spa-error-header">
+            <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
+            <button id="spa-error-close" aria-label="Close modal">&times;</button>
+          </div>
+          <div id="spa-error-content"></div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const contentDiv = modal.querySelector('#spa-error-content');
+
+      // Coba parse json, kalau gagal berarti rawHtml lengkap (HTML)
+      let parsedJson = null;
+      try {
+        parsedJson = typeof rawHtmlOrJson === 'string' ? JSON.parse(rawHtmlOrJson) : rawHtmlOrJson;
+      } catch {
+        parsedJson = null;
+      }
+
+      if (parsedJson && typeof parsedJson === 'object' && parsedJson.message) {
+        // Jika json error, render pakai fungsi formatLaravelError agar rapi
+        contentDiv.innerHTML = formatLaravelError(parsedJson);
       } else {
-        const newScript = document.createElement('script');
-        let code = oldScript.textContent || '';
-        const trimmed = code.trim();
+        // Kalau bukan json, asumsi itu HTML langsung masukkan ke dalam div (atau iframe kalau mau)
+        // Untuk HTML lengkap dengan dump, lebih baik iframe, tapi disini pakai div:
+        contentDiv.innerHTML = rawHtmlOrJson;
+      }
 
-        const isAlreadyWrapped = /^\(\s*function\s*\(/.test(trimmed) || /^\(async\s+function\s*\(/.test(trimmed);
+      modal.querySelector('#spa-error-close').onclick = () => modal.remove();
 
-        if (!isAlreadyWrapped) {
-          code = `(function () {\n${code}\n})();`;
-        }
+      modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+      };
+    }
 
-        newScript.textContent = code;
+    // Fungsi format error JSON seperti yang sudah kamu punya
+    function formatLaravelError(err) {
+      const message = err.message || 'Unknown error';
+      const exception = err.exception || '';
+      const file = err.file || '';
+      const line = err.line || '';
+      const trace = err.trace || {};
 
-        for (const attr of oldScript.attributes) {
-          if (attr.name !== 'src') {
-            newScript.setAttribute(attr.name, attr.value);
+      let traceHtml = '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
+
+      Object.values(trace).forEach((frame, idx) => {
+        const ffile = frame.file || 'unknown file';
+        const fline = frame.line || '';
+        const func = frame.function || '';
+        const className = frame.class || '';
+        const type = frame.type || '';
+        const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
+
+        traceHtml += `
+          <li style="margin-bottom:6px;">
+            <div><strong>#${idx}</strong> ${fullFunc}</div>
+            <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
+          </li>`;
+      });
+
+      traceHtml += '</ol>';
+
+      return `
+        <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
+        <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
+        <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
+        <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
+        <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
+          <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
+          ${traceHtml}
+        </details>
+      `;
+    }
+
+    // ==============================
+    // LIVE DOM AUTO EVAL SCRIPT
+    // ==============================
+    // Script cache hanya untuk sesi ini, akan reset saat reload
+    const spaScriptCache = new Set();
+
+    /**
+     * Mengeksekusi ulang semua <script> dalam kontainer SPA
+     * @param {Element | Document} container
+     */
+    function executeSpaScriptsFrom(container) {
+      const scripts = container.querySelectorAll('script');
+
+      scripts.forEach(oldScript => {
+        const isExternal = oldScript.src?.trim() !== '';
+
+        // Eksternal script
+        if (isExternal) {
+          const src = oldScript.src;
+
+          if (spaScriptCache.has(src)) return;
+
+          const newScript = document.createElement('script');
+          newScript.src = src;
+          newScript.async = false;
+
+          // Copy atribut tambahan (misal type, integrity, crossorigin)
+          for (const attr of oldScript.attributes) {
+            if (attr.name !== 'src') {
+              newScript.setAttribute(attr.name, attr.value);
+            }
           }
+
+          document.head.appendChild(newScript);
+          spaScriptCache.add(src);
+        } else {
+          // Inline script – bungkus konten dalam IIFE
+          const newScript = document.createElement('script');
+
+          let code = oldScript.textContent || '';
+          const trimmed = code.trim();
+
+          // Hindari double-wrapping jika sudah pakai IIFE
+          const isAlreadyWrapped = /^\(\s*function\s*\(/.test(trimmed) || /^\(async\s+function\s*\(/.test(trimmed);
+
+          if (!isAlreadyWrapped) {
+            code = `(function () {\n${code}\n})();`;
+          }
+
+          newScript.textContent = code;
+
+          // Copy atribut selain src
+          for (const attr of oldScript.attributes) {
+            if (attr.name !== 'src') {
+              newScript.setAttribute(attr.name, attr.value);
+            }
+          }
+
+          document.head.appendChild(newScript);
+        }
+      });
+    }
+
+    // ==============================
+    // LIVE DOM VIRTUAL DOM
+    // ==============================
+
+    function patchVDOM(oldEl, newEl) {
+      if (!oldEl || !newEl) return;
+
+      // ========== SMART SKIP ==========
+      if (shouldSkipVDOM(oldEl)) return;
+
+      // ========== TAG BERBEDA ========== 
+      if (oldEl.tagName !== newEl.tagName) {
+        oldEl.replaceWith(newEl.cloneNode(true));
+        return;
+      }
+
+      // ========== ATTRIBUTES ==========
+      const oldAttrs = oldEl.attributes;
+      const newAttrs = newEl.attributes;
+
+      // Tambah / Update attribute
+      for (const attr of newAttrs) {
+        if (oldEl.getAttribute(attr.name) !== attr.value) {
+          oldEl.setAttribute(attr.name, attr.value);
+        }
+      }
+
+      // Hapus atribut yang tidak ada di elemen baru
+      for (const attr of oldAttrs) {
+        if (!newEl.hasAttribute(attr.name)) {
+          oldEl.removeAttribute(attr.name);
+        }
+      }
+
+      // ========== TEXT NODE (no child) ==========
+      if (!oldEl.children.length && !newEl.children.length) {
+        if (oldEl.textContent !== newEl.textContent) {
+          oldEl.textContent = newEl.textContent;
+        }
+        return;
+      }
+
+      // ========== CHILD NODES ==========
+      const oldChildren = Array.from(oldEl.childNodes);
+      const newChildren = Array.from(newEl.childNodes);
+
+      const maxLength = Math.max(oldChildren.length, newChildren.length);
+
+      for (let i = 0; i < maxLength; i++) {
+        const oldChild = oldChildren[i];
+        const newChild = newChildren[i];
+
+        // Tambah elemen baru
+        if (!oldChild && newChild) {
+          oldEl.appendChild(newChild.cloneNode(true));
+          continue;
         }
 
-        document.head.appendChild(newScript);
-      }
-    });
-  }
-
-  /* ==============================
-     VIRTUAL DOM
-  ============================== */
-  function patchVDOM(oldEl, newEl) {
-    if (!oldEl || !newEl) return;
-
-    if (shouldSkipVDOM(oldEl)) return;
-
-    if (oldEl.tagName !== newEl.tagName) {
-      oldEl.replaceWith(newEl.cloneNode(true));
-      return;
-    }
-
-    const oldAttrs = oldEl.attributes;
-    const newAttrs = newEl.attributes;
-
-    for (const attr of newAttrs) {
-      if (oldEl.getAttribute(attr.name) !== attr.value) {
-        oldEl.setAttribute(attr.name, attr.value);
-      }
-    }
-
-    for (const attr of oldAttrs) {
-      if (!newEl.hasAttribute(attr.name)) {
-        oldEl.removeAttribute(attr.name);
-      }
-    }
-
-    if (!oldEl.children.length && !newEl.children.length) {
-      if (oldEl.textContent !== newEl.textContent) {
-        oldEl.textContent = newEl.textContent;
-      }
-      return;
-    }
-
-    const oldChildren = Array.from(oldEl.childNodes);
-    const newChildren = Array.from(newEl.childNodes);
-    const maxLength = Math.max(oldChildren.length, newChildren.length);
-
-    for (let i = 0; i < maxLength; i++) {
-      const oldChild = oldChildren[i];
-      const newChild = newChildren[i];
-
-      if (!oldChild && newChild) {
-        oldEl.appendChild(newChild.cloneNode(true));
-        continue;
-      }
-
-      if (oldChild && !newChild) {
-        oldEl.removeChild(oldChild);
-        continue;
-      }
-
-      if (oldChild.nodeType !== newChild.nodeType) {
-        oldChild.replaceWith(newChild.cloneNode(true));
-        continue;
-      }
-
-      if (oldChild.nodeType === Node.TEXT_NODE && newChild.nodeType === Node.TEXT_NODE) {
-        if (oldChild.textContent !== newChild.textContent) {
-          oldChild.textContent = newChild.textContent;
+        // Hapus elemen yang hilang
+        if (oldChild && !newChild) {
+          oldEl.removeChild(oldChild);
+          continue;
         }
-        continue;
+
+        // Node type berbeda
+        if (oldChild.nodeType !== newChild.nodeType) {
+          oldChild.replaceWith(newChild.cloneNode(true));
+          continue;
+        }
+
+        // Text node
+        if (oldChild.nodeType === Node.TEXT_NODE && newChild.nodeType === Node.TEXT_NODE) {
+          if (oldChild.textContent !== newChild.textContent) {
+            oldChild.textContent = newChild.textContent;
+          }
+          continue;
+        }
+
+        // Recursive patch
+        patchVDOM(oldChild, newChild);
+      }
+    }
+
+
+    function shouldSkipVDOM(el) {
+      // Manual skip
+      if (el.hasAttribute('data-vdom-skip')) return true;
+
+      // Skip Alpine.js (ada x-data, x-init, atau atribut x-*)
+      const isAlpine = el.hasAttribute('x-data') || el.hasAttribute('x-init') || [...el.attributes].some(attr => attr.name.startsWith('x-'));
+      if (isAlpine) return true;
+
+      // Skip Bootstrap interaktif
+      const bootstrapSelectors = [
+        '.modal.show',       // sedang aktif
+        '.collapse.show',    // sedang terbuka
+        '.dropdown-menu.show',
+        '.offcanvas.show',
+        '.tooltip.show',
+        '.popover.show',
+        '.nav-tabs .active',
+      ];
+      for (const selector of bootstrapSelectors) {
+        if (el.matches(selector) || el.closest(selector)) return true;
       }
 
-      patchVDOM(oldChild, newChild);
+      return false;
     }
-  }
 
-  function shouldSkipVDOM(el) {
-    if (el.hasAttribute('data-vdom-skip')) return true;
 
-    const isAlpine = el.hasAttribute('x-data') || 
-                    el.hasAttribute('x-init') || 
-                    [...el.attributes].some(attr => attr.name.startsWith('x-'));
-    if (isAlpine) return true;
 
-    const bootstrapSelectors = [
-      '.modal.show',
-      '.collapse.show',
-      '.dropdown-menu.show',
-      '.offcanvas.show',
-      '.tooltip.show',
-      '.popover.show',
-      '.nav-tabs .active',
-    ];
+    // ==============================
+    // LIVE DOM HOOKS (optional integrasi lainnya)
+    // ==============================
 
-    return bootstrapSelectors.some(selector => 
-      el.matches(selector) || el.closest(selector));
-  }
-
-  /* ==============================
-  INITIALIZATION
-  ============================== */
-  $(document).ready(function () {
-    // Event bindings
-    $(document).on('click', '[live-click]', function () {
-      handleLiveEvent($(this), 'click');
-    });
-
-    $(document).on('mouseenter mouseleave', '[live-hover]', function () {
-      handleLiveEvent($(this), 'hover');
-    });
-
-    $(document).on('change', '[live-change]', function () {
-      handleLiveEvent($(this), 'change');
-    });
-
-    $(document).on('submit', '[live-submit]', function (e) {
-      e.preventDefault();
-      handleLiveEvent($(this), 'submit');
-    });
-
-    $(document).on('keyup', '[live-keyup]', function () {
-      handleLiveEvent($(this), 'keyup');
-    });
-
-    $(document).on('input', '[live-input]', function () {
-      handleLiveEvent($(this), 'input');
-    });
-
-    $(document).on('input', '[live-bind]', function () {
-      handleLiveEvent($(this), 'input');
-    });
-
-    $(document).on('input change', '[live-model]', function () {
-      handleLiveEvent($(this), 'model');
-    });
-
-    $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea', function () {
-      handleLiveCompute();
-    });
-
-    $(document).on('click', '[live-accordion]', function () {
-      handleAccordionClick($(this));
-    });
-
-    // Initialize components
-    initLoadingBar();
-    initTriggerEvents();
-    initSpaRouter();
-
-    // Initial processing
-    handlePollers();
-    handleLiveIf();
-    handleLiveCompute();
-
-    // Event listeners
     document.addEventListener('live-dom:afterUpdate', function () {
-      handleLiveCompute();
-      handleLiveIf();
-      initTriggerEvents();
+      handleLiveComputeUnified?.();
+      handleLiveIf?.();
+      initLiveTriggerEvents?.();
     });
 
     document.addEventListener('live-dom:afterSpa', function () {
+      initLoadingBar?.();
+    });
+
+    // Init loading bar saat document ready
+    $(document).ready(function () {
       initLoadingBar();
     });
 
     window.addEventListener('popstate', function (event) {
       if (event.state && event.state.spa && event.state.url) {
-        loadSpaContent(event.state.url, false);
+        loadSpaContent(event.state.url, false); // <- false agar tidak pushState ulang
       }
     });
 
-    // Initialize SPA if needed
-    if (document.querySelector('[live-spa-region="main"]')) {
-      const currentUrl = window.location.href;
-      history.replaceState({ spa: true, url: currentUrl }, '', currentUrl);
-    }
+    handlePollers();
+    handleLiveIf();
+    initLiveTriggerEvents();
+    initLoadingBar();
   });
 
 })(jQuery);
-
-
-
-
