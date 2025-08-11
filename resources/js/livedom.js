@@ -1,11 +1,15 @@
 (function ($) {
   "use strict";
   // Core state management structures
-    const stateProxies = new WeakMap();
-    const stateWatchers = new WeakMap();
-    const stateCallbacks = new WeakMap();
-    const vdomCache = new WeakMap();
-    const elementStateMap = new WeakMap();
+  const stateProxies = new WeakMap();
+  const stateWatchers = new WeakMap();
+  const stateCallbacks = new WeakMap();
+  const vdomCache = new WeakMap();
+  const elementStateMap = new WeakMap();
+
+  // Fungsi baru untuk mendukung fitur tambahan
+  const stateComputed = new WeakMap();
+  const stateMiddleware = new WeakMap();
   /*==============================
     AJAX DYNAMIC
   ==============================*/
@@ -85,7 +89,8 @@
         delete ajaxDynamicControllers[key];
 
         if (textStatus === 'abort') {
-          console.log(`[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`);
+          console.log(
+            `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`);
           return;
         }
 
@@ -284,13 +289,17 @@
         //   $el.is('input, textarea, select') ? $el.val(value) : $el.html(value);
         // }
         if ($el.is('input, textarea, select')) {
-            $el.val(value);
-            $el.each(function () {
-                this.dispatchEvent(new Event('input', { bubbles: true }));
-                this.dispatchEvent(new Event('change', { bubbles: true }));
-            });
+          $el.val(value);
+          $el.each(function () {
+            this.dispatchEvent(new Event('input', {
+              bubbles: true
+            }));
+            this.dispatchEvent(new Event('change', {
+              bubbles: true
+            }));
+          });
         } else {
-            $el.html(value);
+          $el.html(value);
         }
       }
     });
@@ -386,216 +395,239 @@
    * @returns {boolean} True if an animation was handled, false otherwise.
    */
   function handleLiveAnimate($el, onComplete) {
-      const animateType = $el.attr('live-animate');
-      if (!animateType) {
-        if (onComplete) onComplete();
-        return false;
-      }
-
-      const duration = parseInt($el.attr('live-duration') || 300, 10);
-      const easing = $el.attr('live-easing') || 'swing';
-      const targetSelectors = $el.attr('live-target') || '';
-      const $targets = liveTarget($el, targetSelectors);
-
-      if (!$targets.length) {
-        if (onComplete) onComplete();
-        return false;
-      }
-
-      let animationsCompleted = 0;
-      const totalTargets = $targets.length;
-
-      const done = () => {
-        animationsCompleted++;
-        if (animationsCompleted >= totalTargets) {
-          if (onComplete) onComplete();
-        }
-      };
-
-      $targets.each(function () {
-        const $target = $(this);
-        const originalDisplay = $target.css('display') === 'none' ? 'block' : $target.css('display');
-
-        switch (animateType) {
-          case 'fade-in':
-            $target.stop(true, true).fadeIn(duration, easing, done);
-            break;
-          case 'fade-out':
-            $target.stop(true, true).fadeOut(duration, easing, done);
-            break;
-          case 'fade-toggle':
-            $target.stop(true, true).fadeToggle(duration, easing, done);
-            break;
-          case 'slide-up':
-            $target.stop(true, true).slideUp(duration, easing, done);
-            break;
-          case 'slide-down':
-            $target.stop(true, true).slideDown(duration, easing, done);
-            break;
-          case 'slide-toggle':
-            $target.stop(true, true).slideToggle(duration, easing, done);
-            break;
-          case 'slide-left':
-            $target
-              .css({ transform: 'translateX(100%)', opacity: 0, display: 'block' })
-              .animate(
-                { translateX: 0, opacity: 1 },
-                {
-                  step: (now, fx) => {
-                    if (fx.prop === 'translateX') $target.css('transform', `translateX(${100 - now}%)`);
-                  },
-                  duration,
-                  easing,
-                  complete: () => {
-                    $target.css('transform', '');
-                    done();
-                  },
-                }
-              );
-            break;
-          case 'slide-right':
-            $target
-              .css({ transform: 'translateX(-100%)', opacity: 0, display: 'block' })
-              .animate(
-                { translateX: 0, opacity: 1 },
-                {
-                  step: (now, fx) => {
-                    if (fx.prop === 'translateX') $target.css('transform', `translateX(${-100 + now}%)`);
-                  },
-                  duration,
-                  easing,
-                  complete: () => {
-                    $target.css('transform', '');
-                    done();
-                  },
-                }
-              );
-            break;
-          case 'slide-horizontal-toggle':
-            if ($target.is(':visible')) {
-              $target.animate(
-                { translateX: 100, opacity: 0 },
-                {
-                  step: (now, fx) => {
-                    if (fx.prop === 'translateX') $target.css('transform', `translateX(${now}%)`);
-                  },
-                  duration,
-                  easing,
-                  complete: () => {
-                    $target.hide().css('transform', '');
-                    done();
-                  },
-                }
-              );
-            } else {
-              $target
-                .css({ transform: 'translateX(-100%)', opacity: 0, display: 'block' })
-                .animate(
-                  { translateX: 0, opacity: 1 },
-                  {
-                    step: (now, fx) => {
-                      if (fx.prop === 'translateX') $target.css('transform', `translateX(${-100 + now}%)`);
-                    },
-                    duration,
-                    easing,
-                    complete: () => {
-                      $target.css('transform', '');
-                      done();
-                    },
-                  }
-                );
-            }
-            break;
-          case 'zoom-in':
-            $target
-              .css({ transform: 'scale(0)', display: originalDisplay })
-              .animate(
-                { scale: 1 },
-                {
-                  step: (now, fx) => {
-                    if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-                  },
-                  duration,
-                  easing,
-                  complete: () => {
-                    $target.css('transform', 'scale(1)');
-                    done();
-                  },
-                }
-              );
-            break;
-          case 'zoom-out':
-            $target.animate(
-              { scale: 0 },
-              {
-                step: (now, fx) => {
-                  if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-                },
-                duration,
-                easing,
-                complete: () => {
-                  $target.hide().css('transform', 'scale(1)');
-                  done();
-                },
-              }
-            );
-            break;
-          case 'zoom-toggle':
-            $el.attr('live-animate', $target.is(':visible') ? 'zoom-out' : 'zoom-in');
-            handleLiveAnimate($el, done);
-            $el.attr('live-animate', 'zoom-toggle');
-            break;
-          case 'scale-up':
-            $target
-              .css({ transform: 'scale(0.8)', display: originalDisplay })
-              .animate(
-                { scale: 1 },
-                {
-                  step: (now, fx) => {
-                    if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-                  },
-                  duration,
-                  easing,
-                  complete: () => {
-                    $target.css('transform', '');
-                    done();
-                  },
-                }
-              );
-            break;
-          case 'scale-down':
-            $target.animate(
-              { scale: 0.8 },
-              {
-                step: (now, fx) => {
-                  if (fx.prop === 'scale') $target.css('transform', `scale(${now})`);
-                },
-                duration,
-                easing,
-                complete: () => {
-                  $target.hide().css('transform', '');
-                  done();
-                },
-              }
-            );
-            break;
-          case 'scale-toggle':
-            $el.attr('live-animate', $target.is(':visible') ? 'scale-down' : 'scale-up');
-            handleLiveAnimate($el, done);
-            $el.attr('live-animate', 'scale-toggle');
-            break;
-          default:
-            $target.addClass(animateType);
-            setTimeout(() => {
-              $target.removeClass(animateType);
-              done();
-            }, duration);
-            break;
-        }
-      });
-
-      return true;
+    const animateType = $el.attr('live-animate');
+    if (!animateType) {
+      if (onComplete) onComplete();
+      return false;
     }
+
+    const duration = parseInt($el.attr('live-duration') || 300, 10);
+    const easing = $el.attr('live-easing') || 'swing';
+    const targetSelectors = $el.attr('live-target') || '';
+    const $targets = liveTarget($el, targetSelectors);
+
+    if (!$targets.length) {
+      if (onComplete) onComplete();
+      return false;
+    }
+
+    let animationsCompleted = 0;
+    const totalTargets = $targets.length;
+
+    const done = () => {
+      animationsCompleted++;
+      if (animationsCompleted >= totalTargets) {
+        if (onComplete) onComplete();
+      }
+    };
+
+    $targets.each(function () {
+      const $target = $(this);
+      const originalDisplay = $target.css('display') === 'none' ? 'block' : $target.css(
+        'display');
+
+      switch (animateType) {
+        case 'fade-in':
+          $target.stop(true, true).fadeIn(duration, easing, done);
+          break;
+        case 'fade-out':
+          $target.stop(true, true).fadeOut(duration, easing, done);
+          break;
+        case 'fade-toggle':
+          $target.stop(true, true).fadeToggle(duration, easing, done);
+          break;
+        case 'slide-up':
+          $target.stop(true, true).slideUp(duration, easing, done);
+          break;
+        case 'slide-down':
+          $target.stop(true, true).slideDown(duration, easing, done);
+          break;
+        case 'slide-toggle':
+          $target.stop(true, true).slideToggle(duration, easing, done);
+          break;
+        case 'slide-left':
+          $target
+            .css({
+              transform: 'translateX(100%)',
+              opacity: 0,
+              display: 'block'
+            })
+            .animate({
+              translateX: 0,
+              opacity: 1
+            }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform',
+                  `translateX(${100 - now}%)`);
+              },
+              duration,
+              easing,
+              complete: () => {
+                $target.css('transform', '');
+                done();
+              },
+            });
+          break;
+        case 'slide-right':
+          $target
+            .css({
+              transform: 'translateX(-100%)',
+              opacity: 0,
+              display: 'block'
+            })
+            .animate({
+              translateX: 0,
+              opacity: 1
+            }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform',
+                  `translateX(${-100 + now}%)`);
+              },
+              duration,
+              easing,
+              complete: () => {
+                $target.css('transform', '');
+                done();
+              },
+            });
+          break;
+        case 'slide-horizontal-toggle':
+          if ($target.is(':visible')) {
+            $target.animate({
+              translateX: 100,
+              opacity: 0
+            }, {
+              step: (now, fx) => {
+                if (fx.prop === 'translateX') $target.css('transform',
+                  `translateX(${now}%)`);
+              },
+              duration,
+              easing,
+              complete: () => {
+                $target.hide().css('transform', '');
+                done();
+              },
+            });
+          } else {
+            $target
+              .css({
+                transform: 'translateX(-100%)',
+                opacity: 0,
+                display: 'block'
+              })
+              .animate({
+                translateX: 0,
+                opacity: 1
+              }, {
+                step: (now, fx) => {
+                  if (fx.prop === 'translateX') $target.css('transform',
+                    `translateX(${-100 + now}%)`);
+                },
+                duration,
+                easing,
+                complete: () => {
+                  $target.css('transform', '');
+                  done();
+                },
+              });
+          }
+          break;
+        case 'zoom-in':
+          $target
+            .css({
+              transform: 'scale(0)',
+              display: originalDisplay
+            })
+            .animate({
+              scale: 1
+            }, {
+              step: (now, fx) => {
+                if (fx.prop === 'scale') $target.css('transform',
+                  `scale(${now})`);
+              },
+              duration,
+              easing,
+              complete: () => {
+                $target.css('transform', 'scale(1)');
+                done();
+              },
+            });
+          break;
+        case 'zoom-out':
+          $target.animate({
+            scale: 0
+          }, {
+            step: (now, fx) => {
+              if (fx.prop === 'scale') $target.css('transform',
+                `scale(${now})`);
+            },
+            duration,
+            easing,
+            complete: () => {
+              $target.hide().css('transform', 'scale(1)');
+              done();
+            },
+          });
+          break;
+        case 'zoom-toggle':
+          $el.attr('live-animate', $target.is(':visible') ? 'zoom-out' : 'zoom-in');
+          handleLiveAnimate($el, done);
+          $el.attr('live-animate', 'zoom-toggle');
+          break;
+        case 'scale-up':
+          $target
+            .css({
+              transform: 'scale(0.8)',
+              display: originalDisplay
+            })
+            .animate({
+              scale: 1
+            }, {
+              step: (now, fx) => {
+                if (fx.prop === 'scale') $target.css('transform',
+                  `scale(${now})`);
+              },
+              duration,
+              easing,
+              complete: () => {
+                $target.css('transform', '');
+                done();
+              },
+            });
+          break;
+        case 'scale-down':
+          $target.animate({
+            scale: 0.8
+          }, {
+            step: (now, fx) => {
+              if (fx.prop === 'scale') $target.css('transform',
+                `scale(${now})`);
+            },
+            duration,
+            easing,
+            complete: () => {
+              $target.hide().css('transform', '');
+              done();
+            },
+          });
+          break;
+        case 'scale-toggle':
+          $el.attr('live-animate', $target.is(':visible') ? 'scale-down' : 'scale-up');
+          handleLiveAnimate($el, done);
+          $el.attr('live-animate', 'scale-toggle');
+          break;
+        default:
+          $target.addClass(animateType);
+          setTimeout(() => {
+            $target.removeClass(animateType);
+            done();
+          }, duration);
+          break;
+      }
+    });
+
+    return true;
+  }
 
 
   /*==============================
@@ -629,7 +661,7 @@
     return true;
   }
 
-function runActionChain(chainList, index, $target, animateStr) {
+  function runActionChain(chainList, index, $target, animateStr) {
     if (index >= chainList.length) return;
 
     const [type, ...rest] = chainList[index].split(':');
@@ -638,79 +670,84 @@ function runActionChain(chainList, index, $target, animateStr) {
     const next = () => runActionChain(chainList, index + 1, $target, animateStr);
 
     switch (animateStr) {
-        case 'slide-up':
-            $target.slideUp(200, () => {
-                runAction(type, value, $target);
-                next();
-            });
-            break;
-        case 'slide-down':
-            $target.slideDown(200, () => {
-                runAction(type, value, $target);
-                next();
-            });
-            break;
-        case 'fade-out':
-            $target.fadeOut(200, () => {
-                runAction(type, value, $target);
-                next();
-            });
-            break;
-        case 'fade-in':
-            $target.fadeIn(200, () => {
-                runAction(type, value, $target);
-                next();
-            });
-            break;
-        case 'zoom-in':
-            $target.css({ transform: 'scale(0.5)', opacity: 0 }).animate(
-                { transform: 'scale(1)', opacity: 1 },
-                300,
-                () => {
-                    runAction(type, value, $target);
-                    next();
-                }
-            );
-            break;
-        default:
+      case 'slide-up':
+        $target.slideUp(200, () => {
+          runAction(type, value, $target);
+          next();
+        });
+        break;
+      case 'slide-down':
+        $target.slideDown(200, () => {
+          runAction(type, value, $target);
+          next();
+        });
+        break;
+      case 'fade-out':
+        $target.fadeOut(200, () => {
+          runAction(type, value, $target);
+          next();
+        });
+        break;
+      case 'fade-in':
+        $target.fadeIn(200, () => {
+          runAction(type, value, $target);
+          next();
+        });
+        break;
+      case 'zoom-in':
+        $target.css({
+          transform: 'scale(0.5)',
+          opacity: 0
+        }).animate({
+          transform: 'scale(1)',
+          opacity: 1
+        },
+          300,
+          () => {
             runAction(type, value, $target);
             next();
+          }
+        );
+        break;
+      default:
+        runAction(type, value, $target);
+        next();
     }
-}
+  }
 
-function runAction(type, value, $target) {
+  function runAction(type, value, $target) {
     switch (type) {
-        case 'remove':
-            $target.remove();
-            break;
-        case 'hide':
-            $target.hide();
-            break;
-        case 'show':
-            $target.show();
-            break;
-        case 'add-class':
-            if (value) $target.addClass(value);
-            break;
-        case 'remove-class':
-            if (value) $target.removeClass(value);
-            break;
-        case 'toggle-class':
-            if (value) $target.toggleClass(value);
-            break;
-        case 'enable':
-            $target.prop('disabled', false);
-            break;
-        case 'disable':
-            $target.prop('disabled', true);
-            break;
-        case 'readonly':
-            $target.prop('readonly', true);
-            break;
-        default:
-            console.warn(`LiveAction: Unknown action type '${type}'`);
+      case 'remove':
+        $target.remove();
+        break;
+      case 'hide':
+        $target.hide();
+        break;
+      case 'show':
+        $target.show();
+        break;
+      case 'add-class':
+        if (value) $target.addClass(value);
+        break;
+      case 'remove-class':
+        if (value) $target.removeClass(value);
+        break;
+      case 'toggle-class':
+        if (value) $target.toggleClass(value);
+        break;
+      case 'enable':
+        $target.prop('disabled', false);
+        break;
+      case 'disable':
+        $target.prop('disabled', true);
+        break;
+      case 'readonly':
+        $target.prop('readonly', true);
+        break;
+      default:
+        console.warn(`LiveAction: Unknown action type '${type}'`);
     }
-}
+  }
 
 
   /**
@@ -788,7 +825,9 @@ function runAction(type, value, $target) {
     const formSelector = $el.closest('form').length ? $el.closest('form') : null;
     const controller = $el.closest('[live-scope]').attr('live-scope');
     if (!controller && rawMethods) {
-      console.warn(`[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`, $el[0]);
+      console.warn(
+        `[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`,
+        $el[0]);
       return;
     }
 
@@ -844,12 +883,14 @@ function runAction(type, value, $target) {
               argsRaw[0].endsWith(']')
             ) {
               try {
-                const parsed = JSON.parse(argsRaw[0].replace(/'/g, '"')); // convert ' to " dulu
+                const parsed = JSON.parse(argsRaw[0].replace(/'/g,
+                  '"')); // convert ' to " dulu
                 if (Array.isArray(parsed)) {
                   argsRaw = [parsed]; // ganti isinya jadi array asli
                 }
               } catch (e) {
-                console.warn('Failed to parse stringified array literal:', argsRaw[0]);
+                console.warn('Failed to parse stringified array literal:', argsRaw[
+                  0]);
               }
             }
           } catch (e) {
@@ -860,7 +901,8 @@ function runAction(type, value, $target) {
           // Sanitize nilai untuk serialisasi aman
           const argsSanitized = argsRaw.map(arg => {
             if (arg instanceof Element) {
-              return $(arg).is('input, select, textarea') ? $(arg).val() : $(arg).text().trim();
+              return $(arg).is('input, select, textarea') ? $(arg).val() : $(
+                arg).text().trim();
             }
 
             // Hindari window atau objek global
@@ -877,7 +919,8 @@ function runAction(type, value, $target) {
             args: argsSanitized
           };
         } catch (e) {
-          console.warn(`[Live Event] Error parsing arguments for method "${name}":`, e.message);
+          console.warn(`[Live Event] Error parsing arguments for method "${name}":`, e
+            .message);
           return {
             method: name,
             args: null
@@ -901,10 +944,13 @@ function runAction(type, value, $target) {
         } else {
           // Hati-hati: args = [['2']] akan menyebabkan nested array
           const dataPayload = args.length === 1 ? args[0] : args;
-          postData = { data: dataPayload };
+          postData = {
+            data: dataPayload
+          };
         }
-        
-        runAjaxRequest(methodType, controller, method, postData, domAction, $targets, loading, $el);
+
+        runAjaxRequest(methodType, controller, method, postData, domAction, $targets,
+          loading, $el);
       });
     };
 
@@ -929,7 +975,8 @@ function runAction(type, value, $target) {
           if (typeof fn === 'function') {
             result = fn($el[0]);
           } else {
-            console.warn(`[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`);
+            console.warn(
+              `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`);
             result = undefined;
           }
         }
@@ -937,7 +984,7 @@ function runAction(type, value, $target) {
         if (result instanceof Promise) {
           result.then(ok => {
             if (ok !== false) execute();
-          }).catch(() => {});
+          }).catch(() => { });
         } else if (result !== false) {
           execute();
         }
@@ -964,32 +1011,32 @@ function runAction(type, value, $target) {
    * @param {boolean} loading - Whether to show loading.
    * @param {jQuery} $el - The original triggering element.
    */
-    function runAjaxRequest(methodType, controller, method, data, domAction, $targets, loading, $el) {
-      const callback = function (response) {
-        let responseData = response && typeof response === 'object' && 'data' in response ?
-          response.data :
-          response;
+  function runAjaxRequest(methodType, controller, method, data, domAction, $targets, loading, $el) {
+    const callback = function (response) {
+      let responseData = response && typeof response === 'object' && 'data' in response ?
+        response.data :
+        response;
 
-        if (typeof responseData === 'object') {
-          autoBindDomFromResponse(responseData);
-        }
+      if (typeof responseData === 'object') {
+        autoBindDomFromResponse(responseData);
+      }
 
-        if (typeof responseData === 'string') {
-          $targets.each(function () {
-            applyDomAction($(this), domAction, responseData);
-          });
-        }
+      if (typeof responseData === 'string') {
+        $targets.each(function () {
+          applyDomAction($(this), domAction, responseData);
+        });
+      }
 
-        const afterCallback = $el.attr('live-callback-after');
-        if (afterCallback && typeof window[afterCallback] === 'function') {
-          window[afterCallback]($el[0], response);
-        }
+      const afterCallback = $el.attr('live-callback-after');
+      if (afterCallback && typeof window[afterCallback] === 'function') {
+        window[afterCallback]($el[0], response);
+      }
 
-        document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-      };
+      document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+    };
 
-      debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
-    }
+    debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
+  }
 
 
   /**
@@ -1024,68 +1071,67 @@ function runAction(type, value, $target) {
   function applyDomAction($targets, actions, contents) {
     // Pastikan $targets adalah jQuery object array
     $targets = $targets instanceof jQuery ? $targets : $($targets);
-    
+
     // Split actions dan contents jika berupa string multiple
     const actionList = typeof actions === 'string' ? actions.split(',') : [actions];
-    const contentList = typeof contents === 'object' && !Array.isArray(contents) 
-                      ? [contents] 
-                      : (Array.isArray(contents) ? contents : [contents]);
+    const contentList = typeof contents === 'object' && !Array.isArray(contents) ? [contents] :
+      (Array.isArray(contents) ? contents : [contents]);
 
-    $targets.each(function(targetIndex) {
-        const $currentTarget = $(this);
-        
-        actionList.forEach((action, actionIndex) => {
-            const content = contentList[actionIndex] || contentList[0] || '';
-            const trimmedAction = action.trim();
+    $targets.each(function (targetIndex) {
+      const $currentTarget = $(this);
 
-            console.log(`Applying to target ${targetIndex}:`, {
-                target: $currentTarget,
-                action: trimmedAction,
-                content: content
-            });
+      actionList.forEach((action, actionIndex) => {
+        const content = contentList[actionIndex] || contentList[0] || '';
+        const trimmedAction = action.trim();
 
-            switch (trimmedAction) {
-                case 'append':
-                    $currentTarget.append(content);
-                    break;
-                case 'prepend':
-                    $currentTarget.prepend(content);
-                    break;
-                case 'before':
-                    $currentTarget.before(content);
-                    break;
-                case 'after':
-                    $currentTarget.after(content);
-                    break;
-                case 'value':
-                case 'val':
-                    $currentTarget.val(content).trigger('change');
-                    $currentTarget.trigger('input');
-                    $currentTarget.trigger('change');
-                    break;
-                case 'text':
-                    $currentTarget.text(content);
-                    break;
-                case 'html':
-                    $currentTarget.html(content);
-                    break;
-                case 'toggle':
-                    $currentTarget.toggle(content);
-                    break;
-                case 'show':
-                    $currentTarget.show();
-                    break;
-                case 'hide':
-                    $currentTarget.hide();
-                    break;
-                case 'remove':
-                    $currentTarget.remove();
-                    break;
-                default:
-                    console.warn(`Unknown action: ${trimmedAction}`);
-                    $currentTarget.html(content);
-            }
+        console.log(`Applying to target ${targetIndex}:`, {
+          target: $currentTarget,
+          action: trimmedAction,
+          content: content
         });
+
+        switch (trimmedAction) {
+          case 'append':
+            $currentTarget.append(content);
+            break;
+          case 'prepend':
+            $currentTarget.prepend(content);
+            break;
+          case 'before':
+            $currentTarget.before(content);
+            break;
+          case 'after':
+            $currentTarget.after(content);
+            break;
+          case 'value':
+          case 'val':
+            $currentTarget.val(content).trigger('change');
+            $currentTarget.trigger('input');
+            $currentTarget.trigger('change');
+            break;
+          case 'text':
+            $currentTarget.text(content);
+            break;
+          case 'html':
+            $currentTarget.html(content);
+            break;
+          case 'toggle':
+            $currentTarget.toggle(content);
+            break;
+          case 'show':
+            $currentTarget.show();
+            break;
+          case 'hide':
+            $currentTarget.hide();
+            break;
+          case 'remove':
+            $currentTarget.remove();
+            break;
+          default:
+            console.warn(`Unknown action: ${trimmedAction}`);
+            $currentTarget.html(content);
+        }
+      });
     });
 
     handleLiveIf();
@@ -1197,29 +1243,29 @@ function runAction(type, value, $target) {
     // Main processing function
     function process() {
       if (isProcessing) return;
-      
+
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         isProcessing = true;
         try {
           const cache = $scope.data(COMPUTE_CACHE_KEY);
           const dependencyMap = $scope.data(DEPENDENCY_MAP_KEY);
-          
-          $scope.find('[live-compute]').each(function() {
+
+          $scope.find('[live-compute]').each(function () {
             const $el = $(this);
             const el = this;
             const expr = $el.attr('live-compute')?.trim() || '';
-            
+
             if (!expr) return;
-            
+
             try {
               if (shouldSkipElement($el, el)) return;
-              
+
               const globalInputs = getGlobalInputs($scope);
               const indices = getRowIndices($scope);
               const result = evaluateExpression(expr, globalInputs, indices);
               displayResult($el, result, cache);
-              
+
             } catch (error) {
               console.error('LiveCompute error:', error);
               displayResult($el, '', cache);
@@ -1237,7 +1283,7 @@ function runAction(type, value, $target) {
 
     function buildDependencyMap($container) {
       const depMap = new Map();
-      $container.find('[live-compute]').each(function() {
+      $container.find('[live-compute]').each(function () {
         const expr = $(this).attr('live-compute')?.trim() || '';
         depMap.set(this, extractVariables(expr));
       });
@@ -1246,7 +1292,7 @@ function runAction(type, value, $target) {
 
     function getGlobalInputs($container) {
       const inputs = {};
-      $container.find('input[name], select[name], textarea[name]').each(function() {
+      $container.find('input[name], select[name], textarea[name]').each(function () {
         const name = $(this).attr('name');
         if (name) {
           inputs[sanitizeInputNameToJSVariable(name)] = $(this).val()?.toString().trim();
@@ -1265,33 +1311,33 @@ function runAction(type, value, $target) {
     // }
 
     function getRowIndices($container) {
-  const indices = new Set();
+      const indices = new Set();
 
-  $container.find('input[name], select[name], textarea[name]').each(function() {
-    const nameAttr = $(this).attr('name');
-    if (!nameAttr) return;
+      $container.find('input[name], select[name], textarea[name]').each(function () {
+        const nameAttr = $(this).attr('name');
+        if (!nameAttr) return;
 
-    /**
-     * Ambil semua angka yang diapit []
-     * Contoh:
-     * - amount[0] → [0]
-     * - rows[2][amount] → [2]
-     * - order_items[10][price] → [10]
-     * - form[3][details][5][value] → [3, 5]
-     */
-    const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
+        /**
+         * Ambil semua angka yang diapit []
+         * Contoh:
+         * - amount[0] → [0]
+         * - rows[2][amount] → [2]
+         * - order_items[10][price] → [10]
+         * - form[3][details][5][value] → [3, 5]
+         */
+        const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
 
-    if (matches.length) {
-      // Ambil semua angka yang ditemukan
-      matches.forEach(match => {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num)) indices.add(num);
+        if (matches.length) {
+          // Ambil semua angka yang ditemukan
+          matches.forEach(match => {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num)) indices.add(num);
+          });
+        }
       });
-    }
-  });
 
-  return indices;
-}
+      return indices;
+    }
 
 
 
@@ -1304,11 +1350,11 @@ function runAction(type, value, $target) {
 
       // Process aggregate functions
       expr = processAggregateFunctions(expr, globalInputs, indices);
-      
+
       // Handle regular expressions
       const vars = extractVariables(expr);
       const vals = vars.map(v => toNumber(getValue(v, globalInputs, $scope)));
-      
+
       try {
         return safeFunctionEvaluation(vars, vals, expr);
       } catch (e) {
@@ -1322,9 +1368,9 @@ function runAction(type, value, $target) {
         const varName = arg.trim();
         return getValue(varName, globalInputs, $scope);
       });
-      
+
       if (args.length !== 2 || !args[0] || !args[1]) return 0;
-      
+
       try {
         return dateUtils[fnName](args[0], args[1]);
       } catch (e) {
@@ -1338,10 +1384,10 @@ function runAction(type, value, $target) {
         ...dateUtils,
         parseFloat
       };
-      
+
       const argNames = [...vars, ...Object.keys(context)];
       const argValues = [...vals, ...Object.values(context)];
-      
+
       return new Function(...argNames, `return ${expr}`)(...argValues);
     }
 
@@ -1355,24 +1401,31 @@ function runAction(type, value, $target) {
     function getAggregateValues(arg, globalInputs, indices) {
       arg = arg.trim();
       const vals = [];
-      
+
       if (arg.includes('?')) {
-        indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs, $scope))));
+        indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs,
+          $scope))));
       } else {
         vals.push(toNumber(getValue(arg, globalInputs, $scope)));
       }
-      
+
       return vals;
     }
 
     function calculateAggregate(fn, vals) {
       switch (fn) {
-        case 'sum': return vals.reduce((a, b) => a + b, 0);
-        case 'avg': return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-        case 'min': return Math.min(...vals);
-        case 'max': return Math.max(...vals);
-        case 'count': return vals.length;
-        default: return 0;
+        case 'sum':
+          return vals.reduce((a, b) => a + b, 0);
+        case 'avg':
+          return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        case 'min':
+          return Math.min(...vals);
+        case 'max':
+          return Math.max(...vals);
+        case 'count':
+          return vals.length;
+        default:
+          return 0;
       }
     }
 
@@ -1380,7 +1433,7 @@ function runAction(type, value, $target) {
       const el = $el[0];
       const format = $el.attr('live-compute-format');
       let formattedResult = formatResult(result, format);
-      
+
       if (cache.get(el) !== formattedResult) {
         cache.set(el, formattedResult);
         updateElementValue($el, formattedResult);
@@ -1391,17 +1444,25 @@ function runAction(type, value, $target) {
       if (result === null || result === undefined || (typeof result === 'number' && isNaN(result))) {
         return '';
       }
-      
+
       switch (format) {
         case 'currency':
-        case 'idr': return formatRupiah(result.toString());
-        case 'percent': return typeof result === 'number' ? (result * 100).toFixed(2) + '%' : result;
-        case 'number': return typeof result === 'number' ? result.toLocaleString('id-ID') : result;
-        case 'days': return typeof result === 'number' ? `${result} days` : result;
-        case 'months': return typeof result === 'number' ? `${result} months` : result;
-        case 'years': return typeof result === 'number' ? `${result} years` : result;
-        case 'weeks': return typeof result === 'number' ? `${result} weeks` : result;
-        default: return result.toString();
+        case 'idr':
+          return formatRupiah(result.toString());
+        case 'percent':
+          return typeof result === 'number' ? (result * 100).toFixed(2) + '%' : result;
+        case 'number':
+          return typeof result === 'number' ? result.toLocaleString('id-ID') : result;
+        case 'days':
+          return typeof result === 'number' ? `${result} days` : result;
+        case 'months':
+          return typeof result === 'number' ? `${result} months` : result;
+        case 'years':
+          return typeof result === 'number' ? `${result} years` : result;
+        case 'weeks':
+          return typeof result === 'number' ? `${result} weeks` : result;
+        default:
+          return result.toString();
       }
     }
 
@@ -1444,7 +1505,7 @@ function runAction(type, value, $target) {
 
     function init() {
       process();
-      $scope.on('input change', 'input, select, textarea', function() {
+      $scope.on('input change', 'input, select, textarea', function () {
         if (!shouldSkipElement($(this), this)) process();
       });
       $scope.on('blur', '[live-compute]', () => process());
@@ -1456,8 +1517,8 @@ function runAction(type, value, $target) {
   // Helper functions remain the same
   function sanitizeInputNameToJSVariable(name) {
     return name.replace(/\]\[/g, '_')
-              .replace(/[\[\]]/g, '')
-              .replace(/[^a-zA-Z0-9_]/g, '_');
+      .replace(/[\[\]]/g, '')
+      .replace(/[^a-zA-Z0-9_]/g, '_');
   }
 
   function formatRupiah(amount) {
@@ -1472,193 +1533,201 @@ function runAction(type, value, $target) {
    * Handles conditional visibility/state for elements with 'live-if' attribute.
    * @param {Element|Document} [scope=document] - The scope within which to find live-if elements.
    */
-    function handleLiveIf(scope) {
-      const $scope = $(scope || document);
-      const getInputValue = ($el) => {
-        if ($el.is(':checkbox')) return $el.prop('checked');
-        if ($el.is(':radio')) {
-          const name = $el.attr('name');
-          return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
-        }
-        const val = $el.val();
-        if (val === '') return null;
-        if (val === 'true') return true;
-        if (val === 'false') return false;
-        if (!isNaN(val)) return parseFloat(val);
-        return val;
-      };
+  function handleLiveIf(scope) {
+    const $scope = $(scope || document);
+    const getInputValue = ($el) => {
+      if ($el.is(':checkbox')) return $el.prop('checked');
+      if ($el.is(':radio')) {
+        const name = $el.attr('name');
+        return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
+      }
+      const val = $el.val();
+      if (val === '') return null;
+      if (val === 'true') return true;
+      if (val === 'false') return false;
+      if (!isNaN(val)) return parseFloat(val);
+      return val;
+    };
 
-      const evaluateExpression = (expr, context) => {
-        try {
-          // Inject helper includesLoose ke dalam scope
-          const helpers = {
-            includesLoose: (arr, val) => {
-              try {
-                const valNum = parseFloat(val);
-                return arr.some(item => item == val || item == valNum);
-              } catch {
-                return arr.includes(val);
-              }
+    const evaluateExpression = (expr, context) => {
+      try {
+        // Inject helper includesLoose ke dalam scope
+        const helpers = {
+          includesLoose: (arr, val) => {
+            try {
+              const valNum = parseFloat(val);
+              return arr.some(item => item == val || item == valNum);
+            } catch {
+              return arr.includes(val);
             }
-          };
-          return new Function('context', 'helpers', `
+          }
+        };
+        return new Function('context', 'helpers', `
             with({...context, ...helpers}) { return (${expr}); }
           `)(context, helpers);
-        } catch (e) {
-          console.warn('LiveIf evaluation error:', expr, e.message);
-          return false;
-        }
-      };
+      } catch (e) {
+        console.warn('LiveIf evaluation error:', expr, e.message);
+        return false;
+      }
+    };
 
 
-      if (!$scope.data('live-if-listener-bound')) {
-        $scope.on('input change', 'input[name], select[name], textarea[name]', () => {
-          handleLiveIf($scope);
-          handleLiveThenElse($scope);
-        });
-        $scope.data('live-if-listener-bound', true);
+    if (!$scope.data('live-if-listener-bound')) {
+      $scope.on('input change', 'input[name], select[name], textarea[name]', () => {
+        handleLiveIf($scope);
+        handleLiveThenElse($scope);
+      });
+      $scope.data('live-if-listener-bound', true);
+    }
+
+    $scope.find('[live-if]').each(function () {
+      const $el = $(this);
+      const expr = $el.attr('live-if');
+      let context = {};
+      const parentStateContainer = $el.closest('[live-state]')[0];
+      if (parentStateContainer) {
+        const state = window.LiveState?.getState(parentStateContainer);
+        if (state) context = {
+          ...state
+        };
       }
 
-      $scope.find('[live-if]').each(function () {
-        const $el = $(this);
-        const expr = $el.attr('live-if');
-        let context = {};
-        const parentStateContainer = $el.closest('[live-state]')[0];
-        if (parentStateContainer) {
-          const state = window.LiveState?.getState(parentStateContainer);
-          if (state) context = { ...state };
-        }
+      $scope.find('input[name], select[name], textarea[name]').each(function () {
+        const $input = $(this);
+        const name = $input.attr('name');
+        const val = getInputValue($input);
+        context[name] = autoCoerce(val);
+      });
 
-        $scope.find('input[name], select[name], textarea[name]').each(function () {
-          const $input = $(this);
-          const name = $input.attr('name');
-          const val = getInputValue($input);
-          context[name] = autoCoerce(val);
-        });
+      const result = evaluateExpression(expr, context);
+      const hasThenElse = $el.is('[live-then], [live-else]');
 
-        const result = evaluateExpression(expr, context);
-        const hasThenElse = $el.is('[live-then], [live-else]');
+      // Logika untuk persyaratan 1: jika hanya live-if, default ke hide-show
+      if (!hasThenElse) {
+        const animateType = $el.attr('live-animate'); // ambil live-animate jika ada
 
-        // Logika untuk persyaratan 1: jika hanya live-if, default ke hide-show
-        if (!hasThenElse) {
-          const animateType = $el.attr('live-animate'); // ambil live-animate jika ada
-
-          if (result) {
-            if (!$el.is(':visible')) {
-              if (animateType) {
-                // Gunakan handleLiveAnimate untuk animasi muncul
-                handleLiveAnimate($el);
-              } else {
-                $el.show();
-              }
+        if (result) {
+          if (!$el.is(':visible')) {
+            if (animateType) {
+              // Gunakan handleLiveAnimate untuk animasi muncul
+              handleLiveAnimate($el);
+            } else {
+              $el.show();
             }
-          } else {
-            if ($el.is(':visible')) {
-              if (animateType) {
-                // Ganti animasi untuk hide
-                let hideAnimate = animateType
-                  .replace('in', 'out')
-                  .replace('down', 'up')
-                  .replace('show', 'hide')
-                  .replace('toggle', 'toggle'); // toggle biarkan tetap
-                $el.attr('live-animate', hideAnimate);
-                handleLiveAnimate($el);
-                $el.attr('live-animate', animateType); // kembalikan supaya tidak berubah permanent
-              } else {
-                $el.hide();
-              }
+          }
+        } else {
+          if ($el.is(':visible')) {
+            if (animateType) {
+              // Ganti animasi untuk hide
+              let hideAnimate = animateType
+                .replace('in', 'out')
+                .replace('down', 'up')
+                .replace('show', 'hide')
+                .replace('toggle', 'toggle'); // toggle biarkan tetap
+              $el.attr('live-animate', hideAnimate);
+              handleLiveAnimate($el);
+              $el.attr('live-animate',
+                animateType); // kembalikan supaya tidak berubah permanent
+            } else {
+              $el.hide();
             }
           }
         }
-      });
-    }
+      }
+    });
+  }
 
-    /**
-     * Handles conditional actions with 'live-if' + 'live-then' / 'live-else'
-     */
-    /**
+  /**
+   * Handles conditional actions with 'live-if' + 'live-then' / 'live-else'
+   */
+  /**
    * Handles conditional actions with 'live-if' + 'live-then' / 'live-else'
    */
   function handleLiveThenElse(scope) {
-      const $scope = $(scope || document);
-      const getInputValue = ($el) => {
-        if ($el.is(':checkbox')) return $el.prop('checked');
-        if ($el.is(':radio')) {
-          const name = $el.attr('name');
-          return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
-        }
-        return $el.val();
-      };
+    const $scope = $(scope || document);
+    const getInputValue = ($el) => {
+      if ($el.is(':checkbox')) return $el.prop('checked');
+      if ($el.is(':radio')) {
+        const name = $el.attr('name');
+        return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
+      }
+      return $el.val();
+    };
 
-      $scope.find('[live-if][live-then], [live-if][live-else]').each(function () {
-        const $el = $(this);
-        const expr = $el.attr('live-if');
-        const thenChain = $el.attr('live-then') || null;
-        const elseChain = $el.attr('live-else') || null;
+    $scope.find('[live-if][live-then], [live-if][live-else]').each(function () {
+      const $el = $(this);
+      const expr = $el.attr('live-if');
+      const thenChain = $el.attr('live-then') || null;
+      const elseChain = $el.attr('live-else') || null;
 
-        // Simpan gaya display asli jika belum disimpan, khusus untuk elemen dengan live-then tanpa live-else
-        // Ini penting untuk mengembalikan visibility jika action 'hide' atau 'show' digunakan
-        if (thenChain && !elseChain && $el.data('original-display-set') === undefined) {
-          $el.data('original-display', $el.css('display'));
-          $el.data('original-display-set', true);
-        }
+      // Simpan gaya display asli jika belum disimpan, khusus untuk elemen dengan live-then tanpa live-else
+      // Ini penting untuk mengembalikan visibility jika action 'hide' atau 'show' digunakan
+      if (thenChain && !elseChain && $el.data('original-display-set') === undefined) {
+        $el.data('original-display', $el.css('display'));
+        $el.data('original-display-set', true);
+      }
 
-        let context = {};
-        const parentStateContainer = $el.closest('[live-state]')[0];
-        if (parentStateContainer) {
-          const state = window.LiveState?.getState(parentStateContainer);
-          if (state) context = { ...state };
-        }
+      let context = {};
+      const parentStateContainer = $el.closest('[live-state]')[0];
+      if (parentStateContainer) {
+        const state = window.LiveState?.getState(parentStateContainer);
+        if (state) context = {
+          ...state
+        };
+      }
 
-        $scope.find('input[name], select[name], textarea[name]').each(function () {
-          const $input = $(this);
-          const name = $input.attr('name');
-          const val = getInputValue($input);
-          context[name] = val === null || val === undefined ? 0 : val;
-        });
-
-        const passed = new Function('context', `with(context) { return (${expr}); }`)(context);
-
-        if (passed) {
-          if (thenChain) {
-            const chainList = thenChain.split('->').map(s => s.trim());
-            runActionChain(chainList, 0, $el, '');
-          }
-        } else {
-          if (elseChain) {
-            const chainList = elseChain.split('->').map(s => s.trim());
-            runActionChain(chainList, 0, $el, '');
-          } else if (thenChain) { // Kondisi false, dan hanya live-then yang ada (tidak ada live-else)
-            // Kembalikan display ke kondisi asli
-            const originalDisplay = $el.data('original-display');
-            if (originalDisplay !== undefined) {
-              $el.css('display', originalDisplay);
-            }
-
-            // Kembalikan aksi yang ditentukan di live-then (inverse actions)
-            const thenActionList = thenChain.split('->').map(s => s.trim());
-            thenActionList.forEach(action => {
-              if (action === 'readonly') {
-                $el.removeAttr('readonly');
-              } else if (action === 'disable') {
-                $el.removeAttr('disabled');
-              } else if (action.startsWith('add-class(') && action.endsWith(')')) {
-                const className = action.substring('add-class('.length, action.length - 1);
-                $el.removeClass(className);
-              } else if (action.startsWith('remove-class(') && action.endsWith(')')) {
-                const className = action.substring('remove-class('.length, action.length - 1);
-                $el.addClass(className);
-              } else if (action === 'hide') {
-                $el.show(); // Jika sebelumnya disembunyikan, tampilkan lagi
-              } else if (action === 'show') {
-                $el.hide(); // Jika sebelumnya ditampilkan, sembunyikan lagi
-              }
-              // Tambahkan logika inverse untuk aksi lain jika diperlukan
-            });
-          }
-        }
+      $scope.find('input[name], select[name], textarea[name]').each(function () {
+        const $input = $(this);
+        const name = $input.attr('name');
+        const val = getInputValue($input);
+        context[name] = val === null || val === undefined ? 0 : val;
       });
-    }
+
+      const passed = new Function('context', `with(context) { return (${expr}); }`)(context);
+
+      if (passed) {
+        if (thenChain) {
+          const chainList = thenChain.split('->').map(s => s.trim());
+          runActionChain(chainList, 0, $el, '');
+        }
+      } else {
+        if (elseChain) {
+          const chainList = elseChain.split('->').map(s => s.trim());
+          runActionChain(chainList, 0, $el, '');
+        } else if (
+          thenChain) { // Kondisi false, dan hanya live-then yang ada (tidak ada live-else)
+          // Kembalikan display ke kondisi asli
+          const originalDisplay = $el.data('original-display');
+          if (originalDisplay !== undefined) {
+            $el.css('display', originalDisplay);
+          }
+
+          // Kembalikan aksi yang ditentukan di live-then (inverse actions)
+          const thenActionList = thenChain.split('->').map(s => s.trim());
+          thenActionList.forEach(action => {
+            if (action === 'readonly') {
+              $el.removeAttr('readonly');
+            } else if (action === 'disable') {
+              $el.removeAttr('disabled');
+            } else if (action.startsWith('add-class(') && action.endsWith(')')) {
+              const className = action.substring('add-class('.length, action
+                .length - 1);
+              $el.removeClass(className);
+            } else if (action.startsWith('remove-class(') && action.endsWith(')')) {
+              const className = action.substring('remove-class('.length, action
+                .length - 1);
+              $el.addClass(className);
+            } else if (action === 'hide') {
+              $el.show(); // Jika sebelumnya disembunyikan, tampilkan lagi
+            } else if (action === 'show') {
+              $el.hide(); // Jika sebelumnya ditampilkan, sembunyikan lagi
+            }
+            // Tambahkan logika inverse untuk aksi lain jika diperlukan
+          });
+        }
+      }
+    });
+  }
 
   function autoCoerce(val) {
     if (val === null || val === undefined || val === '') return 0;
@@ -1668,6 +1737,70 @@ function runAction(type, value, $target) {
     return isNaN(n) ? val : n;
   }
 
+
+
+  /*==============================
+    LIVE TELEPORT
+  ==============================*/
+  function handleLiveTeleport(scope) {
+    const $scope = $(scope || document);
+
+    $scope.find('[live-teleport]').each(function () {
+      const $el = $(this);
+      const targetSelector = $el.attr('live-teleport');
+      if (!targetSelector) return;
+
+      // Hindari re-init ganda
+      if ($el.data('live-teleport-initialized')) return;
+      $el.data('live-teleport-initialized', true);
+
+      // Pastikan ada live-state pembungkus
+      const parentStateContainer = $el.closest('[live-state]')[0];
+      if (!parentStateContainer) {
+        console.warn('[LiveDomJs] live-teleport harus berada di dalam [live-state]', $el[0]);
+        return;
+      }
+
+      // Ambil state pembungkusnya
+      const state = window.LiveState?.getState(parentStateContainer);
+      if (!state) {
+        console.warn('[LiveDomJs] State pembungkus tidak ditemukan untuk live-teleport', $el[0]);
+        return;
+      }
+
+      // Simpan info state pembungkus
+      $el.data('live-teleport-state', { container: parentStateContainer, state });
+
+      // Fungsi untuk eksekusi teleport saat target ada
+      const doTeleport = () => {
+        const $target = $(targetSelector);
+        if (!$target.length) {
+          console.warn('[LiveDomJs] Target live-teleport belum ditemukan:', targetSelector);
+          return false;
+        }
+
+        // Pindahkan node ke target (menjaga urutan append)
+        $el.appendTo($target);
+
+        // Bind ulang ke state pembungkus (agar reactive tetap nyambung)
+        if (typeof window.LiveState?.bindElementToState === 'function') {
+          window.LiveState.bindElementToState($el[0], state);
+        }
+
+        return true;
+      };
+
+      // Jika target belum ada, observer akan menunggu
+      if (!doTeleport()) {
+        const observer = new MutationObserver(() => {
+          if (doTeleport()) {
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+    });
+  }
 
   /*==============================
     ACCORDION
@@ -1822,7 +1955,8 @@ function runAction(type, value, $target) {
         if (triggerValue.startsWith('outside(')) {
           const selector = triggerValue.match(/^outside\((.+?)\)$/)?.[1];
           if (!selector) {
-            console.warn(`[Live Trigger] Invalid outside() selector for ${attr}`, $el[0]);
+            console.warn(`[Live Trigger] Invalid outside() selector for ${attr}`,
+              $el[0]);
             return;
           }
           bindHandler(eventType, ($target) =>
@@ -1834,7 +1968,8 @@ function runAction(type, value, $target) {
         } else if (triggerValue.startsWith('inside(')) {
           const selector = triggerValue.match(/^inside\((.+?)\)$/)?.[1];
           if (!selector) {
-            console.warn(`[Live Trigger] Invalid inside() selector for ${attr}`, $el[0]);
+            console.warn(`[Live Trigger] Invalid inside() selector for ${attr}`,
+              $el[0]);
             return;
           }
           bindHandler(eventType, ($target) =>
@@ -1851,7 +1986,8 @@ function runAction(type, value, $target) {
           });
         } else {
           // Direct selector
-          bindHandler(eventType, ($target) => $target.is(triggerValue) || $target.closest(triggerValue).length);
+          bindHandler(eventType, ($target) => $target.is(triggerValue) || $target
+            .closest(triggerValue).length);
         }
       });
     });
@@ -1962,7 +2098,8 @@ function runAction(type, value, $target) {
       }, '', url);
     }, () => {
       if (mainRegion) {
-        mainRegion.innerHTML = '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
+        mainRegion.innerHTML =
+          '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
       }
     });
   }
@@ -2055,14 +2192,25 @@ function runAction(type, value, $target) {
 
             if (redirectUrl) {
               fetch(redirectUrl, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                headers: {
+                  'X-Requested-With': 'XMLHttpRequest'
+                },
               })
                 .then(res => res.text())
                 .then(html => {
                   updateSpaRegions(html);
-                  document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-                  document.dispatchEvent(new CustomEvent('live-dom:afterSpa', { detail: { url: redirectUrl } }));
-                  history.pushState({ spa: true, url: redirectUrl }, '', redirectUrl);
+                  document.dispatchEvent(new CustomEvent(
+                    'live-dom:afterUpdate'));
+                  document.dispatchEvent(new CustomEvent(
+                    'live-dom:afterSpa', {
+                    detail: {
+                      url: redirectUrl
+                    }
+                  }));
+                  history.pushState({
+                    spa: true,
+                    url: redirectUrl
+                  }, '', redirectUrl);
                   runAfterCallback(response, false);
                   callbackSuccess?.(response);
                 })
@@ -2122,7 +2270,8 @@ function runAction(type, value, $target) {
       const input = $(form).find(`[name="${field}"]`);
       if (input.length) {
         input.addClass('is-invalid');
-        const errorHtml = `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join('<br>')}</div>`;
+        const errorHtml =
+          `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join('<br>')}</div>`;
         if (input.next('.invalid-feedback').length === 0) {
           input.after(errorHtml);
         }
@@ -2194,7 +2343,7 @@ function runAction(type, value, $target) {
   }
 
   /*==============================
-    LIVE DOM ERROR HANDLE
+  LIVE DOM ERROR HANDLE
   ==============================*/
 
   /**
@@ -2208,78 +2357,78 @@ function runAction(type, value, $target) {
     const modal = document.createElement('div');
     modal.id = 'spa-error-modal';
     modal.innerHTML = `
-      <style>
-        #spa-error-modal {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.6);
-          z-index: 99999;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: system-ui, sans-serif;
-        }
-        #spa-error-box {
-          position: relative;
-          background: #fff;
-          border-radius: 12px;
-          width: 95%;
-          max-width: 1000px;
-          height: 90%;
-          box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-          border: 1px solid #e5e7eb;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        #spa-error-header {
-          background-color: #fef2f2;
-          padding: 12px 20px;
-          border-bottom: 1px solid #fca5a5;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        #spa-error-header h3 {
-          margin: 0;
-          font-size: 16px;
-          color: #b91c1c;
-        }
-        #spa-error-close {
-          font-size: 22px;
-          font-weight: bold;
-          color: #b91c1c;
-          cursor: pointer;
-          background: transparent;
-          border: none;
-          line-height: 1;
-          padding: 0;
-          user-select: none;
-        }
-        #spa-error-content {
-          padding: 20px;
-          overflow: auto;
-          flex: 1;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-          color: #222;
-          background: #fff;
-          border-top: 1px solid #eee;
-        }
-        @media (max-width: 640px) {
-          #spa-error-box {
-            width: 98%;
-            height: 95%;
-          }
-        }
-      </style>
-      <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
-        <div id="spa-error-header">
-          <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
-          <button id="spa-error-close" aria-label="Close modal">&times;</button>
-        </div>
-        <div id="spa-error-content"></div>
-      </div>
-    `;
+                    <style>
+                        #spa-error-modal {
+                        position: fixed; inset: 0;
+                        background: rgba(0,0,0,0.6);
+                        z-index: 99999;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-family: system-ui, sans-serif;
+                        }
+                        #spa-error-box {
+                        position: relative;
+                        background: #fff;
+                        border-radius: 12px;
+                        width: 95%;
+                        max-width: 1000px;
+                        height: 90%;
+                        box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+                        border: 1px solid #e5e7eb;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        }
+                        #spa-error-header {
+                        background-color: #fef2f2;
+                        padding: 12px 20px;
+                        border-bottom: 1px solid #fca5a5;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        }
+                        #spa-error-header h3 {
+                        margin: 0;
+                        font-size: 16px;
+                        color: #b91c1c;
+                        }
+                        #spa-error-close {
+                        font-size: 22px;
+                        font-weight: bold;
+                        color: #b91c1c;
+                        cursor: pointer;
+                        background: transparent;
+                        border: none;
+                        line-height: 1;
+                        padding: 0;
+                        user-select: none;
+                        }
+                        #spa-error-content {
+                        padding: 20px;
+                        overflow: auto;
+                        flex: 1;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+                            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+                        color: #222;
+                        background: #fff;
+                        border-top: 1px solid #eee;
+                        }
+                        @media (max-width: 640px) {
+                        #spa-error-box {
+                            width: 98%;
+                            height: 95%;
+                        }
+                        }
+                    </style>
+                    <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
+                        <div id="spa-error-header">
+                        <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
+                        <button id="spa-error-close" aria-label="Close modal">&times;</button>
+                        </div>
+                        <div id="spa-error-content"></div>
+                    </div>
+                    `;
 
     document.body.appendChild(modal);
     const contentDiv = modal.querySelector('#spa-error-content');
@@ -2315,7 +2464,8 @@ function runAction(type, value, $target) {
     const line = err.line || '';
     const trace = err.trace || {};
 
-    let traceHtml = '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
+    let traceHtml =
+      '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
 
     Object.values(trace).forEach((frame, idx) => {
       const ffile = frame.file || 'unknown file';
@@ -2326,28 +2476,28 @@ function runAction(type, value, $target) {
       const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
 
       traceHtml += `
-        <li style="margin-bottom:6px;">
-          <div><strong>#${idx}</strong> ${fullFunc}</div>
-          <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
-        </li>`;
+                        <li style="margin-bottom:6px;">
+                        <div><strong>#${idx}</strong> ${fullFunc}</div>
+                        <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
+                        </li>`;
     });
 
     traceHtml += '</ol>';
 
     return `
-      <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
-      <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
-      <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
-      <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
-      <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
-        <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
-        ${traceHtml}
-      </details>
-    `;
+                    <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
+                    <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
+                    <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
+                    <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
+                    <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
+                        <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
+                        ${traceHtml}
+                    </details>
+                    `;
   }
 
   /*==============================
-    LIVE DOM AUTO EVAL SCRIPT
+  LIVE DOM AUTO EVAL SCRIPT
   ==============================*/
 
   const scriptCache = new Set();
@@ -2388,7 +2538,8 @@ function runAction(type, value, $target) {
         const trimmed = code.trim();
 
         // Check if the script is already wrapped in an IIFE or async IIFE
-        const isAlreadyWrapped = /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(trimmed);
+        const isAlreadyWrapped = /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(
+          trimmed);
 
         if (!isAlreadyWrapped) {
           code = `(function () {\n${code}\n})();`;
@@ -2408,443 +2559,837 @@ function runAction(type, value, $target) {
   }
 
   /*==============================
-    LIVE STATE
+  LIVE STATE
   ==============================*/
 
   /*==============================
       UTILITY FUNCTIONS
-    ==============================*/
-    const deepClone = obj => JSON.parse(JSON.stringify(obj));
-    
-    const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-    
-    const tryEval = (val, context = {}) => {
-        try {
-            return (new Function(...Object.keys(context), `return ${val}`))(...Object.values(context));
-        } catch {
-            return val;
-        }
-    };
+  ==============================*/
+  const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-    /*==============================
-      STATE PARSING & INITIALIZATION
-    ==============================*/
-    function parseStateExpression(expr, parentContext = null) {
+  const tryEval = (val, context = {}) => {
+    try {
+      return (new Function(...Object.keys(context), `return ${val}`))(...Object.values(context));
+    } catch {
+      return val;
+    }
+  };
+
+  /*==============================
+  STATE PARSING & INITIALIZATION
+  ==============================*/
+  function parseStateExpression(expr, parentContext = null) {
+    try {
+      expr = expr.trim();
+
+      // Handle object literals and JSON
+      if (expr.startsWith('{') && expr.endsWith('}')) {
         try {
-            expr = expr.trim();
-            
-            // Handle object literals and JSON
-            if (expr.startsWith('{') && expr.endsWith('}')) {
-                try {
-                    return parentContext 
-                        ? (new Function('_parent', `return ${expr}`))(parentContext)
-                        : (new Function(`return ${expr}`))();
-                } catch (e) {
-                    return JSON.parse(expr);
-                }
-            }
-            
-            // Handle simple key:value pairs
-            return expr.split(',').reduce((acc, pair) => {
-                const [key, val] = pair.split(':').map(s => s.trim());
-                if (key && val !== undefined) {
-                    acc[key] = tryEval(val, parentContext);
-                }
-                return acc;
-            }, {});
+          return parentContext ?
+            (new Function('_parent', `return ${expr}`))(parentContext) :
+            (new Function(`return ${expr}`))();
         } catch (e) {
-            console.error('LiveState: Invalid state expression', expr, e);
-            return {};
+          return JSON.parse(expr);
         }
+      }
+
+      // Handle simple key:value pairs
+      return expr.split(',').reduce((acc, pair) => {
+        const [key, val] = pair.split(':').map(s => s.trim());
+        if (key && val !== undefined) {
+          acc[key] = tryEval(val, parentContext);
+        }
+        return acc;
+      }, {});
+    } catch (e) {
+      console.error('LiveState: Invalid state expression', expr, e);
+      return {};
     }
+  }
 
-    function initializeState(element, parentState = null) {
-        const $el = $(element);
-        const stateExpr = $el.attr('live-state') || '{}';
-        const parentContext = parentState ? { parent: parentState } : null;
-        
-        const initialState = parseStateExpression(stateExpr, parentContext);
-        const state = createStateProxy(initialState, element);
-        
-        stateProxies.set(element, state);
-        vdomCache.set(element, element.cloneNode(true));
-        elementStateMap.set(element, { parentState });
+  function initializeState(element, parentState = null) {
+    const $el = $(element);
+    const stateExpr = $el.attr('live-state') || '{}';
+    const parentContext = parentState ? {
+      parent: parentState
+    } : null;
 
-        // Initialize child components
-        $el.find('[live-state]').each(function() {
-            initializeState(this, state);
-        });
+    const initialState = parseStateExpression(stateExpr, parentContext);
+    const state = createStateProxy(initialState, element);
 
-        return state;
-    }
+    stateProxies.set(element, state);
+    vdomCache.set(element, element.cloneNode(true));
+    elementStateMap.set(element, {
+      parent: parentState
+    });
 
-    /*==============================
-      REACTIVE STATE PROXY SYSTEM
-    ==============================*/
-    function createStateProxy(target, container, path = '') {
-        // Convert nested objects to proxies
-        Object.keys(target).forEach(key => {
-            if (typeof target[key] === 'object' && target[key] !== null) {
-                target[key] = createStateProxy(
-                    target[key], 
-                    container, 
-                    path ? `${path}.${key}` : key
-                );
-            }
-        });
 
-        return new Proxy(target, {
-            get(target, prop) {
-                if (prop === '_isProxy') return true;
-                if (prop === '_path') return path;
-                return Reflect.get(target, prop);
-            },
-            set(target, prop, value) {
-                const oldValue = target[prop];
-                const fullPath = path ? `${path}.${prop}` : prop;
+    // Initialize child components
+    $el.find('[live-state]').each(function () {
+      initializeState(this, state);
+    });
 
-                // Handle nested objects
-                if (typeof value === 'object' && value !== null && !value._isProxy) {
-                    value = createStateProxy(value, container, fullPath);
-                }
+    updateStateBindings(element, '*');
+    return state;
+  }
 
-                const result = Reflect.set(target, prop, value);
-                
-                if (result && !deepEqual(oldValue, value)) {
-                    triggerStateUpdate(container, fullPath, value, oldValue);
-                }
-                return result;
-            },
-            deleteProperty(target, prop) {
-                const fullPath = path ? `${path}.${prop}` : prop;
-                const result = Reflect.deleteProperty(target, prop);
-                if (result) {
-                    triggerStateUpdate(container, fullPath, undefined, target[prop]);
-                }
-                return result;
-            }
-        });
-    }
-
-    function triggerStateUpdate(container, path, value, oldValue) {
-        const state = stateProxies.get(container);
-        const callbacks = stateCallbacks.get(state);
-        
-        // Run beforeUpdate hooks
-        callbacks?.beforeUpdate?.forEach(cb => 
-            cb({ path, value, oldValue, state })
+  /*==============================
+    REACTIVE STATE PROXY SYSTEM
+  ==============================*/
+  function createStateProxy(target, container, path = '') {
+    // Convert nested objects to proxies
+    Object.keys(target).forEach(key => {
+      if (typeof target[key] === 'object' && target[key] !== null && !target[key]._isProxy) {
+        target[key] = createStateProxy(
+          target[key],
+          container,
+          path ? `${path}.${key}` : key
         );
+      }
+    });
 
-        // Trigger watchers
-        const watchers = stateWatchers.get(state);
-        if (watchers) {
-            // Exact path matches
-            watchers.get(path)?.forEach(cb => cb(value, oldValue));
-            
-            // Wildcard matches (e.g., 'user.*')
-            const wildcardPath = path.split('.').slice(0, -1).join('.') + '.*';
-            watchers.get(wildcardPath)?.forEach(cb => cb(value, oldValue, path));
-        }
+    return new Proxy(target, {
+      get(target, prop) {
+        if (prop === '_isProxy') return true;
+        if (prop === '_path') return path;
 
-        // Update DOM bindings
-        updateStateBindings(container, path);
-        
-        // Run updated hooks
-        callbacks?.updated?.forEach(cb => 
-            cb({ path, value, oldValue, state })
-        );
-    }
-
-    /*==============================
-      DOM BINDING & RENDERING
-    ==============================*/
-    function updateStateBindings(container, changedPath) {
-        const $container = $(container);
-        const state = stateProxies.get(container);
-        
-        // Find affected bindings
-        const bindings = [
-            'live-text', 'live-html', 'live-value',
-            'live-class', 'live-style', 'live-if',
-            'live-then', 'live-else', 'live-state-for'
-        ];
-        
-        bindings.forEach(attr => {
-            $container.find(`[${attr}]`).addBack(`[${attr}]`).each(function() {
-                const expr = $(this).attr(attr);
-                if (expr && dependsOnPath(expr, changedPath)) {
-                    processStateBinding(this, attr, state);
-                }
-            });
-        });
-    }
-
-    function dependsOnPath(expr, path) {
-        // const pathParts = path.split('.');
-        // return pathParts.some((_, i) => {
-        //     const testPath = pathParts.slice(0, i + 1).join('.');
-        //     return expr.includes(testPath);
-        // });
-
-      const regex = new RegExp(`\\b${path.replace(/\./g, '\\.')}\\b`);
-      return regex.test(expr);
-    }
-
-    function processStateBinding(element, attr, state) {
-        const $el = $(element);
-        const expr = $el.attr(attr);
-        
-        try {
-            const value = evaluateWithState(expr, state);
-            
-            switch (attr) {
-                case 'live-text':
-                    if ($el.text() !== String(value)) {
-                        $el.text(value != null ? value : '');
-                    }
-                    break;
-                    
-                case 'live-html':
-                    if ($el.html() !== String(value)) {
-                        $el.html(value);
-                    }
-                    break;
-                    
-                case 'live-value':
-                    if ($el.val() !== String(value)) {
-                        $el.val(value != null ? value : '');
-                    }
-                    break;
-                    
-                case 'live-class':
-                    processClassBinding($el, expr, state);
-                    break;
-                    
-                case 'live-style':
-                    processStyleBinding($el, expr, state);
-                    break;
-                    
-                case 'live-if':
-                    processIfBinding($el, expr, state);
-                    break;
-                    
-                case 'live-state-for':
-                    processForBinding($el, expr, state);
-                    break;
-            }
-        } catch (e) {
-            console.error(`Error processing ${attr} binding:`, e);
-        }
-    }
-
-    function evaluateWithState(expr, state) {
-        try {
-            return new Function('state', `with(state) { return (${expr}); }`)(state);
-        } catch (e) {
-            console.error('LiveState: Evaluation error:', expr, e);
+        // Handle computed properties
+        const computed = stateComputed.get(target);
+        if (computed && computed[prop] && !target.hasOwnProperty(prop)) {
+          try {
+            target[prop] = computed[prop](target);
+            return target[prop];
+          } catch (e) {
+            console.error('Computed property error:', e);
             return undefined;
-        }
-    }
-
-    /*==============================
-      BINDING PROCESSORS
-    ==============================*/
-    function processClassBinding($el, expr, state) {
-        const classDefinitions = expr.split(',').map(s => s.trim());
-        classDefinitions.forEach(def => {
-            const [className, condition] = def.split(':').map(s => s.trim());
-            if (className && condition !== undefined) {
-                const result = evaluateWithState(condition, state);
-                $el.toggleClass(className, !!result);
-            }
-        });
-    }
-
-    function processStyleBinding($el, expr, state) {
-        const styleDefinitions = expr.split(',').map(s => s.trim());
-        styleDefinitions.forEach(def => {
-            const [property, valueExpr] = def.split(':').map(s => s.trim());
-            if (property && valueExpr !== undefined) {
-                const value = evaluateWithState(valueExpr, state);
-                if (value !== undefined) {
-                    $el.css(property, value);
-                }
-            }
-        });
-    }
-
-    function processIfBinding($el, expr, state) {
-        const result = evaluateWithState(expr, state);
-        const hasThenElse = $el.is('[live-then], [live-else]');
-
-        if (!hasThenElse) {
-            const animateType = $el.attr('live-animate');
-            result ? showElement($el, animateType) : hideElement($el, animateType);
-        }
-    }
-
-    function showElement($el, animateType) {
-        if (!$el.is(':visible')) {
-            animateType ? handleLiveAnimate($el) : $el.show();
-        }
-    }
-
-    function hideElement($el, animateType) {
-        if ($el.is(':visible')) {
-            if (animateType) {
-                const hideAnimate = animateType
-                    .replace('in', 'out')
-                    .replace('down', 'up')
-                    .replace('show', 'hide');
-                $el.attr('live-animate', hideAnimate);
-                handleLiveAnimate($el);
-                $el.attr('live-animate', animateType);
-            } else {
-                $el.hide();
-            }
-        }
-    }
-
-    function processForBinding($el, expr, state) {
-        const match = expr.match(/^(?:(\w+)(?:,\s*(\w+))?\s+in\s+)?([\w.]+)$/);
-        if (!match) return;
-
-        const [_, itemVar, indexVar, statePath] = match;
-        const stateArray = evaluateWithState(statePath, state);
-
-        if (!Array.isArray(stateArray)) {
-            $el.html('');
-            return;
+          }
         }
 
-        let $template = $el.data('liveStateForTemplate');
-        if (!$template) {
-            $template = $el.children('[live-state-for]').first();
-            if (!$template.length) return;
-            $template.remove();
-            $el.data('liveStateForTemplate', $template);
+        return Reflect.get(target, prop);
+      },
+      set(target, prop, value) {
+        const oldValue = target[prop];
+        const fullPath = path ? `${path}.${prop}` : prop;
+
+        // Run middleware before update
+        const middlewares = stateMiddleware.get(container) || [];
+        let processedValue = value;
+        for (const middleware of middlewares) {
+          processedValue = middleware(fullPath, processedValue, oldValue, target);
         }
 
-        const fragment = document.createDocumentFragment();
-        
-        stateArray.forEach((item, index) => {
-            const $clone = $template.clone().removeAttr('live-state-for');
-            const itemContext = { ...state, [itemVar]: item };
-            if (indexVar) itemContext[indexVar] = index;
-            itemContext.$index = index;
+        // Handle nested objects
+        if (typeof processedValue === 'object' && processedValue !== null && !processedValue
+          ._isProxy) {
+          processedValue = createStateProxy(processedValue, container, fullPath);
+        }
 
-            ['live-text', 'live-html', 'live-value', 'live-class', 'live-style', 'live-if']
-                .forEach(attr => {
-                    $clone.find(`[${attr}]`).addBack(`[${attr}]`).each(function() {
-                        processStateBinding(this, attr, itemContext);
-                    });
-                });
+        const result = Reflect.set(target, prop, processedValue);
 
-            fragment.appendChild($clone[0]);
-        });
+        if (result && !deepEqual(oldValue, processedValue)) {
+          triggerStateUpdate(container, fullPath, processedValue, oldValue);
+        }
+        return result;
+      },
+      deleteProperty(target, prop) {
+        const fullPath = path ? `${path}.${prop}` : prop;
+        const result = Reflect.deleteProperty(target, prop);
+        if (result) {
+          triggerStateUpdate(container, fullPath, undefined, target[prop]);
+        }
+        return result;
+      }
+    });
+  }
 
-        $el.empty().append(fragment);
+  // Fungsi baru untuk mendukung middleware
+  function addStateMiddleware(element, middleware) {
+    if (!stateMiddleware.has(element)) {
+      stateMiddleware.set(element, []);
+    }
+    stateMiddleware.get(element).push(middleware);
+  }
+
+  // Fungsi baru untuk batch updates
+  function batchStateUpdates(element, callback) {
+    const state = stateProxies.get(element);
+    if (!state) return;
+
+    // Disable sementara trigger updates
+    state._batchMode = true;
+    callback();
+    state._batchMode = false;
+
+    // Trigger update manual setelah batch selesai
+    triggerStateUpdate(element, '*', state);
+  }
+
+  function triggerStateUpdate(container, path, value, oldValue) {
+    const state = stateProxies.get(container);
+    const callbacks = stateCallbacks.get(state);
+
+    // Run beforeUpdate hooks
+    callbacks?.beforeUpdate?.forEach(cb =>
+      cb({
+        path,
+        value,
+        oldValue,
+        state
+      })
+    );
+
+    // Trigger watchers
+    const watchers = stateWatchers.get(state);
+    if (watchers) {
+      // Exact path matches
+      watchers.get(path)?.forEach(cb => cb(value, oldValue));
+
+      // Wildcard matches (e.g., 'user.*')
+      const wildcardPath = path.split('.').slice(0, -1).join('.') + '.*';
+      watchers.get(wildcardPath)?.forEach(cb => cb(value, oldValue, path));
     }
 
-    /*==============================
-      EVENT HANDLING
-    ==============================*/
-    function setupEventHandlers() {
-        const events = ['click', 'change', 'input', 'submit', 'mouseenter', 'mouseleave'];
-        
-        events.forEach(event => {
-            $(document).off(`.liveState${event}`).on(
-                `${event}.liveState${event}`, 
-                `[live-state-${event}]`, 
-                handleStateEvent
-            );
-        });
-    }
+    // Update DOM bindings
+    updateStateBindings(container, path);
 
-    function handleStateEvent(e) {
-        const $el = $(this);
-        const eventType = e.type;
-        const expr = $el.attr(`live-state-${eventType}`);
-        
+    // Run updated hooks
+    callbacks?.updated?.forEach(cb =>
+      cb({
+        path,
+        value,
+        oldValue,
+        state
+      })
+    );
+  }
+
+  /*==============================
+    DOM BINDING & RENDERING
+  ==============================*/
+  function updateStateBindings(container, changedPath) {
+    const $container = $(container);
+    const state = stateProxies.get(container);
+
+    const bindings = [
+      'live-text', 'live-html', 'live-value',
+      'live-class', 'live-style', 'live-if',
+      'live-then', 'live-else', 'live-state-for'
+    ];
+
+    bindings.forEach(attr => {
+      $container.find(`[${attr}]`).addBack(`[${attr}]`).each(function () {
+        const expr = $(this).attr(attr);
         if (!expr) return;
-        
-        const stateContainer = $el.closest('[live-state]')[0];
-        if (!stateContainer) return;
-        
-        const state = stateProxies.get(stateContainer);
-        if (!state) return;
-        
-        try {
-            new Function('state', 'event', '$el', `
-                with(state) {
-                    ${expr.includes('return') ? expr : `return (${expr})`}
-                }
-            `)(state, e, $el);
-        } catch (error) {
-            console.error(`Error executing ${eventType} handler:`, error);
-        }
-    }
 
-    /*==============================
-      PUBLIC API
-    ==============================*/
-    window.LiveState = {
-        init: function(scope = document) {
-            $(scope).find('[live-state]').each(function() {
-                if (!stateProxies.has(this)) {
-                    initializeState(this);
-                }
-            });
-            setupEventHandlers();
-        },
-        
-        watch: function(element, path, callback) {
-            const state = stateProxies.get(element);
-            if (!state) return;
-            
-            const watchers = stateWatchers.get(state) || new Map();
-            if (!watchers.has(path)) watchers.set(path, []);
-            watchers.get(path).push(callback);
-            stateWatchers.set(state, watchers);
-        },
-        
-        getState: function(element, path = '') {
-            const state = stateProxies.get(element);
-            return path 
-                ? path.split('.').reduce((obj, key) => obj?.[key], state)
-                : state;
-        },
-        
-        addCallback: function(element, hook, callback) {
-            const state = stateProxies.get(element);
-            if (!state) return;
-            
-            const callbacks = stateCallbacks.get(state) || {
-                beforeUpdate: [], updated: [], beforeMount: [], mounted: []
-            };
-            
-            if (callbacks[hook]) {
-                callbacks[hook].push(callback);
-                stateCallbacks.set(state, callbacks);
-            }
-        },
-        
-        setState: function(element, path, value) {
-            const state = stateProxies.get(element);
-            if (!state) return;
-            
-            const parts = path.split('.');
-            const last = parts.pop();
-            const target = parts.reduce((obj, key) => obj[key], state);
-            
-            if (target) {
-                target[last] = value;
-            }
+        if (attr === 'live-state-for') {
+          // Proses live-state-for langsung tanpa dependsOnPath
+          processForBinding($(this), expr, state);
+        } else {
+          // Untuk binding lain, cek dependsOnPath dulu
+          if (dependsOnPath(expr, changedPath)) {
+            processStateBinding(this, attr, state);
+          }
         }
+      });
+    });
+  }
+
+
+
+  function dependsOnPath(expr, path) {
+    const extractPaths = expr => {
+      // Tangkap semua kemungkinan jalur seperti "state.items", "items"
+      const matches = [...expr.matchAll(/\b[\w$]+\.[\w$]+|\b[\w$]+\b/g)];
+      return matches.map(m => m[0]);
     };
 
-    // Initialize on DOM ready
-  
+    const allPaths = [path];
+    const parts = path.split('.');
+    for (let i = parts.length - 1; i > 0; i--) {
+      allPaths.push(parts.slice(0, i).join('.'));
+    }
+
+    const exprPaths = extractPaths(expr);
+    return allPaths.some(p => exprPaths.includes(p));
+  }
+
+
+
+  function processStateBinding(element, attr, context) {
+    const $el = $(element);
+    const expr = $el.attr(attr);
+    try {
+      const value = evaluateWithState(expr, context);
+
+      switch (attr) {
+        case 'live-text':
+          if ($el.text() !== String(value)) {
+            $el.text(value != null ? value : '');
+          }
+          break;
+
+        case 'live-html':
+          if ($el.html() !== String(value)) {
+            $el.html(value);
+          }
+          break;
+
+        case 'live-value':
+          if ($el.val() !== String(value)) {
+            $el.val(value != null ? value : '');
+            $el.trigger('input');
+          }
+          break;
+
+        case 'live-class':
+          processClassBinding($el, expr, context);
+          break;
+
+        case 'live-style':
+          processStyleBinding($el, expr, context);
+          break;
+
+        case 'live-if':
+          processIfBinding($el, expr, context);
+          break;
+
+        // dst sesuai kebutuhan
+      }
+    } catch (e) {
+      console.error(`Error processing ${attr} binding:`, e);
+    }
+  }
+
+  // Fungsi baru untuk handle two-way binding
+  function setupModelBinding(element, state) {
+    const $el = $(element);
+    const expr = $el.attr('live-model');
+    console.log('[processForBinding]', expr);
+
+    $el.on('input change', function () {
+      const value = $el.is(':checkbox') ? $el.prop('checked') : $el.val();
+      LiveState.setState(element.closest('[live-state]'), expr.replace('state.', ''), value);
+    });
+
+    processStateBinding(element, 'live-model', state);
+  }
+  /**
+   * Meningkatkan evaluateWithState dengan dukungan syntax yang lebih kaya
+   * Mempertahankan signature fungsi asli
+   */
+  function evaluateWithState(expr, context) {
+    try {
+      if (!context || typeof context !== 'object') {
+        console.warn('[LiveState] State not ready');
+        return undefined;
+      }
+
+      return new Function(...Object.keys(context), `return (${expr});`)(...Object.values(context));
+    } catch (e) {
+      console.error('[LiveState] Evaluation error:', expr, e);
+      return undefined;
+    }
+  }
+
+  // Fungsi baru untuk handle object expressions
+  function evaluateObjectExpression(expr, state) {
+    try {
+      const obj = new Function('state', `
+              with(state) { return (${expr}); }
+          `)(state);
+
+      return obj;
+    } catch (e) {
+      console.warn('[LiveState] Invalid object expression:', expr, e.message);
+      return {};
+    }
+  }
+
+
+  /*==============================
+    BINDING PROCESSORS
+  ==============================*/
+  function processClassBinding($el, expr, state) {
+    const classObj = evaluateObjectExpression(expr, state);
+    if (typeof classObj !== 'object') return;
+
+    Object.entries(classObj).forEach(([className, shouldApply]) => {
+      $el.toggleClass(className, !!shouldApply);
+    });
+  }
+
+
+  // Perbaikan processStyleBinding
+  function processStyleBinding($el, expr, state) {
+    const styles = evaluateObjectExpression(expr, state);
+    if (typeof styles !== 'object') return;
+
+    for (const [property, value] of Object.entries(styles)) {
+      if (value !== undefined) {
+        $el.css(property, value);
+      }
+    }
+  }
+
+
+  function processIfBinding($el, expr, state) {
+    const result = evaluateWithState(expr, state);
+    console.log('[LiveIf] evaluating:', expr, 'context:', state);
+    const hasThenElse = $el.is('[live-then], [live-else]');
+
+    if (!hasThenElse) {
+      const animateType = $el.attr('live-animate');
+      result ? showElement($el, animateType) : hideElement($el, animateType);
+    }
+  }
+
+  function showElement($el, animateType) {
+    if (!$el.is(':visible')) {
+      animateType ? handleLiveAnimate($el) : $el.show();
+    }
+  }
+
+  function hideElement($el, animateType) {
+    if ($el.is(':visible')) {
+      if (animateType) {
+        const hideAnimate = animateType
+          .replace('in', 'out')
+          .replace('down', 'up')
+          .replace('show', 'hide');
+        $el.attr('live-animate', hideAnimate);
+        handleLiveAnimate($el);
+        $el.attr('live-animate', animateType);
+      } else {
+        $el.hide();
+      }
+    }
+  }
+
+  function processForBinding($el, expr, rootState) {
+    const match = expr.match(/^(?:(\w+)(?:,\s*(\w+))?\s+in\s+)?([\w.]+)$/);
+    if (!match) return;
+
+    const [_, itemVar, indexVar, statePath] = match;
+
+    // Evaluasi statePath dari rootState
+    // Misal statePath = 'items'
+    const stateArray = evaluateWithState(statePath, rootState);
+
+    if (!Array.isArray(stateArray)) {
+      $el.html('');
+      return;
+    }
+
+    let $template = $el.data('liveStateForTemplate');
+    if (!$template) {
+      $template = $el.children().first().clone();
+      $el.data('liveStateForTemplate', $template);
+    }
+
+    $el.empty();
+
+    stateArray.forEach((item, index) => {
+      // Buat konteks yang menggabungkan item + rootState
+      const itemContext = mergeContext(item, rootState, itemVar, indexVar, index);
+
+      const $clone = $template.clone();
+
+      ['live-text', 'live-html', 'live-value', 'live-class', 'live-style', 'live-if'].forEach(
+        attr => {
+          $clone.find(`[${attr}]`).addBack(`[${attr}]`).each(function () {
+            processStateBinding(this, attr, itemContext);
+          });
+        });
+
+      $el.append($clone);
+    });
+  }
+
+
+  function mergeContext(item, rootState, itemVar, indexVar, index) {
+    const localContext = {
+      [itemVar]: item,
+      $index: index
+    };
+    if (indexVar) localContext[indexVar] = index;
+
+    return new Proxy(localContext, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop in rootState) return rootState[prop]; // fallback ke rootState
+        return undefined;
+      },
+      set(target, prop, value) {
+        if (prop in target) {
+          target[prop] = value;
+        } else if (prop in rootState) {
+          rootState[prop] = value;
+        } else {
+          target[prop] = value;
+        }
+        return true;
+      }
+    });
+  }
+
+  /*==============================
+    EVENT HANDLING
+  ==============================*/
+  /**
+   * Memperbarui setupEventHandlers untuk support binding baru
+   * Mempertahankan signature fungsi asli
+   */
+  function setupEventHandlers() {
+    // Support both old-style (live-state-click) and new-style (@click) events
+    const events = ['click', 'change', 'input', 'submit', 'mouseenter', 'mouseleave'];
+
+    events.forEach(event => {
+      // Tangani event biasa (live-state-* dan @*)
+      $(document).off(`.liveState${event}`).on(
+        `${event}.liveState${event}`,
+        `[live-state-${event}], [\\@${event}]`, // Escape @ dengan \\
+        handleStateEvent
+      );
+
+      // Tangani event khusus @click.outside
+      if ($('[\\@click\\.outside]').length > 0) {
+        initClickOutsideHandler();
+      }
+    });
+
+    // Setup for two-way binding
+    $(document).on('input change', '[live-model]', function () {
+      const $el = $(this);
+      const stateContainer = $el.closest('[live-state]')[0];
+      if (!stateContainer) return;
+
+      const state = stateProxies.get(stateContainer);
+      if (!state) return;
+
+      setupModelBinding(this, state);
+    });
+  }
+
+  function initClickOutsideHandler() {
+    let lastClickTarget = null;
+
+    // Tangkap elemen yang diklik
+    document.addEventListener('mousedown', function (e) {
+      lastClickTarget = e.target;
+    }, true);
+
+    // Handle click outside
+    $(document).on('mousedown', function (e) {
+      // Cari semua elemen dengan @click.outside
+      $('[\\@click\\.outside]').each(function () {
+        const $el = $(this);
+        const expr = $el.attr('@click.outside');
+
+        if (!expr || !$el.length || !$el[0].isConnected) return;
+
+        // Skip jika klik terjadi pada elemen itu sendiri atau child-nya
+        if ($el[0].contains(lastClickTarget)) return;
+
+        // Skip jika ada [live-state-click] yang terkait
+        const clickTriggers = $('[live-state-click], [\\@click]');
+        let shouldSkip = false;
+
+        clickTriggers.each(function () {
+          if ($(this)[0].contains(lastClickTarget)) {
+            shouldSkip = true;
+            return false; // break loop
+          }
+        });
+
+        if (shouldSkip) return;
+
+        // Eksekusi expression
+        const parentStateContainer = $el.closest('[live-state]')[0];
+        if (!parentStateContainer || !window.LiveState) return;
+
+        const state = window.LiveState.getState(parentStateContainer);
+        if (!state) return;
+
+        try {
+          new Function('state', 'event', `
+                      with(state) { ${expr} }
+                  `)(state, e);
+
+          // Update UI jika diperlukan
+          handleLiveIf(parentStateContainer);
+          handleLiveThenElse(parentStateContainer);
+        } catch (err) {
+          console.warn('[LiveState] Error in @click.outside:', err);
+        }
+      });
+    });
+  }
+
+  function handleStateEvent(e) {
+    const $el = $(this);
+    const eventType = e.type;
+
+    // Check for both old and new style event attributes
+    const expr = $el.attr(`live-state-${eventType}`) || $el.attr(`@${eventType}`);
+    if (!expr) return;
+
+    const stateContainer = $el.closest('[live-state]')[0];
+    if (!stateContainer) return;
+
+    const state = stateProxies.get(stateContainer);
+    if (!state) return;
+
+    try {
+      // Support both direct expressions and method calls
+      const isMethodCall = expr.match(/^(\w+)\(([^)]*)\)$/);
+
+      if (isMethodCall) {
+        const [, methodName, argsStr] = isMethodCall;
+        const args = argsStr.split(',').map(arg => arg.trim());
+
+        // Call the method with state context
+        if (state[methodName] && typeof state[methodName] === 'function') {
+          state[methodName](...args, e, $el);
+        }
+      } else {
+        // Direct expression evaluation
+        const fn = new Function('state', 'event', '$el', `
+                    with(state) {
+                        ${expr}
+                    }
+                `);
+        fn(state, e, $el);
+      }
+
+      // Trigger update after execution
+      triggerStateUpdate(stateContainer, '*', state);
+    } catch (error) {
+      console.error(`Error executing ${eventType} handler:`, error);
+    }
+  }
+
+  function initLiveStateClickOutside() {
+    let lastClickTarget = null;
+
+    document.addEventListener('mousedown', function (e) {
+      lastClickTarget = e.target;
+    }, true);
+
+    // Ganti event 'click' jadi 'mousedown' di sini
+    $(document).on('mousedown', function () {
+      $('[live-state-click-outside]').each(function () {
+        const $el = $(this);
+        const expr = $el.attr('live-state-click-outside');
+        if (!expr) return;
+
+        if (!$el.length || !$el[0].isConnected) return;
+
+        const el = $el[0];
+        if (el.contains(lastClickTarget)) return;
+
+        const openers = document.querySelectorAll('[live-state-click]');
+        for (const opener of openers) {
+          if (opener.contains(lastClickTarget)) {
+            const openerState = opener.closest('[live-state]');
+            const targetState = $el.closest('[live-state]');
+            if (openerState === targetState) return;
+          }
+        }
+
+        setTimeout(() => {
+          const parentStateContainer = $el.closest('[live-state]')[0];
+          if (!parentStateContainer || !window.LiveState) return;
+
+          const state = window.LiveState.getState(parentStateContainer);
+          if (!state) return;
+
+          try {
+            const func = new Function('state', 'with(state) { ' + expr +
+              '; }');
+            func(state);
+
+            handleLiveIf(parentStateContainer);
+            handleLiveThenElse(parentStateContainer);
+            // Jika handleLiveClass ada, aktifkan kembali
+            // handleLiveClass(parentStateContainer);
+          } catch (err) {
+            console.warn('[LiveDomJs] Error in live-state-click-outside:',
+              expr, err);
+          }
+        }, 0);
+      });
+    });
+  }
+
+  /*==============================
+    PUBLIC API
+  ==============================*/
+  // Mempertahankan API asli tapi menambahkan fitur baru
+  window.LiveState = {
+    parseEvents: function (element) {
+      const $el = $(element);
+
+      // Daftar event yang didukung
+      const events = ['click', 'change', 'input', 'submit', 'mouseenter', 'mouseleave'];
+
+      if ($el.is('[\\@click\\.outside]')) {
+        // Tidak perlu inisialisasi ulang jika sudah diinisialisasi
+        if (!$el.data('click-outside-bound')) {
+          $el.data('click-outside-bound', true);
+          initClickOutsideHandler();
+        }
+      }
+
+
+      events.forEach(event => {
+        // Tangani atribut @event
+        const expr = $el.attr(`@${event}`);
+        if (expr) {
+          $el.on(event, function (e) {
+            const stateContainer = $(this).closest('[live-state]')[0];
+            if (!stateContainer) return;
+
+            const state = stateProxies.get(stateContainer);
+            if (!state) return;
+
+            try {
+              new Function('state', 'event', '$el', `
+                              with(state) { ${expr} }
+                          `)(state, e, $(this));
+            } catch (err) {
+              console.error(`Error in @${event} handler:`, err);
+            }
+          });
+        }
+      });
+
+      // Tangani @click.outside khusus
+      if ($el.attr('@click.outside')) {
+        initAtClickOutsideHandler();
+      }
+    },
+
+    init: function (scope = document) {
+      $(scope).find('[live-state]').each(function () {
+        if (!stateProxies.has(this)) {
+          initializeState(this);
+          window.LiveState.parseEvents(this);
+        }
+      });
+      setupEventHandlers();
+    },
+
+    watch: function (element, path, callback) {
+      const state = stateProxies.get(element);
+      if (!state) return;
+
+      const watchers = stateWatchers.get(state) || new Map();
+      if (!watchers.has(path)) watchers.set(path, []);
+      watchers.get(path).push(callback);
+      stateWatchers.set(state, watchers);
+    },
+
+    getState: function (element, path = '') {
+      const state = stateProxies.get(element);
+      return path ?
+        path.split('.').reduce((obj, key) => obj?.[key], state) :
+        state;
+    },
+
+    addCallback: function (element, hook, callback) {
+      const state = stateProxies.get(element);
+      if (!state) return;
+
+      const callbacks = stateCallbacks.get(state) || {
+        beforeUpdate: [],
+        updated: [],
+        beforeMount: [],
+        mounted: []
+      };
+
+      if (callbacks[hook]) {
+        callbacks[hook].push(callback);
+        stateCallbacks.set(state, callbacks);
+      }
+    },
+
+    setState: function (element, path, value) {
+      const state = stateProxies.get(element);
+      if (!state) return;
+
+      const parts = path.split('.');
+      const last = parts.pop();
+      const target = parts.reduce((obj, key) => obj[key], state);
+
+      if (target) {
+        target[last] = value;
+      }
+    },
+
+    // Fungsi baru
+    addMiddleware: function (element, middleware) {
+      addStateMiddleware(element, middleware);
+    },
+
+    // Fungsi baru
+    batchUpdate: function (element, callback) {
+      batchStateUpdates(element, callback);
+    },
+
+    // Fungsi baru
+    compute: function (element, name, computeFn) {
+      const state = stateProxies.get(element);
+      if (!state) return;
+
+      const computed = stateComputed.get(state) || {};
+      computed[name] = computeFn;
+      stateComputed.set(state, computed);
+
+      // Trigger initial computation
+      state[name] = computeFn(state);
+    }
+  };
+
+  // Component system similar to x-data
+  window.LiveComponent = function (selector, setupFn) {
+    document.querySelectorAll(selector).forEach(el => {
+      const state = setupFn();
+      el.setAttribute('live-state', JSON.stringify(state));
+      LiveState.init(el);
+    });
+  };
+
+  // Watch system
+  LiveState.watchEffect = function (element, depsFn, effectFn) {
+    const state = LiveState.getState(element);
+    const deps = depsFn(state);
+    effectFn(state);
+
+    // Simple implementation - in real case should track dependencies
+    setInterval(() => {
+      const newDeps = depsFn(state);
+      if (!deepEqual(deps, newDeps)) {
+        effectFn(state);
+      }
+    }, 100);
+  };
+
+  // Global state
+  LiveState.store = (function () {
+    const stores = {};
+
+    return {
+      create(name, initialState) {
+        stores[name] = createStateProxy(initialState);
+        return stores[name];
+      },
+      get(name) {
+        return stores[name];
+      }
+    };
+  })();
+  // Initialize on DOM ready
+
 
   /*==============================
     END LIVE STATE
@@ -2908,9 +3453,10 @@ function runAction(type, value, $target) {
       handleLiveEvent($(this), 'input');
     });
 
-    $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea', function () {
-      handleLiveComputeUnified();
-    });
+    $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea',
+      function () {
+        handleLiveComputeUnified();
+      });
 
     $(document).on('click', '[live-accordion]', function () {
       handleAccordionClick($(this));
@@ -2928,7 +3474,9 @@ function runAction(type, value, $target) {
           }
         }
       });
-    }, { threshold: 0.1 });
+    }, {
+      threshold: 0.1
+    });
 
     $('[live-load-once="true"]').each(function () {
       observer.observe(this);
@@ -2958,10 +3506,10 @@ function runAction(type, value, $target) {
         const fullUrl = existingUrl.toString();
 
         fetch(fullUrl, {
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest'
-            },
-          })
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+        })
           .then(res => res.text())
           .then(html => {
             updateSpaRegions(html);
@@ -3008,47 +3556,53 @@ function runAction(type, value, $target) {
     handleLiveComputeUnified();
     handleLiveIf();
     initLiveTriggerEvents(); // Re-initialize triggers for newly added DOM elements
+    handleLiveTeleport();
   });
 
   // Event listener after SPA content loads
   document.addEventListener('live-dom:afterSpa', function () {
+    window.LiveState?.init();
     // You might want to re-run other initializations here that depend on SPA content
     initLoadingBar(); // Ensure loading bar is initialized (it's safe to call multiple times)
     handlePollers(); // Restart pollers if needed for new content
+    handleLiveTeleport();
   });
 
   // Handle browser's back/forward buttons for SPA
   window.addEventListener('popstate', function (event) {
-      if (event.state && event.state.spa && event.state.url) {
-        loadSpaContent(event.state.url, false); // false to prevent pushing state again
-      }
+    if (event.state && event.state.spa && event.state.url) {
+      loadSpaContent(event.state.url, false); // false to prevent pushing state again
+    }
   });
 
-  window.ajaxDynamic = ajaxDynamic;
+  // window.ajaxDynamic = ajaxDynamic;
   window.debouncedAjaxDynamic = debouncedAjaxDynamic;
   window.LiveState?.init();
 
   // Initial setup when the DOM is ready
   $(document).ready(function () {
-      initLoadingBar(); // Initialize the loading bar once
-      if (document.querySelector('[live-spa-region="main"]')) {
-          const currentUrl = window.location.href;
-          // Replace initial history state to mark it as SPA-managed
-          history.replaceState({
-              spa: true,
-              url: currentUrl
-          }, '', currentUrl);
-      }
-      window.LiveState?.init();
-      handleLiveBind();
-      bindLiveDomEvents(); // Bind all event handlers
-      handlePollers(); // Start initial pollers
-      handleLiveIf(); // Initial evaluation of live-if conditions
-      initLiveTriggerEvents(); // Initial setup of live-triggers
-      handleLiveComputeUnified(); // Initial computation for live-compute elements
+    initLoadingBar(); // Initialize the loading bar once
+    if (document.querySelector('[live-spa-region="main"]')) {
+      const currentUrl = window.location.href;
+      // Replace initial history state to mark it as SPA-managed
+      history.replaceState({
+        spa: true,
+        url: currentUrl
+      }, '', currentUrl);
+    }
+    window.LiveState?.init();
+    handleLiveBind();
+    bindLiveDomEvents(); // Bind all event handlers
+    handlePollers(); // Start initial pollers
+    handleLiveIf(); // Initial evaluation of live-if conditions
+    initLiveTriggerEvents(); // Initial setup of live-triggers
+    handleLiveComputeUnified(); // Initial computation for live-compute elements
+    initLiveStateClickOutside(); // ← tambahkan ini
+    handleLiveTeleport();
   });
 
-  document.addEventListener('DOMContentLoaded', function() {
-    window.LiveState?.init();
+  document.addEventListener('DOMContentLoaded', () => {
+    LiveState.init();
+    handleLiveTeleport();
   });
 })(jQuery);
