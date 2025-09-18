@@ -1,152 +1,169 @@
 (function ($) {
-  "use strict";
-  // Core state management structures
-  const stateProxies = new WeakMap();
-  const stateWatchers = new WeakMap();
-  const stateCallbacks = new WeakMap();
-  const vdomCache = new WeakMap();
-  const elementStateMap = new WeakMap();
+    "use strict";
 
-  // Fungsi baru untuk mendukung fitur tambahan
-  const stateComputed = new WeakMap();
-  const stateMiddleware = new WeakMap();
-  /*==============================
-    AJAX DYNAMIC
-  ==============================*/
+    /*==============================
+        AJAX DYNAMIC
+    ==============================*/
 
-  const ajaxDynamicControllers = {};
+    const ajaxDynamicControllers = {};
 
-  /**
-   * Performs an AJAX request with dynamic content loading capabilities.
-   * Supports abortion of previous requests for the same target.
-   *
-   * @param {string} method - HTTP method (e.g., 'POST', 'GET').
-   * @param {string} controller - The controller name for the URL.
-   * @param {string} action - The action name for the URL.
-   * @param {object|FormData} data - Data to be sent with the request.
-   * @param {string} [target='html'] - How the response data should be handled ('html', 'value', or a function name).
-   * @param {string} [targetId='#'] - The CSS selector for the target element.
-   * @param {boolean} [loading=true] - Whether to show a loading indicator.
-   * @param {function} [callback=null] - A custom callback function to handle the response.
-   */
+    /**
+     * Performs an AJAX request with dynamic content loading capabilities.
+     * Supports abortion of previous requests for the same target.
+     *
+     * @param {string} method - HTTP method (e.g., 'POST', 'GET').
+     * @param {string} controller - The controller name for the URL.
+     * @param {string} action - The action name for the URL.
+     * @param {object|FormData} data - Data to be sent with the request.
+     * @param {string} [target='html'] - How the response data should be handled ('html', 'value', or a function name).
+     * @param {string} [targetId='#'] - The CSS selector for the target element.
+     * @param {boolean} [loading=true] - Whether to show a loading indicator.
+     * @param {function} [callback=null] - A custom callback function to handle the response.
+     */
 
-  function ajaxDynamic(
-    method = 'POST',
-    controller,
-    action,
-    data = {},
-    target = 'html',
-    targetId = '#',
-    loading = true,
-    callback = null
-  ) {
-    const key = targetId || `${controller}_${action}`;
+    // Simpan cache response sementara (single-use)
+    const ajaxCache = new Map();
 
-    if (ajaxDynamicControllers[key]) {
-      ajaxDynamicControllers[key].abort();
-    }
+    function ajaxDynamic(
+        method = 'POST',
+        controller,
+        action,
+        data = {},
+        target = 'html',
+        targetId = '#',
+        loading = true,
+        callback = null,
+        useCache = false // ✅ opsi baru: default false (fresh data)
+    ) {
+        const key = targetId || `${controller}_${action}_${method}_${JSON.stringify(data)}`;
 
-    const abortController = new AbortController();
-    ajaxDynamicControllers[key] = abortController;
-
-    if (loading) {
-      showTargetLoading(targetId);
-    }
-
-    const isFormData = data instanceof FormData;
-
-    $.ajax({
-      url: `/ajax/${controller}/${action}`,
-      method: method,
-      headers: method !== 'GET' && !isFormData ? {
-        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-      } : {},
-      data: method === 'GET' ? data : (isFormData ? data : JSON.stringify(data)),
-      contentType: method === 'GET' ? undefined : (isFormData ? false : 'application/json'),
-      processData: isFormData ? false : true,
-      cache: false,
-      signal: abortController.signal,
-
-      success: function (response) {
-        if (loading) {
-          hideTargetLoading(targetId);
+        // ✅ Jika ada request sebelumnya ke target yang sama → batalkan
+        if (ajaxDynamicControllers[key]) {
+            ajaxDynamicControllers[key].abort();
         }
 
-        delete ajaxDynamicControllers[key];
+        // ✅ Jika ada cache → pakai lalu hapus (single-use)
+        if (useCache && ajaxCache.has(key)) {
+            const response = ajaxCache.get(key);
+            ajaxCache.delete(key); // auto clear setelah dipakai
 
-        if (typeof callback === 'function') {
-          callback(response);
+            if (typeof callback === 'function') {
+                callback(response);
+            } else {
+                callBackAjaxDynamic(target, targetId, response);
+            }
+            return;
+        }
+
+        const abortController = new AbortController();
+        ajaxDynamicControllers[key] = abortController;
+
+        if (loading) {
+            $(".loading").show();
+        }
+
+        const isFormData = data instanceof FormData;
+
+        $.ajax({
+            url: `/ajax/${controller}/${action}`,
+            method: method,
+            headers: method !== 'GET' ? {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            } : {},
+
+            data: method === 'GET' ? data : (isFormData ? data : JSON.stringify(data)),
+            contentType: method === 'GET' ? undefined : (isFormData ? false : 'application/json'),
+            processData: isFormData ? false : true,
+            cache: false,
+            signal: abortController.signal,
+
+            success: function (response) {
+                if (loading) {
+                    $(".loading").hide();
+                }
+
+                delete ajaxDynamicControllers[key];
+
+                // ✅ simpan ke cache sekali saja (auto clear dipakai lagi)
+                if (useCache) {
+                    ajaxCache.set(key, response);
+                }
+
+                if (typeof callback === 'function') {
+                    callback(response);
+                } else {
+                    callBackAjaxDynamic(target, targetId, response);
+                }
+            },
+
+            error: function (jqXHR, textStatus) {
+                if (loading) {
+                    targetId !== '#' ? hideTargetLoading(targetId) : $(".loading").hide();
+                }
+
+                delete ajaxDynamicControllers[key];
+
+                if (textStatus === 'abort') {
+                    console.log(
+                        `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`
+                    );
+                    return;
+                }
+
+                const contentType = jqXHR.getResponseHeader('content-type') || '';
+                const isHtmlResponse = contentType.includes('text/html');
+
+                if (isHtmlResponse) {
+                    showErrorModal(jqXHR.responseText);
+                    return;
+                }
+
+                let json = {};
+                try {
+                    json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
+                } catch (e) {
+                    json = {
+                        message: 'Unparsable response',
+                        raw: jqXHR.responseText
+                    };
+                }
+                showErrorModal(json);
+            }
+        });
+    }
+
+
+    /**
+     * Handles the callback logic for ajaxDynamic, updating the DOM or calling a global function.
+     * @param {string} target - The type of target handling ('html', a global function name).
+     * @param {string} targetId - The ID or selector of the target element.
+     * @param {object} response - The AJAX response object.
+     */
+    function callBackAjaxDynamic(target, targetId, response) {
+        if (response.success) {
+            if (typeof target === "string" && target !== "html" && window[target]) {
+                window[target](response.data, targetId);
+            } else if (target === "html") {
+                $(`${targetId}`).html(response.data);
+            } else if (typeof target == "function") {
+                target(response.data, targetId);
+            }
         } else {
-          callBackAjaxDynamic(target, targetId, response);
+            console.error('AJAX Dynamic Error:', response.message);
         }
-      },
-
-      error: function (jqXHR, textStatus) {
-        if (loading) {
-          targetId !== '#' ? hideTargetLoading(targetId) : $(".loading").hide();
-        }
-
-        delete ajaxDynamicControllers[key];
-
-        if (textStatus === 'abort') {
-          console.log(
-            `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`);
-          return;
-        }
-
-        const contentType = jqXHR.getResponseHeader('content-type') || '';
-        const isHtmlResponse = contentType.includes('text/html');
-
-        if (isHtmlResponse) {
-          showErrorModal(jqXHR.responseText);
-          return;
-        }
-
-        let json = {};
-        try {
-          json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
-        } catch (e) {
-          json = {
-            message: 'Unparsable response',
-            raw: jqXHR.responseText
-          };
-        }
-        showErrorModal(json);
-      }
-    });
-  }
-
-  /**
-   * Handles the callback logic for ajaxDynamic, updating the DOM or calling a global function.
-   * @param {string} target - The type of target handling ('html', a global function name).
-   * @param {string} targetId - The ID or selector of the target element.
-   * @param {object} response - The AJAX response object.
-   */
-  function callBackAjaxDynamic(target, targetId, response) {
-    if (response.success) {
-      if (typeof target === "string" && target !== "html" && window[target]) {
-        window[target](response.data, targetId);
-      } else if (target === "html") {
-        $(`${targetId}`).html(response.data);
-      } else if (typeof target == "function") {
-        target(response.data, targetId);
-      }
-    } else {
-      console.error('AJAX Dynamic Error:', response.message);
     }
-  }
 
-  /**
-   * Displays a loading overlay on the specified target element.
-   * @param {string} targetId - The CSS selector of the element to show loading on.
-   */
-  function showTargetLoading(targetId) {
-    const $target = $(targetId);
-    if ($target.length === 0) return;
+    /**
+     * Displays a loading overlay on the specified target element.
+     * @param {string} targetId - The CSS selector of the element to show loading on.
+     */
+    function showTargetLoading(targetId) {
+        const $target = $(targetId);
+        if ($target.length === 0) return;
 
-    $target.find('.dynamic-loading-overlay').remove();
+        $target.find('.dynamic-loading-overlay').remove();
 
-    const $overlay = $(`
+        const $overlay = $(`
       <div class="dynamic-loading-overlay" style="
         position: absolute;
         inset: 0;
@@ -162,7 +179,7 @@
       </div>
     `);
 
-    const spinnerStyle = `
+        const spinnerStyle = `
       @keyframes spinnerFade {
         0%, 100% { opacity: 0.3; transform: scale(1); }
         50% { opacity: 1; transform: scale(1.2); }
@@ -187,781 +204,477 @@
       }
     `;
 
-    if (!$('head').find('#spinner-style').length) {
-      $('head').append(`<style id="spinner-style">${spinnerStyle}</style>`);
-    }
-
-    if ($target.css('position') === 'static') {
-      $target.css('position', 'relative');
-    }
-
-    $target.append($overlay);
-  }
-
-  /**
-   * Hides the loading overlay on the specified target element.
-   * @param {string} targetId - The CSS selector of the element to hide loading from.
-   */
-  function hideTargetLoading(targetId) {
-    const $target = $(targetId);
-    $target.find('.dynamic-loading-overlay').fadeOut(300, function () {
-      $(this).remove();
-    });
-  }
-
-  /*==============================
-    UTILITIES
-  ==============================*/
-
-  const debounceMap = new Map();
-
-  /**
-   * Executes an AJAX dynamic call with a debounce mechanism to prevent rapid-fire requests.
-   * @param {string} methodType - HTTP method (e.g., 'POST', 'GET').
-   * @param {string} controller - The controller name.
-   * @param {string} method - The method name.
-   * @param {object|FormData} data - Data to send.
-   * @param {string} target - How the response data should be handled.
-   * @param {string} targetId - The CSS selector for the target element.
-   * @param {boolean} loading - Whether to show a loading indicator.
-   * @param {function} callback - Custom callback function.
-   */
-  function debouncedAjaxDynamic(methodType, controller, method, data, target, targetId, loading, callback) {
-    const key = `${controller}::${method}`;
-
-    if (debounceMap.has(key)) {
-      clearTimeout(debounceMap.get(key));
-    }
-
-    const timer = setTimeout(() => {
-      ajaxDynamic(methodType, controller, method, data, target, targetId, loading, callback);
-      debounceMap.delete(key);
-    }, 150);
-
-    debounceMap.set(key, timer);
-  }
-
-  /**
-   * Converts a camelCase string to kebab-case.
-   * @param {string} str - The input string.
-   * @returns {string} The kebab-case string.
-   */
-  function camelToKebab(str) {
-    return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-  }
-
-  /**
-   * Converts a camelCase string to snake_case.
-   * @param {string} str - The input string.
-   * @returns {string} The snake_case string.
-   */
-  function camelToSnake(str) {
-    return str.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
-  }
-
-  /**
-   * Sanitizes an HTML input name attribute to a valid JavaScript variable name.
-   * @param {string} name - The input name attribute.
-   * @returns {string} The sanitized JavaScript variable name.
-   */
-  function sanitizeInputNameToJSVariable(name) {
-    return name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
-  }
-
-  /**
-   * Automatically binds response data to DOM elements based on their ID or class name.
-   * Supports camelCase, kebab-case, and snake_case matching.
-   * @param {object} data - The data object from the AJAX response.
-   */
-  function autoBindDomFromResponse(data) {
-    if (!data || typeof data !== 'object') return;
-
-    Object.entries(data).forEach(([key, value]) => {
-      const selectors = [
-        `#${key}`, `.${key}`,
-        `#${camelToKebab(key)}`, `.${camelToKebab(key)}`,
-        `#${camelToSnake(key)}`, `.${camelToSnake(key)}`
-      ];
-
-      for (const selector of selectors) {
-        const $el = $(selector);
-        // if ($el.length) {
-        //   $el.is('input, textarea, select') ? $el.val(value) : $el.html(value);
-        // }
-        if ($el.is('input, textarea, select')) {
-          $el.val(value);
-          $el.each(function () {
-            this.dispatchEvent(new Event('input', {
-              bubbles: true
-            }));
-            this.dispatchEvent(new Event('change', {
-              bubbles: true
-            }));
-          });
-        } else {
-          $el.html(value);
+        if (!$('head').find('#spinner-style').length) {
+            $('head').append(`<style id="spinner-style">${spinnerStyle}</style>`);
         }
-      }
-    });
-  }
 
-  /**
-   * Resolves the HTTP method type based on the element and event.
-   * @param {jQuery} $el - The jQuery object of the triggering element.
-   * @param {string} eventType - The event type (e.g., 'submit').
-   * @param {jQuery} formSelector - The jQuery object of the closest form.
-   * @returns {string} The resolved HTTP method.
-   */
-  function resolveMethodType($el, eventType, formSelector) {
-    let methodType = 'POST';
-    if (eventType === 'submit' && formSelector) {
-      methodType = ($(formSelector).attr('method') || 'POST').toUpperCase();
+        if ($target.css('position') === 'static') {
+            $target.css('position', 'relative');
+        }
+
+        $target.append($overlay);
     }
-    if ($el.attr('live-method')) {
-      methodType = $el.attr('live-method').toUpperCase();
+
+    /**
+     * Hides the loading overlay on the specified target element.
+     * @param {string} targetId - The CSS selector of the element to hide loading from.
+     */
+    function hideTargetLoading(targetId) {
+        const $target = $(targetId);
+        $target.find('.dynamic-loading-overlay').fadeOut(300, function () {
+            $(this).remove();
+        });
     }
-    return methodType;
-  }
 
-  /**
-   * Extracts data from the closest form or live-scope.
-   * @param {jQuery} $el - The jQuery object of the triggering element.
-   * @param {jQuery} formSelector - The jQuery object of the closest form.
-   * @returns {object|FormData} The extracted data.
-   */
-  function extractData($el, $form) {
-    if ($form && $form.length) {
-      const data = {};
+    /*==============================
+      UTILITIES
+    ==============================*/
 
-      $form.find('input[name], select[name], textarea[name]').each(function () {
-        const $input = $(this);
+    const debounceMap = new Map();
+
+    /**
+     * Executes an AJAX dynamic call with a debounce mechanism to prevent rapid-fire requests.
+     * @param {string} methodType - HTTP method (e.g., 'POST', 'GET').
+     * @param {string} controller - The controller name.
+     * @param {string} method - The method name.
+     * @param {object|FormData} data - Data to send.
+     * @param {string} target - How the response data should be handled.
+     * @param {string} targetId - The CSS selector for the target element.
+     * @param {boolean} loading - Whether to show a loading indicator.
+     * @param {function} callback - Custom callback function.
+     */
+    function debouncedAjaxDynamic(methodType, controller, method, data, target, targetId, loading, callback) {
+        const key = `${controller}::${method}`;
+
+        if (debounceMap.has(key)) {
+            clearTimeout(debounceMap.get(key));
+        }
+
+        const timer = setTimeout(() => {
+            ajaxDynamic(methodType, controller, method, data, target, targetId, loading, callback);
+            debounceMap.delete(key);
+        }, 150);
+
+        debounceMap.set(key, timer);
+    }
+
+    /**
+     * Converts a camelCase string to kebab-case.
+     * @param {string} str - The input string.
+     * @returns {string} The kebab-case string.
+     */
+    function camelToKebab(str) {
+        return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+    }
+
+    /**
+     * Converts a camelCase string to snake_case.
+     * @param {string} str - The input string.
+     * @returns {string} The snake_case string.
+     */
+    function camelToSnake(str) {
+        return str.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+    }
+
+    /**
+     * Sanitizes an HTML input name attribute to a valid JavaScript variable name.
+     * @param {string} name - The input name attribute.
+     * @returns {string} The sanitized JavaScript variable name.
+     */
+    function sanitizeInputNameToJSVariable(name) {
+        return name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
+    }
+
+    /**
+     * Automatically binds response data to DOM elements based on their ID or class name.
+     * Supports camelCase, kebab-case, and snake_case matching.
+     * @param {object} data - The data object from the AJAX response.
+     */
+    function autoBindDomFromResponse(data) {
+        if (!data || typeof data !== 'object') return;
+
+        Object.entries(data).forEach(([key, value]) => {
+            const selectors = [
+                `#${key}`, `.${key}`,
+                `#${camelToKebab(key)}`, `.${camelToKebab(key)}`,
+                `#${camelToSnake(key)}`, `.${camelToSnake(key)}`
+            ];
+
+            for (const selector of selectors) {
+                const $el = $(selector);
+                // if ($el.length) {
+                //   $el.is('input, textarea, select') ? $el.val(value) : $el.html(value);
+                // }
+                if ($el.is('input, textarea, select')) {
+                    $el.val(value);
+                    $el.each(function () {
+                        this.dispatchEvent(new Event('input', {
+                            bubbles: true
+                        }));
+                        this.dispatchEvent(new Event('change', {
+                            bubbles: true
+                        }));
+                    });
+                } else {
+                    $el.html(value);
+                }
+            }
+        });
+    }
+
+    /**
+     * Resolves the HTTP method type based on the element and event.
+     * @param {jQuery} $el - The jQuery object of the triggering element.
+     * @param {string} eventType - The event type (e.g., 'submit').
+     * @param {jQuery} formSelector - The jQuery object of the closest form.
+     * @returns {string} The resolved HTTP method.
+     */
+    function resolveMethodType($el, eventType, formSelector) {
+        let methodType = 'POST';
+        if (eventType === 'submit' && formSelector) {
+            methodType = ($(formSelector).attr('method') || 'POST').toUpperCase();
+        }
+        if ($el.attr('live-method')) {
+            methodType = $el.attr('live-method').toUpperCase();
+        }
+        return methodType;
+    }
+
+    /**
+     * Extracts data from the closest form or live-scope.
+     * @param {jQuery} $el - The jQuery object of the triggering element.
+     * @param {jQuery} formSelector - The jQuery object of the closest form.
+     * @returns {object|FormData} The extracted data.
+     */
+
+    function extractData($el, $form) {
+        let formData = new FormData();
+
+        // Kalau klik method ada (form) → ambil form terdekat aja
+        if ($form && $form.length) {
+            $form.find('input[name], select[name], textarea[name]').each(function () {
+                appendInputToFormData(formData, this);
+            });
+        } else {
+            const $scope = $el.closest('[live-scope]');
+            $scope.find('input[name], select[name], textarea[name]').each(function () {
+                appendInputToFormData(formData, this);
+            });
+        }
+
+        return formData;
+    }
+
+    function appendInputToFormData(fd, el) {
+        const $input = $(el);
         const name = $input.attr('name');
         if (!name) return;
 
-        if ($input.is(':checkbox')) {
-          if (!data[name]) data[name] = [];
-          if ($input.is(':checked')) {
-            data[name].push($input.val());
-          }
+        if ($input.is(':file')) {
+            const files = $input[0].files;
+            for (let i = 0; i < files.length; i++) {
+                fd.append(name, files[i]);
+            }
+        } else if ($input.is(':checkbox')) {
+            if ($input.is(':checked')) {
+                fd.append(name, $input.val());
+            }
         } else if ($input.is(':radio')) {
-          if ($input.is(':checked')) {
-            data[name] = $input.val();
-          } else if (data[name] === undefined) {
-            data[name] = null;
-          }
-        } else if ($input.is('select[multiple]')) {
-          data[name] = $input.val() || [];
+            if ($input.is(':checked')) {
+                fd.append(name, $input.val());
+            }
         } else {
-          data[name] = $input.val();
+            fd.append(name, $input.val());
         }
-      });
-
-      Object.keys(data).forEach(key => {
-        if (Array.isArray(data[key]) && data[key].length === 1) {
-          data[key] = data[key][0];
-        }
-      });
-
-      return data;
-    } else {
-      const $scope = $el.closest('[live-scope]');
-      const data = {};
-      $scope.find('input[name], select[name], textarea[name]').each(function () {
-        data[$(this).attr('name')] = $(this).val();
-      });
-      return data;
-    }
-  }
-
-  /**
-   * Extracts content from an element (e.g., its value for inputs, or HTML content).
-   * @param {jQuery} $el - The jQuery element.
-   * @returns {string} The extracted content.
-   */
-  function extractElementContent($el) {
-    if ($el.is('input, textarea, select')) {
-      return $el.val();
-    }
-    return $el.html();
-  }
-
-  /*==============================
-    LIVE ANIMATION
-  ==============================*/
-
-  /**
-   * Handles live animations based on 'live-animate' attributes.
-   * @param {jQuery} $el - The jQuery object of the triggering element.
-   * @returns {boolean} True if an animation was handled, false otherwise.
-   */
-  function handleLiveAnimate($el, onComplete) {
-    const animateType = $el.attr('live-animate');
-    if (!animateType) {
-      if (onComplete) onComplete();
-      return false;
     }
 
-    const duration = parseInt($el.attr('live-duration') || 300, 10);
-    const easing = $el.attr('live-easing') || 'swing';
-    const targetSelectors = $el.attr('live-target') || '';
-    const $targets = liveTarget($el, targetSelectors);
+    /**
+     * Live conditionals: show, class, style, attr
+     */
+    function evaluateExpr(expr, $el) {
+        const $scope = $el.closest('[live-scope]');
+        const inputs = {};
 
-    if (!$targets.length) {
-      if (onComplete) onComplete();
-      return false;
-    }
+        $scope.find('input[name], select[name], textarea[name]').each(function () {
+            const name = $(this).attr('name');
+            if (!name) return;
+            let val;
 
-    let animationsCompleted = 0;
-    const totalTargets = $targets.length;
+            if ($(this).is(':checkbox')) {
+                val = $(this).is(':checked') ? $(this).val() : null;
+            } else if ($(this).is(':radio')) {
+                if ($(this).is(':checked')) val = $(this).val();
+            } else {
+                val = $(this).val();
+            }
 
-    const done = () => {
-      animationsCompleted++;
-      if (animationsCompleted >= totalTargets) {
-        if (onComplete) onComplete();
-      }
-    };
-
-    $targets.each(function () {
-      const $target = $(this);
-      const originalDisplay = $target.css('display') === 'none' ? 'block' : $target.css(
-        'display');
-
-      switch (animateType) {
-        case 'fade-in':
-          $target.stop(true, true).fadeIn(duration, easing, done);
-          break;
-        case 'fade-out':
-          $target.stop(true, true).fadeOut(duration, easing, done);
-          break;
-        case 'fade-toggle':
-          $target.stop(true, true).fadeToggle(duration, easing, done);
-          break;
-        case 'slide-up':
-          $target.stop(true, true).slideUp(duration, easing, done);
-          break;
-        case 'slide-down':
-          $target.stop(true, true).slideDown(duration, easing, done);
-          break;
-        case 'slide-toggle':
-          $target.stop(true, true).slideToggle(duration, easing, done);
-          break;
-        case 'slide-left':
-          $target
-            .css({
-              transform: 'translateX(100%)',
-              opacity: 0,
-              display: 'block'
-            })
-            .animate({
-              translateX: 0,
-              opacity: 1
-            }, {
-              step: (now, fx) => {
-                if (fx.prop === 'translateX') $target.css('transform',
-                  `translateX(${100 - now}%)`);
-              },
-              duration,
-              easing,
-              complete: () => {
-                $target.css('transform', '');
-                done();
-              },
-            });
-          break;
-        case 'slide-right':
-          $target
-            .css({
-              transform: 'translateX(-100%)',
-              opacity: 0,
-              display: 'block'
-            })
-            .animate({
-              translateX: 0,
-              opacity: 1
-            }, {
-              step: (now, fx) => {
-                if (fx.prop === 'translateX') $target.css('transform',
-                  `translateX(${-100 + now}%)`);
-              },
-              duration,
-              easing,
-              complete: () => {
-                $target.css('transform', '');
-                done();
-              },
-            });
-          break;
-        case 'slide-horizontal-toggle':
-          if ($target.is(':visible')) {
-            $target.animate({
-              translateX: 100,
-              opacity: 0
-            }, {
-              step: (now, fx) => {
-                if (fx.prop === 'translateX') $target.css('transform',
-                  `translateX(${now}%)`);
-              },
-              duration,
-              easing,
-              complete: () => {
-                $target.hide().css('transform', '');
-                done();
-              },
-            });
-          } else {
-            $target
-              .css({
-                transform: 'translateX(-100%)',
-                opacity: 0,
-                display: 'block'
-              })
-              .animate({
-                translateX: 0,
-                opacity: 1
-              }, {
-                step: (now, fx) => {
-                  if (fx.prop === 'translateX') $target.css('transform',
-                    `translateX(${-100 + now}%)`);
-                },
-                duration,
-                easing,
-                complete: () => {
-                  $target.css('transform', '');
-                  done();
-                },
-              });
-          }
-          break;
-        case 'zoom-in':
-          $target
-            .css({
-              transform: 'scale(0)',
-              display: originalDisplay
-            })
-            .animate({
-              scale: 1
-            }, {
-              step: (now, fx) => {
-                if (fx.prop === 'scale') $target.css('transform',
-                  `scale(${now})`);
-              },
-              duration,
-              easing,
-              complete: () => {
-                $target.css('transform', 'scale(1)');
-                done();
-              },
-            });
-          break;
-        case 'zoom-out':
-          $target.animate({
-            scale: 0
-          }, {
-            step: (now, fx) => {
-              if (fx.prop === 'scale') $target.css('transform',
-                `scale(${now})`);
-            },
-            duration,
-            easing,
-            complete: () => {
-              $target.hide().css('transform', 'scale(1)');
-              done();
-            },
-          });
-          break;
-        case 'zoom-toggle':
-          $el.attr('live-animate', $target.is(':visible') ? 'zoom-out' : 'zoom-in');
-          handleLiveAnimate($el, done);
-          $el.attr('live-animate', 'zoom-toggle');
-          break;
-        case 'scale-up':
-          $target
-            .css({
-              transform: 'scale(0.8)',
-              display: originalDisplay
-            })
-            .animate({
-              scale: 1
-            }, {
-              step: (now, fx) => {
-                if (fx.prop === 'scale') $target.css('transform',
-                  `scale(${now})`);
-              },
-              duration,
-              easing,
-              complete: () => {
-                $target.css('transform', '');
-                done();
-              },
-            });
-          break;
-        case 'scale-down':
-          $target.animate({
-            scale: 0.8
-          }, {
-            step: (now, fx) => {
-              if (fx.prop === 'scale') $target.css('transform',
-                `scale(${now})`);
-            },
-            duration,
-            easing,
-            complete: () => {
-              $target.hide().css('transform', '');
-              done();
-            },
-          });
-          break;
-        case 'scale-toggle':
-          $el.attr('live-animate', $target.is(':visible') ? 'scale-down' : 'scale-up');
-          handleLiveAnimate($el, done);
-          $el.attr('live-animate', 'scale-toggle');
-          break;
-        default:
-          $target.addClass(animateType);
-          setTimeout(() => {
-            $target.removeClass(animateType);
-            done();
-          }, duration);
-          break;
-      }
-    });
-
-    return true;
-  }
-
-
-  /*==============================
-    LIVE ACTION
-  ==============================*/
-
-  /**
-   * Handles live actions based on 'live-action' attributes.
-   * @param {jQuery} $el - The jQuery object of the triggering element.
-   * @returns {boolean} True if an action was handled that should halt further processing (e.g., 'remove').
-   */
-  function handleLiveAction($el) {
-    const rawActions = $el.attr('live-action');
-    if (!rawActions) return false;
-
-    const actionChains = rawActions.split(',').map(s => s.trim().split(/\s*->\s*/));
-    const targets = ($el.attr('live-target') || 'self').split(',').map(s => s.trim());
-    const animates = ($el.attr('live-animate') || '').split(',').map(s => s.trim());
-
-    targets.forEach((targetExpr, i) => {
-      const $targets = liveTarget($el, targetExpr);
-      const chainList = actionChains[i] || actionChains[actionChains.length - 1];
-      const animateStr = animates[i] || '';
-
-      $targets.each(function () {
-        const $target = $(this);
-        runActionChain(chainList, 0, $target, animateStr);
-      });
-    });
-
-    return true;
-  }
-
-  function runActionChain(chainList, index, $target, animateStr) {
-    if (index >= chainList.length) return;
-
-    const [type, ...rest] = chainList[index].split(':');
-    const value = rest.join(':').trim();
-
-    const next = () => runActionChain(chainList, index + 1, $target, animateStr);
-
-    switch (animateStr) {
-      case 'slide-up':
-        $target.slideUp(200, () => {
-          runAction(type, value, $target);
-          next();
+            // convert name `qty[item][0]` -> safe var name qty_item_0
+            const safeName = name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
+            inputs[safeName] = val;
         });
-        break;
-      case 'slide-down':
-        $target.slideDown(200, () => {
-          runAction(type, value, $target);
-          next();
-        });
-        break;
-      case 'fade-out':
-        $target.fadeOut(200, () => {
-          runAction(type, value, $target);
-          next();
-        });
-        break;
-      case 'fade-in':
-        $target.fadeIn(200, () => {
-          runAction(type, value, $target);
-          next();
-        });
-        break;
-      case 'zoom-in':
-        $target.css({
-          transform: 'scale(0.5)',
-          opacity: 0
-        }).animate({
-          transform: 'scale(1)',
-          opacity: 1
-        },
-          300,
-          () => {
-            runAction(type, value, $target);
-            next();
-          }
-        );
-        break;
-      default:
-        runAction(type, value, $target);
-        next();
-    }
-  }
-
-  function runAction(type, value, $target) {
-    switch (type) {
-      case 'remove':
-        $target.remove();
-        break;
-      case 'hide':
-        $target.hide();
-        break;
-      case 'show':
-        $target.show();
-        break;
-      case 'add-class':
-        if (value) $target.addClass(value);
-        break;
-      case 'remove-class':
-        if (value) $target.removeClass(value);
-        break;
-      case 'toggle-class':
-        if (value) $target.toggleClass(value);
-        break;
-      case 'enable':
-        $target.prop('disabled', false);
-        break;
-      case 'disable':
-        $target.prop('disabled', true);
-        break;
-      case 'readonly':
-        $target.prop('readonly', true);
-        break;
-      default:
-        console.warn(`LiveAction: Unknown action type '${type}'`);
-    }
-  }
-
-
-  /**
-   * Resolves target elements based on a selector string, supporting various jQuery traversal methods.
-   * @param {jQuery} $el - The reference jQuery element.
-   * @param {string} targetSelector - The selector string (e.g., 'closest(.parent-class)', '#my-id', 'self').
-   * @returns {jQuery} A jQuery collection of the resolved target elements.
-   */
-  function liveTarget($el, targetSelector) {
-    const targets = [];
-    const selectors = targetSelector.split(',').map(s => s.trim());
-
-    for (let sel of selectors) {
-      let $target = null;
-
-      const match = sel.match(/^(\w+)(\(([^)]+)\))?$/);
-      if (match) {
-        const method = match[1];
-        const param = match[3] ? match[3].trim() : null;
-
-        switch (method) {
-          case 'closest':
-            if (param) $target = $el.closest(param);
-            break;
-          case 'find':
-            if (param) $target = $el.find(param);
-            break;
-          case 'parent':
-            $target = $el.parent();
-            break;
-          case 'children':
-            $target = $el.children(param || undefined);
-            break;
-          case 'next':
-            $target = param ? $el.next(param) : $el.next();
-            break;
-          case 'prev':
-            $target = param ? $el.prev(param) : $el.prev();
-            break;
-          case 'siblings':
-            $target = param ? $el.siblings(param) : $el.siblings();
-            break;
-          case 'self':
-            $target = $el;
-            break;
-          default:
-            $target = $(sel);
-            break;
-        }
-      } else {
-        $target = $(sel);
-      }
-
-      if ($target && $target.length) {
-        targets.push(...$target.toArray());
-      }
-    }
-    return $(targets);
-  }
-
-  /**
-   * Handles live events (click, hover, change, etc.) by triggering AJAX calls or local DOM updates.
-   * @param {jQuery} $el - The jQuery object of the triggering element.
-   * @param {string} eventType - The type of event (e.g., 'click', 'change').
-   */
-  function handleLiveEvent($el, eventType) {
-    handleLiveAction($el);
-    handleLiveAnimate($el);
-    // if (handleLiveAction($el)) return;
-    // if (handleLiveAnimate($el)) return;
-
-    const rawMethods = $el.attr(`live-${eventType}`);
-    const rawTargets = $el.attr('live-target') || '';
-    const domAction = $el.attr('live-dom') || 'html';
-    const formSelector = $el.closest('form').length ? $el.closest('form') : null;
-    const controller = $el.closest('[live-scope]').attr('live-scope');
-    if (!controller && rawMethods) {
-      console.warn(
-        `[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`,
-        $el[0]);
-      return;
-    }
-
-    const loading = $el.attr('live-loading') === 'true';
-    const loadingIndicator = $el.attr('live-loading-indicator');
-    const dataArgs = $el.attr('live-data');
-
-    const beforeCallback = $el.attr('live-callback-before');
-    const execute = () => {
-      const methodType = resolveMethodType($el, eventType, formSelector);
-      const fallbackData = dataArgs ? {
-        data: dataArgs
-      } : extractData($el, formSelector);
-
-      if (loadingIndicator) $(loadingIndicator).show();
-
-      if (!rawMethods) {
-        // Cek apakah elemen ini hanya menjalankan live-action saja
-        const hasActionOnly = $el.attr('live-action') || $el.attr('live-animate');
-        if (hasActionOnly) return; // hanya jalankan aksi/animasi, tanpa update isi
-
-        // Kalau tidak ada action, jalankan update lokal
-        return runLocalUpdate($el, domAction, rawTargets);
-      }
-
-      const methods = rawMethods.split(',').map(m => m.trim()).filter(Boolean);
-
-      const parsedMethods = methods.map(m => {
-        const match = m.match(/^(\w+)(\((.*)\))?$/);
-        if (!match) return {
-          method: m,
-          args: null
-        };
-
-        const [, name, , argsStr] = match;
-        if (!argsStr) return {
-          method: name,
-          args: null
-        };
 
         try {
-          let argsRaw = [];
-
-          try {
-            const safeArgStr = argsStr.replace(/\bthis\b/g, '__el');
-            argsRaw = Function('__el', `return [${safeArgStr}]`)($el[0]);
-
-            // Jika hanya ada satu argumen dan itu array string (nested), coba parse manual
-            if (
-              argsRaw.length === 1 &&
-              typeof argsRaw[0] === 'string' &&
-              argsRaw[0].startsWith('[') &&
-              argsRaw[0].endsWith(']')
-            ) {
-              try {
-                const parsed = JSON.parse(argsRaw[0].replace(/'/g,
-                  '"')); // convert ' to " dulu
-                if (Array.isArray(parsed)) {
-                  argsRaw = [parsed]; // ganti isinya jadi array asli
-                }
-              } catch (e) {
-                console.warn('Failed to parse stringified array literal:', argsRaw[
-                  0]);
-              }
-            }
-          } catch (e) {
-            console.warn(`[Live Event] Error parsing arguments: ${argsStr}`, e.message);
-          }
-
-
-          // Sanitize nilai untuk serialisasi aman
-          const argsSanitized = argsRaw.map(arg => {
-            if (arg instanceof Element) {
-              return $(arg).is('input, select, textarea') ? $(arg).val() : $(
-                arg).text().trim();
-            }
-
-            // Hindari window atau objek global
-            if (typeof arg === 'object' && arg === window) {
-              return null;
-            }
-
-            return arg;
-          });
-
-
-          return {
-            method: name,
-            args: argsSanitized
-          };
+            return Function('ctx', `
+            with(ctx){ return (${expr}) }
+        `)(inputs);
         } catch (e) {
-          console.warn(`[Live Event] Error parsing arguments for method "${name}":`, e
-            .message);
-          return {
-            method: name,
-            args: null
-          };
+            console.warn('Eval error:', expr, e);
+            return null;
         }
-      });
+    }
 
-      const targets = rawTargets.split(',').map(t => t.trim());
-      const targetFor = (i) => (targets.length === 1 ? targets[0] : (targets[i] || ''));
+    function handleLiveDirectives() {
+        $('[live-show]').each(function () {
+            const expr = $(this).attr('live-show');
+            const result = evaluateExpr(expr, $(this));
+            $(this).toggle(!!result);
+        });
 
-      parsedMethods.forEach(({
-        method,
-        args
-      }, i) => {
-        const targetSel = targetFor(i);
-        const $targets = targetSel ? liveTarget($el, targetSel) : $el;
+        $('[live-class]').each(function () {
+            const expr = $(this).attr('live-class');
+            const result = evaluateExpr(expr, $(this));
+            if (typeof result === 'string') {
+                $(this).attr('class', ($(this).attr('class-base') || '') + ' ' + result);
+            }
+        });
 
-        let postData;
-        if (args === null || args.length === 0) {
-          postData = fallbackData;
-        } else {
-          // Hati-hati: args = [['2']] akan menyebabkan nested array
-          const dataPayload = args.length === 1 ? args[0] : args;
-          postData = {
-            data: dataPayload
-          };
+        $('[live-style]').each(function () {
+            const expr = $(this).attr('live-style');
+            const result = evaluateExpr(expr, $(this));
+            if (typeof result === 'string') {
+                $(this).attr('style', result);
+            }
+        });
+
+        $('[live-attr]').each(function () {
+            const expr = $(this).attr('live-attr');
+            expr.split(',').forEach(pair => {
+                const [attr, js] = pair.split(':');
+                const result = evaluateExpr(js, $(this));
+                if (result === false || result == null) {
+                    $(this).removeAttr(attr);
+                } else {
+                    $(this).attr(attr, result === true ? attr : result);
+                }
+            });
+        });
+    }
+
+    /**
+     * Extracts content from an element (e.g., its value for inputs, or HTML content).
+     * @param {jQuery} $el - The jQuery element.
+     * @returns {string} The extracted content.
+     */
+    function extractElementContent($el) {
+        if ($el.is('input, textarea, select')) {
+            return $el.val();
+        }
+        return $el.html();
+    }
+
+    /**
+     * Resolves target elements based on a selector string, supporting various jQuery traversal methods.
+     * @param {jQuery} $el - The reference jQuery element.
+     * @param {string} targetSelector - The selector string (e.g., 'closest(.parent-class)', '#my-id', 'self').
+     * @returns {jQuery} A jQuery collection of the resolved target elements.
+     */
+    function liveTarget($el, targetSelector) {
+        const targets = [];
+        const selectors = targetSelector.split(',').map(s => s.trim());
+
+        for (let sel of selectors) {
+            let $target = null;
+
+            const match = sel.match(/^(\w+)(\(([^)]+)\))?$/);
+            if (match) {
+                const method = match[1];
+                const param = match[3] ? match[3].trim() : null;
+
+                switch (method) {
+                    case 'closest':
+                        if (param) $target = $el.closest(param);
+                        break;
+                    case 'find':
+                        if (param) $target = $el.find(param);
+                        break;
+                    case 'parent':
+                        $target = $el.parent();
+                        break;
+                    case 'children':
+                        $target = $el.children(param || undefined);
+                        break;
+                    case 'next':
+                        $target = param ? $el.next(param) : $el.next();
+                        break;
+                    case 'prev':
+                        $target = param ? $el.prev(param) : $el.prev();
+                        break;
+                    case 'siblings':
+                        $target = param ? $el.siblings(param) : $el.siblings();
+                        break;
+                    case 'self':
+                        $target = $el;
+                        break;
+                    default:
+                        $target = $(sel);
+                        break;
+                }
+            } else {
+                $target = $(sel);
+            }
+
+            if ($target && $target.length) {
+                targets.push(...$target.toArray());
+            }
+        }
+        return $(targets);
+    }
+
+    /**
+     * Handles live events (click, hover, change, etc.) by triggering AJAX calls or local DOM updates.
+     * @param {jQuery} $el - The jQuery object of the triggering element.
+     * @param {string} eventType - The type of event (e.g., 'click', 'change').
+     */
+    function handleLiveEvent($el, eventType) {
+        const rawMethods = $el.attr(`live-${eventType}`);
+        const rawTargets = $el.attr('live-target') || '';
+        const domAction = $el.attr('live-dom') || 'html';
+        const formSelector = $el.closest('form').length ? $el.closest('form') : null;
+        const controller = $el.closest('[live-scope]').attr('live-scope');
+        if (!controller && rawMethods) {
+            console.warn(
+                `[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`,
+                $el[0]);
+            return;
         }
 
-        runAjaxRequest(methodType, controller, method, postData, domAction, $targets,
-          loading, $el);
-      });
-    };
+        const loading = $el.attr('live-loading') === 'true';
+        const loadingIndicator = $el.attr('live-loading-indicator');
+        const dataArgs = $el.attr('live-data');
 
-    if (beforeCallback) {
-      try {
-        let result;
+        const beforeCallback = $el.attr('live-callback-before');
+        const execute = () => {
+            const methodType = resolveMethodType($el, eventType, formSelector);
+            const fallbackData = dataArgs ? {
+                data: dataArgs
+            } : extractData($el, formSelector);
 
-        if (beforeCallback.includes('(')) {
-          // Kalau ada () => evaluasi sebagai function expression dengan __el sebagai elemen
-          const safeCallback = beforeCallback.replace(/\bthis\b/g, '__el');
-          result = Function('__el', `
+            if (loadingIndicator) $(loadingIndicator).show();
+
+            if (!rawMethods) {
+                // Kalau tidak ada action, jalankan update lokal
+                return runLocalUpdate($el, domAction, rawTargets);
+            }
+
+            const methods = rawMethods.split(',').map(m => m.trim()).filter(Boolean);
+
+            const parsedMethods = methods.map(m => {
+                const match = m.match(/^(\w+)(\((.*)\))?$/);
+                if (!match) return {
+                    method: m,
+                    args: null
+                };
+
+                const [, name, , argsStr] = match;
+                if (!argsStr) return {
+                    method: name,
+                    args: null
+                };
+
+                try {
+                    let argsRaw = [];
+
+                    try {
+                        const safeArgStr = argsStr.replace(/\bthis\b/g, '__el');
+                        argsRaw = Function('__el', `return [${safeArgStr}]`)($el[0]);
+
+                        // Jika hanya ada satu argumen dan itu array string (nested), coba parse manual
+                        if (
+                            argsRaw.length === 1 &&
+                            typeof argsRaw[0] === 'string' &&
+                            argsRaw[0].startsWith('[') &&
+                            argsRaw[0].endsWith(']')
+                        ) {
+                            try {
+                                const parsed = JSON.parse(argsRaw[0].replace(/'/g,
+                                    '"')); // convert ' to " dulu
+                                if (Array.isArray(parsed)) {
+                                    argsRaw = [parsed]; // ganti isinya jadi array asli
+                                }
+                            } catch (e) {
+                                console.warn('Failed to parse stringified array literal:', argsRaw[
+                                    0]);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`[Live Event] Error parsing arguments: ${argsStr}`, e.message);
+                    }
+
+
+                    // Sanitize nilai untuk serialisasi aman
+                    const argsSanitized = argsRaw.map(arg => {
+                        if (arg instanceof Element) {
+                            return $(arg).is('input, select, textarea') ? $(arg).val() : $(
+                                arg).text().trim();
+                        }
+
+                        // Hindari window atau objek global
+                        if (typeof arg === 'object' && arg === window) {
+                            return null;
+                        }
+
+                        return arg;
+                    });
+
+
+                    return {
+                        method: name,
+                        args: argsSanitized
+                    };
+                } catch (e) {
+                    console.warn(`[Live Event] Error parsing arguments for method "${name}":`, e
+                        .message);
+                    return {
+                        method: name,
+                        args: null
+                    };
+                }
+            });
+
+            const targets = rawTargets.split(',').map(t => t.trim());
+            const targetFor = (i) => (targets.length === 1 ? targets[0] : (targets[i] || ''));
+
+            parsedMethods.forEach(({
+                method,
+                args
+            }, i) => {
+                const targetSel = targetFor(i);
+                const $targets = targetSel ? liveTarget($el, targetSel) : $el;
+
+                let postData;
+                if (args === null || args.length === 0) {
+                    postData = fallbackData;
+                } else {
+                    // Hati-hati: args = [['2']] akan menyebabkan nested array
+                    const dataPayload = args.length === 1 ? args[0] : args;
+                    postData = {
+                        data: dataPayload
+                    };
+                }
+
+                runAjaxRequest(methodType, controller, method, postData, domAction, $targets,
+                    loading, $el);
+            });
+        };
+
+        if (beforeCallback) {
+            try {
+                let result;
+
+                if (beforeCallback.includes('(')) {
+                    // Kalau ada () => evaluasi sebagai function expression dengan __el sebagai elemen
+                    const safeCallback = beforeCallback.replace(/\bthis\b/g, '__el');
+                    result = Function('__el', `
             try {
               return (${safeCallback});
             } catch (e) {
@@ -969,1158 +682,1380 @@
               return undefined;
             }
           `)($el[0]);
-        } else {
-          // Kalau hanya nama fungsi, panggil window[fnName]($el[0])
-          const fn = window[beforeCallback.trim()];
-          if (typeof fn === 'function') {
-            result = fn($el[0]);
-          } else {
-            console.warn(
-              `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`);
-            result = undefined;
-          }
-        }
+                } else {
+                    // Kalau hanya nama fungsi, panggil window[fnName]($el[0])
+                    const fn = window[beforeCallback.trim()];
+                    if (typeof fn === 'function') {
+                        result = fn($el[0]);
+                    } else {
+                        console.warn(
+                            `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`);
+                        result = undefined;
+                    }
+                }
 
-        if (result instanceof Promise) {
-          result.then(ok => {
-            if (ok !== false) execute();
-          }).catch(() => { });
-        } else if (result !== false) {
-          execute();
+                if (result instanceof Promise) {
+                    result.then(ok => {
+                        if (ok !== false) execute();
+                    }).catch(() => { });
+                } else if (result !== false) {
+                    execute();
+                }
+            } catch (e) {
+                console.warn('[LiveDomJs] live-callback-before error:', beforeCallback, e);
+                execute(); // fallback tetap jalan
+            }
+        } else {
+            execute();
         }
-      } catch (e) {
-        console.warn('[LiveDomJs] live-callback-before error:', beforeCallback, e);
-        execute(); // fallback tetap jalan
-      }
-    } else {
-      execute();
+    }
+
+    /**
+     * Executes an AJAX request triggered by a live event.
+     * @param {string} methodType - HTTP method.
+     * @param {string} controller - Controller name.
+     * @param {string} method - Method name.
+     * @param {object|FormData} data - Data to send.
+     * @param {string} domAction - How to apply the response to the DOM.
+     * @param {jQuery} $targets - jQuery collection of target elements.
+     * @param {boolean} loading - Whether to show loading.
+     * @param {jQuery} $el - The original triggering element.
+     */
+    function runAjaxRequest(methodType, controller, method, data, domAction, $targets, loading, $el) {
+        const callback = function (response) {
+            let responseData = response && typeof response === 'object' && 'data' in response ?
+                response.data :
+                response;
+
+            if (typeof responseData === 'object') {
+                autoBindDomFromResponse(responseData);
+            }
+
+            if (typeof responseData === 'string') {
+                $targets.each(function () {
+                    applyDomAction($(this), domAction, responseData);
+                });
+            }
+
+            const afterCallback = $el.attr('live-callback-after');
+            if (afterCallback && typeof window[afterCallback] === 'function') {
+                window[afterCallback]($el[0], response);
+            }
+
+            document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+        };
+
+        debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
     }
 
 
+    /**
+     * Performs a local DOM update without an AJAX request.
+     * @param {jQuery} $el - The triggering element.
+     * @param {string} domAction - How to apply the content to the DOM.
+     * @param {string} rawTargets - Raw target selector string.
+     */
+    function runLocalUpdate($el, domAction, rawTargets) {
+        const targetSel = rawTargets || '';
+        const $targets = targetSel ? liveTarget($el, targetSel) : $el;
+        if (domAction === 'remove') {
+            $targets.remove();
+            initLiveDom();
+            return;
+        }
 
-  }
-
-  /**
-   * Executes an AJAX request triggered by a live event.
-   * @param {string} methodType - HTTP method.
-   * @param {string} controller - Controller name.
-   * @param {string} method - Method name.
-   * @param {object|FormData} data - Data to send.
-   * @param {string} domAction - How to apply the response to the DOM.
-   * @param {jQuery} $targets - jQuery collection of target elements.
-   * @param {boolean} loading - Whether to show loading.
-   * @param {jQuery} $el - The original triggering element.
-   */
-  function runAjaxRequest(methodType, controller, method, data, domAction, $targets, loading, $el) {
-    const callback = function (response) {
-      let responseData = response && typeof response === 'object' && 'data' in response ?
-        response.data :
-        response;
-
-      if (typeof responseData === 'object') {
-        autoBindDomFromResponse(responseData);
-      }
-
-      if (typeof responseData === 'string') {
+        const content = extractElementContent($el);
         $targets.each(function () {
-          applyDomAction($(this), domAction, responseData);
+            applyDomAction($(this), domAction, content);
         });
-      }
-
-      const afterCallback = $el.attr('live-callback-after');
-      if (afterCallback && typeof window[afterCallback] === 'function') {
-        window[afterCallback]($el[0], response);
-      }
-
-      document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-    };
-
-    debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
-  }
-
-
-  /**
-   * Performs a local DOM update without an AJAX request.
-   * @param {jQuery} $el - The triggering element.
-   * @param {string} domAction - How to apply the content to the DOM.
-   * @param {string} rawTargets - Raw target selector string.
-   */
-  function runLocalUpdate($el, domAction, rawTargets) {
-    const targetSel = rawTargets || '';
-    const $targets = targetSel ? liveTarget($el, targetSel) : $el;
-    if (domAction === 'remove') {
-      $targets.remove();
-      handleLiveComputeUnified();
-      return;
     }
 
-    const content = extractElementContent($el);
-    $targets.each(function () {
-      applyDomAction($(this), domAction, content);
-    });
+    /**
+     * Applies content to a target element using a specified DOM action.
+     * @param {jQuery} $target - The target element.
+     * @param {string} action - The DOM action (e.g., 'html', 'append', 'value').
+     * @param {string} content - The content to apply.
+     */
+    function applyDomAction($targets, actions, contents) {
+        // Pastikan $targets adalah jQuery object array
+        $targets = $targets instanceof jQuery ? $targets : $($targets);
 
-    handleLiveIf();
-  }
+        // Split actions dan contents jika berupa string multiple
+        const actionList = typeof actions === 'string' ? actions.split(',') : [actions];
+        const contentList = typeof contents === 'object' && !Array.isArray(contents) ? [contents] :
+            (Array.isArray(contents) ? contents : [contents]);
 
-  /**
-   * Applies content to a target element using a specified DOM action.
-   * @param {jQuery} $target - The target element.
-   * @param {string} action - The DOM action (e.g., 'html', 'append', 'value').
-   * @param {string} content - The content to apply.
-   */
-  function applyDomAction($targets, actions, contents) {
-    // Pastikan $targets adalah jQuery object array
-    $targets = $targets instanceof jQuery ? $targets : $($targets);
+        $targets.each(function (targetIndex) {
+            const $currentTarget = $(this);
 
-    // Split actions dan contents jika berupa string multiple
-    const actionList = typeof actions === 'string' ? actions.split(',') : [actions];
-    const contentList = typeof contents === 'object' && !Array.isArray(contents) ? [contents] :
-      (Array.isArray(contents) ? contents : [contents]);
+            actionList.forEach((action, actionIndex) => {
+                const content = contentList[actionIndex] || contentList[0] || '';
+                const trimmedAction = action.trim();
 
-    $targets.each(function (targetIndex) {
-      const $currentTarget = $(this);
+                console.log(`Applying to target ${targetIndex}:`, {
+                    target: $currentTarget,
+                    action: trimmedAction,
+                    content: content
+                });
 
-      actionList.forEach((action, actionIndex) => {
-        const content = contentList[actionIndex] || contentList[0] || '';
-        const trimmedAction = action.trim();
-
-        console.log(`Applying to target ${targetIndex}:`, {
-          target: $currentTarget,
-          action: trimmedAction,
-          content: content
+                switch (trimmedAction) {
+                    case 'append':
+                        $currentTarget.append(content);
+                        break;
+                    case 'prepend':
+                        $currentTarget.prepend(content);
+                        break;
+                    case 'before':
+                        $currentTarget.before(content);
+                        break;
+                    case 'after':
+                        $currentTarget.after(content);
+                        break;
+                    case 'value':
+                    case 'val':
+                        $currentTarget.val(content).trigger('change');
+                        $currentTarget.trigger('input');
+                        $currentTarget.trigger('change');
+                        break;
+                    case 'text':
+                        $currentTarget.text(content);
+                        break;
+                    case 'html':
+                        $currentTarget.html(content);
+                        break;
+                    case 'toggle':
+                        $currentTarget.toggle(content);
+                        break;
+                    case 'show':
+                        $currentTarget.show();
+                        break;
+                    case 'hide':
+                        $currentTarget.hide();
+                        break;
+                    case 'remove':
+                        $currentTarget.remove();
+                        break;
+                    default:
+                        console.warn(`Unknown action: ${trimmedAction}`);
+                        $currentTarget.html(content);
+                }
+            });
         });
-
-        switch (trimmedAction) {
-          case 'append':
-            $currentTarget.append(content);
-            break;
-          case 'prepend':
-            $currentTarget.prepend(content);
-            break;
-          case 'before':
-            $currentTarget.before(content);
-            break;
-          case 'after':
-            $currentTarget.after(content);
-            break;
-          case 'value':
-          case 'val':
-            $currentTarget.val(content).trigger('change');
-            $currentTarget.trigger('input');
-            $currentTarget.trigger('change');
-            break;
-          case 'text':
-            $currentTarget.text(content);
-            break;
-          case 'html':
-            $currentTarget.html(content);
-            break;
-          case 'toggle':
-            $currentTarget.toggle(content);
-            break;
-          case 'show':
-            $currentTarget.show();
-            break;
-          case 'hide':
-            $currentTarget.hide();
-            break;
-          case 'remove':
-            $currentTarget.remove();
-            break;
-          default:
-            console.warn(`Unknown action: ${trimmedAction}`);
-            $currentTarget.html(content);
-        }
-      });
-    });
-
-    handleLiveIf();
-  }
-
-  /*==============================
-    POLLERS
-  ==============================*/
-
-  /**
-   * Initializes polling for elements with 'live-poll' attribute.
-   */
-  function handlePollers() {
-    $('[live-poll]').each(function () {
-      const $el = $(this);
-      const interval = parseInt($el.attr('live-poll'), 10);
-      const controller = $el.attr('live-scope');
-      const method = $el.attr('live-click') || 'poll';
-      const target = '#' + $el.attr('id');
-
-      // Clear existing interval to prevent duplicates on re-init
-      if ($el.data('poll-interval')) {
-        clearInterval($el.data('poll-interval'));
-      }
-
-      const pollInterval = setInterval(() => {
-        ajaxDynamic('GET', controller, method, {}, 'html', target);
-      }, interval);
-
-      $el.data('poll-interval', pollInterval); // Store interval ID
-    });
-  }
-
-  /*==============================
-    LIVE COMPUTE
-  ==============================*/
-  /**
-   * Handles live computation for elements with 'live-compute' attribute.
-   * @param {Element|Document} [scope=document] - The scope within which to find live-compute elements.
-   */
-  function handleLiveComputeUnified(scope) {
-    const $scope = $(scope || document);
-    const COMPUTE_CACHE_KEY = 'liveComputeCache';
-    const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
-    const DEBOUNCE_DELAY = 50;
-    let debounceTimer;
-    let isProcessing = false;
-
-    // Date calculation functions
-    const dateUtils = {
-      rangeDate: (start, end) => {
-        try {
-          if (!start || !end) return 0;
-          const d1 = new Date(start);
-          const d2 = new Date(end);
-          if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-          return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24));
-        } catch (e) {
-          console.error('rangeDate error:', e);
-          return 0;
-        }
-      },
-      rangeMonth: (start, end) => {
-        try {
-          if (!start || !end) return 0;
-          const d1 = new Date(start);
-          const d2 = new Date(end);
-          if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-          return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-        } catch (e) {
-          console.error('rangeMonth error:', e);
-          return 0;
-        }
-      },
-      rangeYear: (start, end) => {
-        try {
-          if (!start || !end) return 0;
-          const d1 = new Date(start);
-          const d2 = new Date(end);
-          if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-          return d2.getFullYear() - d1.getFullYear();
-        } catch (e) {
-          console.error('rangeYear error:', e);
-          return 0;
-        }
-      },
-      rangeWeek: (start, end) => {
-        try {
-          if (!start || !end) return 0;
-          const d1 = new Date(start);
-          const d2 = new Date(end);
-          if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-          return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24 * 7));
-        } catch (e) {
-          console.error('rangeWeek error:', e);
-          return 0;
-        }
-      }
-    };
-
-    // Initialize cache and dependency map if not exists
-    if (!$scope.data(COMPUTE_CACHE_KEY)) {
-      $scope.data(COMPUTE_CACHE_KEY, new Map());
-    }
-    if (!$scope.data(DEPENDENCY_MAP_KEY)) {
-      buildDependencyMap($scope);
     }
 
-    // Main processing function
-    function process() {
-      if (isProcessing) return;
+    /*==============================
+      POLLERS
+    ==============================*/
 
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        isProcessing = true;
-        try {
-          const cache = $scope.data(COMPUTE_CACHE_KEY);
-          const dependencyMap = $scope.data(DEPENDENCY_MAP_KEY);
-
-          $scope.find('[live-compute]').each(function () {
+    /**
+     * Initializes polling for elements with 'live-poll' attribute.
+     */
+    function handlePollers() {
+        $('[live-poll]').each(function () {
             const $el = $(this);
-            const el = this;
-            const expr = $el.attr('live-compute')?.trim() || '';
+            const interval = parseInt($el.attr('live-poll'), 10);
+            const controller = $el.attr('live-scope');
+            const method = $el.attr('live-click') || 'poll';
+            const target = '#' + $el.attr('id');
 
-            if (!expr) return;
+            // Clear existing interval to prevent duplicates on re-init
+            if ($el.data('poll-interval')) {
+                clearInterval($el.data('poll-interval'));
+            }
+
+            const pollInterval = setInterval(() => {
+                ajaxDynamic('GET', controller, method, {}, 'html', target);
+            }, interval);
+
+            $el.data('poll-interval', pollInterval); // Store interval ID
+        });
+    }
+
+    /*==============================
+      LIVE COMPUTE
+    ==============================*/
+
+    function handleLiveComputeUnified(scope) {
+        const rootScope = scope || document;
+        const COMPUTE_CACHE_KEY = 'liveComputeCache';
+        const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
+        const CIRCULAR_DETECTION_KEY = 'circularDetection';
+        const BIDIRECTIONAL_TRACKING_KEY = 'bidirectionalTracking';
+        const DEBOUNCE_DELAY = 100;
+        const BATCH_SIZE = 3;
+        const MAX_ITERATIONS = 5;
+        const PRECISION_TOLERANCE = 0.0001;
+
+        let processingPromise = null;
+        let debounceTimer;
+        let immediateTimeout;
+        let iterationCount = 0;
+        let bidirectionalUpdateInProgress = false;
+
+        // Data storage using WeakMap for element data and Map for scope data
+        const elementData = new WeakMap();
+        const scopeData = new Map();
+
+        // Helper functions to replace jQuery data functionality
+        function getData(element, key) {
+            if (element === rootScope) {
+                return scopeData.get(key);
+            }
+            const data = elementData.get(element) || {};
+            return data[key];
+        }
+
+        function setData(element, key, value) {
+            if (element === rootScope) {
+                scopeData.set(key, value);
+                return;
+            }
+            const data = elementData.get(element) || {};
+            data[key] = value;
+            elementData.set(element, data);
+        }
+
+        function removeData(element, key) {
+            if (element === rootScope) {
+                scopeData.delete(key);
+                return;
+            }
+            const data = elementData.get(element) || {};
+            delete data[key];
+            elementData.set(element, data);
+        }
+
+        // Helper functions to replace jQuery selectors and methods
+        function find(selector, context = rootScope) {
+            return Array.from(context.querySelectorAll(selector));
+        }
+
+        function filter(elements, callback) {
+            return elements.filter(callback);
+        }
+
+        function val(element, value) {
+            if (value !== undefined) {
+                element.value = value;
+                return element;
+            }
+            return element.value || '';
+        }
+
+        function attr(element, attribute) {
+            return element.getAttribute(attribute);
+        }
+
+        function html(element, content) {
+            if (content !== undefined) {
+                element.innerHTML = content;
+                return element;
+            }
+            return element.innerHTML;
+        }
+
+        function is(element, selector) {
+            if (selector === ':focus') {
+                return document.activeElement === element;
+            }
+            return element.matches(selector);
+        }
+
+        // Date calculation functions
+        const dateUtils = {
+            rangeDate: (start, end) => {
+                try {
+                    if (!start || !end) return 0;
+
+                    const [sY, sM, sD] = start.split('-').map(Number);
+                    const [eY, eM, eD] = end.split('-').map(Number);
+
+                    const startDate = new Date(sY, sM - 1, sD);
+                    const endDate = new Date(eY, eM - 1, eD);
+
+                    // hitung selisih berdasarkan tanggal saja
+                    const diffTime = endDate.getTime() - startDate.getTime();
+                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                    return diffDays;
+                } catch (e) {
+                    console.error('rangeDate error:', e);
+                    return 0;
+                }
+            },
+
+            rangeMonth: (start, end) => {
+                try {
+                    if (!start || !end) return 0;
+                    const d1 = new Date(start);
+                    const d2 = new Date(end);
+                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+                    return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+                } catch (e) {
+                    console.error('rangeMonth error:', e);
+                    return 0;
+                }
+            },
+            rangeYear: (start, end) => {
+                try {
+                    if (!start || !end) return 0;
+                    const d1 = new Date(start);
+                    const d2 = new Date(end);
+                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+                    return d2.getFullYear() - d1.getFullYear();
+                } catch (e) {
+                    console.error('rangeYear error:', e);
+                    return 0;
+                }
+            },
+            rangeWeek: (start, end) => {
+                try {
+                    if (!start || !end) return 0;
+                    const d1 = new Date(start);
+                    const d2 = new Date(end);
+                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+                    return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24 * 7));
+                } catch (e) {
+                    console.error('rangeWeek error:', e);
+                    return 0;
+                }
+            }
+        };
+
+        if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
+            setData(rootScope, COMPUTE_CACHE_KEY, new Map());
+        }
+        if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
+            buildDependencyMap();
+        }
+        if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
+            setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+        }
+        if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
+            setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
+        }
+
+        function isValueConverged(oldValue, newValue) {
+            // bedakan "" dengan 0 supaya tetap update
+            if (oldValue === "" && newValue === 0) return false;
+
+            if (oldValue === newValue) return true;
+
+            const oldNum = parseFloat(oldValue);
+            const newNum = parseFloat(newValue);
+
+            if (!isNaN(oldNum) && !isNaN(newNum)) {
+                if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
+                if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
+            }
+
+            return false;
+        }
+
+
+        // PERBAIKAN: Deteksi circular dependency yang lebih baik
+        function detectCircularDependency(element, newValue, sourceElement = null) {
+            // Skip circular detection untuk elemen yang saling bergantung (bidirectional)
+            if (sourceElement) {
+                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+                if (bidirectionalMap.has(element) && bidirectionalMap.get(element).has(sourceElement)) {
+                    return false;
+                }
+            }
+
+            const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
+            const key = element;
+
+            if (!circularMap.has(key)) {
+                circularMap.set(key, []);
+            }
+
+            const history = circularMap.get(key);
+
+            // Track source element untuk bidirectional
+            if (sourceElement) {
+                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+                if (!bidirectionalMap.has(key)) {
+                    bidirectionalMap.set(key, new Set());
+                }
+                bidirectionalMap.get(key).add(sourceElement);
+            }
+
+            if (history.length > 0) {
+                const lastValue = history[history.length - 1];
+                if (isValueConverged(lastValue, newValue)) {
+                    return true;
+                }
+            }
+
+            history.push(newValue);
+
+            if (history.length > 10) {
+                history.shift();
+            }
+
+            if (history.length >= 4) {
+                const len = history.length;
+                const isOscillating =
+                    isValueConverged(history[len - 1], history[len - 3]) &&
+                    isValueConverged(history[len - 2], history[len - 4]);
+
+                if (isOscillating) {
+                    console.warn('Circular dependency detected, stabilizing value:', key);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // PERBAIKAN: Process function dengan handling bidirectional yang lebih baik
+        function process(sourceElement = null) {
+            if (processingPromise) {
+                return processingPromise;
+            }
+
+            if (bidirectionalUpdateInProgress && sourceElement) {
+                return Promise.resolve();
+            }
+
+            iterationCount = 0;
+            bidirectionalUpdateInProgress = !!sourceElement;
+
+            processingPromise = new Promise((resolve) => {
+                const cache = getData(rootScope, COMPUTE_CACHE_KEY);
+
+                const elements = filter(find('[live-compute]'), function (element) {
+                    const expr = attr(element, 'live-compute')?.trim() || '';
+                    return expr.length > 0;
+                });
+
+                let index = 0;
+                let hasChanges = false;
+
+                function processBatch() {
+                    const batch = elements.slice(index, index + BATCH_SIZE);
+                    let batchHasChanges = false;
+
+                    batch.forEach(function (element) {
+                        // Skip jika ini adalah source element dari bidirectional update
+                        if (sourceElement && element === sourceElement) {
+                            return;
+                        }
+
+                        const expr = attr(element, 'live-compute')?.trim() || '';
+
+                        try {
+                            const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
+                            const isFocused = is(element, ':focus');
+                            const isUpdating = getData(element, 'updating') === true;
+
+                            if (hasSkipAttr && isFocused) {
+                                return;
+                            }
+
+                            if (isUpdating) {
+                                return;
+                            }
+
+                            const lastManualInput = getData(element, 'lastManualInput') || 0;
+                            if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
+                                return;
+                            }
+
+                            const globalInputs = getGlobalInputs();
+                            const indices = getRowIndices();
+                            const result = evaluateExpression(expr, globalInputs, indices);
+                            const changed = displayResult(element, result, cache, sourceElement);
+
+                            if (changed) {
+                                batchHasChanges = true;
+                                hasChanges = true;
+                            }
+                        } catch (error) {
+                            console.error('LiveCompute error:', error);
+                            if (attr(element, 'live-compute-skip') !== 'true') {
+                                displayResult(element, '', cache, sourceElement);
+                            }
+                        }
+                    });
+
+                    index += BATCH_SIZE;
+
+                    if (index < elements.length) {
+                        if ('requestIdleCallback' in window) {
+                            requestIdleCallback(processBatch, { timeout: 100 });
+                        } else {
+                            setTimeout(processBatch, 20);
+                        }
+                    } else {
+                        iterationCount++;
+
+                        if (hasChanges && iterationCount < MAX_ITERATIONS) {
+                            index = 0;
+                            hasChanges = false;
+                            setTimeout(processBatch, 10);
+                        } else {
+                            if (iterationCount >= MAX_ITERATIONS) {
+                                console.warn('Live compute reached max iterations');
+                            }
+
+                            setTimeout(() => {
+                                // Hanya reset circular detection jika bukan bidirectional update
+                                if (!sourceElement) {
+                                    setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+                                }
+                            }, 1000);
+
+                            processingPromise = null;
+                            bidirectionalUpdateInProgress = false;
+                            resolve();
+                        }
+                    }
+                }
+
+                processBatch();
+            }).finally(() => {
+                processingPromise = null;
+                bidirectionalUpdateInProgress = false;
+            });
+
+            return processingPromise;
+        }
+
+        function scheduleProcess(delay = 0, sourceElement = null) {
+            clearTimeout(immediateTimeout);
+            clearTimeout(debounceTimer);
+
+            const timerId = setTimeout(() => {
+                process(sourceElement);
+            }, delay);
+
+            if (delay <= 30) {
+                immediateTimeout = timerId;
+            } else {
+                debounceTimer = timerId;
+            }
+        }
+
+        function processImmediate(sourceElement = null) {
+            scheduleProcess(30, sourceElement);
+        }
+
+        function debounceProcess(sourceElement = null) {
+            scheduleProcess(DEBOUNCE_DELAY, sourceElement);
+        }
+
+        function buildDependencyMap() {
+            const depMap = new Map();
+            find('[live-compute]').forEach(function (element) {
+                const expr = attr(element, 'live-compute')?.trim() || '';
+                depMap.set(element, extractVariables(expr));
+            });
+            setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
+        }
+
+        function getGlobalInputs() {
+            const inputs = {};
+            find('input[name], select[name], textarea[name]').forEach(function (element) {
+                const name = attr(element, 'name');
+                if (name) {
+                    inputs[sanitizeInputNameToJSVariable(name)] = val(element)?.toString().trim();
+                }
+            });
+            return inputs;
+        }
+
+        function getRowIndices() {
+            const indices = new Set();
+            find('input[name], select[name], textarea[name]').forEach(function (element) {
+                const nameAttr = attr(element, 'name');
+                if (!nameAttr) return;
+                const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
+                if (matches.length) {
+                    matches.forEach(match => {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num)) indices.add(num);
+                    });
+                }
+            });
+            return indices;
+        }
+
+        function evaluateExpression(expr, globalInputs, indices) {
+            const dateFnMatch = expr.match(/(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/);
+            if (dateFnMatch) {
+                return handleDateFunction(dateFnMatch[1], dateFnMatch[2], globalInputs);
+            }
+
+            expr = processAggregateFunctions(expr, globalInputs, indices);
+
+            const vars = extractVariables(expr);
+            const vals = vars.map(v => toNumber(getValue(v, globalInputs)));
 
             try {
-              if (shouldSkipElement($el, el)) return;
-
-              const globalInputs = getGlobalInputs($scope);
-              const indices = getRowIndices($scope);
-              const result = evaluateExpression(expr, globalInputs, indices);
-              displayResult($el, result, cache);
-
-            } catch (error) {
-              console.error('LiveCompute error:', error);
-              displayResult($el, '', cache);
+                return safeFunctionEvaluation(vars, vals, expr);
+            } catch (e) {
+                console.error('Evaluation error:', expr, e);
+                return 0;
             }
-          });
-        } finally {
-          isProcessing = false;
         }
-      }, DEBOUNCE_DELAY);
-    }
 
-    function shouldSkipElement($el, el) {
-      return document.activeElement === el && $el.is('input, textarea, select');
-    }
+        function handleDateFunction(fnName, argsStr, globalInputs) {
+            const args = argsStr.split(',').map(arg => {
+                const varName = arg.trim();
+                return getValue(varName, globalInputs);
+            });
 
-    function buildDependencyMap($container) {
-      const depMap = new Map();
-      $container.find('[live-compute]').each(function () {
-        const expr = $(this).attr('live-compute')?.trim() || '';
-        depMap.set(this, extractVariables(expr));
-      });
-      $container.data(DEPENDENCY_MAP_KEY, depMap);
-    }
+            if (args.length !== 2 || !args[0] || !args[1]) return 0;
 
-    function getGlobalInputs($container) {
-      const inputs = {};
-      $container.find('input[name], select[name], textarea[name]').each(function () {
-        const name = $(this).attr('name');
-        if (name) {
-          inputs[sanitizeInputNameToJSVariable(name)] = $(this).val()?.toString().trim();
-        }
-      });
-      return inputs;
-    }
-
-    // function getRowIndices($container) {
-    //   const indices = new Set();
-    //   $container.find('input[name]').each(function() {
-    //     const match = $(this).attr('name').match(/rows\[(\d+)\]\[/);
-    //     if (match) indices.add(parseInt(match[1], 10));
-    //   });
-    //   return indices;
-    // }
-
-    function getRowIndices($container) {
-      const indices = new Set();
-
-      $container.find('input[name], select[name], textarea[name]').each(function () {
-        const nameAttr = $(this).attr('name');
-        if (!nameAttr) return;
-
-        /**
-         * Ambil semua angka yang diapit []
-         * Contoh:
-         * - amount[0] → [0]
-         * - rows[2][amount] → [2]
-         * - order_items[10][price] → [10]
-         * - form[3][details][5][value] → [3, 5]
-         */
-        const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
-
-        if (matches.length) {
-          // Ambil semua angka yang ditemukan
-          matches.forEach(match => {
-            const num = parseInt(match[1], 10);
-            if (!isNaN(num)) indices.add(num);
-          });
-        }
-      });
-
-      return indices;
-    }
-
-
-
-    function evaluateExpression(expr, globalInputs, indices) {
-      // First check for date functions
-      const dateFnMatch = expr.match(/(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/);
-      if (dateFnMatch) {
-        return handleDateFunction(dateFnMatch[1], dateFnMatch[2], globalInputs);
-      }
-
-      // Process aggregate functions
-      expr = processAggregateFunctions(expr, globalInputs, indices);
-
-      // Handle regular expressions
-      const vars = extractVariables(expr);
-      const vals = vars.map(v => toNumber(getValue(v, globalInputs, $scope)));
-
-      try {
-        return safeFunctionEvaluation(vars, vals, expr);
-      } catch (e) {
-        console.error('Evaluation error:', expr, e);
-        return 0;
-      }
-    }
-
-    function handleDateFunction(fnName, argsStr, globalInputs) {
-      const args = argsStr.split(',').map(arg => {
-        const varName = arg.trim();
-        return getValue(varName, globalInputs, $scope);
-      });
-
-      if (args.length !== 2 || !args[0] || !args[1]) return 0;
-
-      try {
-        return dateUtils[fnName](args[0], args[1]);
-      } catch (e) {
-        console.error(`${fnName} execution error:`, e);
-        return 0;
-      }
-    }
-
-    function safeFunctionEvaluation(vars, vals, expr) {
-      const context = {
-        ...dateUtils,
-        parseFloat
-      };
-
-      const argNames = [...vars, ...Object.keys(context)];
-      const argValues = [...vals, ...Object.values(context)];
-
-      return new Function(...argNames, `return ${expr}`)(...argValues);
-    }
-
-    function processAggregateFunctions(expr, globalInputs, indices) {
-      return expr.replace(/(sum|avg|min|max|count)\(([^()]+)\)/g, (_, fn, arg) => {
-        const vals = getAggregateValues(arg, globalInputs, indices);
-        return calculateAggregate(fn, vals);
-      });
-    }
-
-    function getAggregateValues(arg, globalInputs, indices) {
-      arg = arg.trim();
-      const vals = [];
-
-      if (arg.includes('?')) {
-        indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs,
-          $scope))));
-      } else {
-        vals.push(toNumber(getValue(arg, globalInputs, $scope)));
-      }
-
-      return vals;
-    }
-
-    function calculateAggregate(fn, vals) {
-      switch (fn) {
-        case 'sum':
-          return vals.reduce((a, b) => a + b, 0);
-        case 'avg':
-          return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-        case 'min':
-          return Math.min(...vals);
-        case 'max':
-          return Math.max(...vals);
-        case 'count':
-          return vals.length;
-        default:
-          return 0;
-      }
-    }
-
-    function displayResult($el, result, cache) {
-      const el = $el[0];
-      const format = $el.attr('live-compute-format');
-      let formattedResult = formatResult(result, format);
-
-      if (cache.get(el) !== formattedResult) {
-        cache.set(el, formattedResult);
-        updateElementValue($el, formattedResult);
-      }
-    }
-
-    function formatResult(result, format) {
-      if (result === null || result === undefined || (typeof result === 'number' && isNaN(result))) {
-        return '';
-      }
-
-      switch (format) {
-        case 'currency':
-        case 'idr':
-          return formatRupiah(result.toString());
-        case 'percent':
-          return typeof result === 'number' ? (result * 100).toFixed(2) + '%' : result;
-        case 'number':
-          return typeof result === 'number' ? result.toLocaleString('id-ID') : result;
-        case 'days':
-          return typeof result === 'number' ? `${result} days` : result;
-        case 'months':
-          return typeof result === 'number' ? `${result} months` : result;
-        case 'years':
-          return typeof result === 'number' ? `${result} years` : result;
-        case 'weeks':
-          return typeof result === 'number' ? `${result} weeks` : result;
-        default:
-          return result.toString();
-      }
-    }
-
-    function updateElementValue($el, value) {
-      if ($el.is('input, textarea, select')) {
-        $el.val(value);
-      } else {
-        $el.html(value);
-      }
-      $el.trigger('change');
-    }
-
-    function getValue(varName, globalInputs, $container) {
-      const rowMatch = varName.match(/^rows_(\d+)_(.+)$/);
-      if (rowMatch) {
-        const [_, index, field] = rowMatch;
-        const selector = `[name="rows[${index}][${field}]"]`;
-        const $input = $container.find(selector);
-        return $input.length ? $input.val().toString().trim() : '';
-      }
-      return globalInputs[varName] || '';
-    }
-
-    function toNumber(val) {
-      if (val == null || val === '') return 0;
-      val = val.toString()
-        .replace('%', '')
-        .replace(/[^\d.,-]/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.');
-      const n = parseFloat(val);
-      return isNaN(n) ? 0 : n;
-    }
-
-    function extractVariables(expr) {
-      // Skip function names and numeric values
-      const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
-      return [...new Set(vars.filter(v => !/^\d+$/.test(v) && !dateUtils[v]))];
-    }
-
-    function init() {
-      process();
-      $scope.on('input change', 'input, select, textarea', function () {
-        if (!shouldSkipElement($(this), this)) process();
-      });
-      $scope.on('blur', '[live-compute]', () => process());
-    }
-
-    init();
-  }
-
-  // Helper functions remain the same
-  function sanitizeInputNameToJSVariable(name) {
-    return name.replace(/\]\[/g, '_')
-      .replace(/[\[\]]/g, '')
-      .replace(/[^a-zA-Z0-9_]/g, '_');
-  }
-
-  function formatRupiah(amount) {
-    if (!amount) return '';
-    const num = parseFloat(amount.toString().replace(/[^\d.-]/g, ''));
-    return isNaN(num) ? amount : new Intl.NumberFormat('id-ID').format(num);
-  }
-  /*==============================
-    LIVE-IF
-  ==============================*/
-  /**
-   * Handles conditional visibility/state for elements with 'live-if' attribute.
-   * @param {Element|Document} [scope=document] - The scope within which to find live-if elements.
-   */
-  function handleLiveIf(scope) {
-    const $scope = $(scope || document);
-    const getInputValue = ($el) => {
-      if ($el.is(':checkbox')) return $el.prop('checked');
-      if ($el.is(':radio')) {
-        const name = $el.attr('name');
-        return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
-      }
-      const val = $el.val();
-      if (val === '') return null;
-      if (val === 'true') return true;
-      if (val === 'false') return false;
-      if (!isNaN(val)) return parseFloat(val);
-      return val;
-    };
-
-    const evaluateExpression = (expr, context) => {
-      try {
-        // Inject helper includesLoose ke dalam scope
-        const helpers = {
-          includesLoose: (arr, val) => {
             try {
-              const valNum = parseFloat(val);
-              return arr.some(item => item == val || item == valNum);
-            } catch {
-              return arr.includes(val);
+                return dateUtils[fnName](args[0], args[1]);
+            } catch (e) {
+                console.error(`${fnName} execution error:`, e);
+                return 0;
             }
-          }
-        };
-        return new Function('context', 'helpers', `
-            with({...context, ...helpers}) { return (${expr}); }
-          `)(context, helpers);
-      } catch (e) {
-        console.warn('LiveIf evaluation error:', expr, e.message);
-        return false;
-      }
-    };
+        }
 
+        const exprFuncCache = new Map();
 
-    if (!$scope.data('live-if-listener-bound')) {
-      $scope.on('input change', 'input[name], select[name], textarea[name]', () => {
-        handleLiveIf($scope);
-        handleLiveThenElse($scope);
-      });
-      $scope.data('live-if-listener-bound', true);
-    }
+        function safeFunctionEvaluation(vars, vals, expr) {
+            if (!exprFuncCache.has(expr)) {
+                const context = { ...dateUtils, parseFloat };
+                const argNames = [...vars, ...Object.keys(context)];
+                const func = new Function(...argNames, `return ${expr}`);
+                exprFuncCache.set(expr, { func, context });
+            }
+            const { func, context } = exprFuncCache.get(expr);
+            const argValues = [...vals, ...Object.values(context)];
+            return func(...argValues);
+        }
 
-    $scope.find('[live-if]').each(function () {
-      const $el = $(this);
-      const expr = $el.attr('live-if');
-      let context = {};
-      const parentStateContainer = $el.closest('[live-state]')[0];
-      if (parentStateContainer) {
-        const state = window.LiveState?.getState(parentStateContainer);
-        if (state) context = {
-          ...state
-        };
-      }
+        function processAggregateFunctions(expr, globalInputs, indices) {
+            // SUMIF
+            expr = expr.replace(/sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/g,
+                (_, criteriaRange, criteria, sumRange) => {
+                    const vals = getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices);
+                    return calculateAggregate('sum', vals);
+                }
+            );
 
-      $scope.find('input[name], select[name], textarea[name]').each(function () {
-        const $input = $(this);
-        const name = $input.attr('name');
-        const val = getInputValue($input);
-        context[name] = autoCoerce(val);
-      });
+            // SUM, AVG, MIN, MAX, COUNT
+            return expr.replace(/(sum|avg|min|max|count)\(([^()]+)\)/g,
+                (_, fn, arg) => {
+                    const vals = getAggregateValues(arg, globalInputs, indices);
+                    return calculateAggregate(fn, vals);
+                }
+            );
+        }
 
-      const result = evaluateExpression(expr, context);
-      const hasThenElse = $el.is('[live-then], [live-else]');
+        function getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices) {
+            const vals = [];
 
-      // Logika untuk persyaratan 1: jika hanya live-if, default ke hide-show
-      if (!hasThenElse) {
-        const animateType = $el.attr('live-animate'); // ambil live-animate jika ada
+            // Kalau pakai wildcard ? → iterasi semua index
+            if (criteriaRange.includes('?') || sumRange.includes('?')) {
+                indices.forEach(i => {
+                    const critVal = getValue(criteriaRange.replace(/\?/g, i), globalInputs);
+                    const sumVal = toNumber(getValue(sumRange.replace(/\?/g, i), globalInputs));
 
-        if (result) {
-          if (!$el.is(':visible')) {
-            if (animateType) {
-              // Gunakan handleLiveAnimate untuk animasi muncul
-              handleLiveAnimate($el);
+                    if (matchCriteria(critVal, criteria)) {
+                        vals.push(sumVal);
+                    }
+                });
             } else {
-              $el.show();
+                const critVal = getValue(criteriaRange, globalInputs);
+                const sumVal = toNumber(getValue(sumRange, globalInputs));
+                if (matchCriteria(critVal, criteria)) {
+                    vals.push(sumVal);
+                }
             }
-          }
-        } else {
-          if ($el.is(':visible')) {
-            if (animateType) {
-              // Ganti animasi untuk hide
-              let hideAnimate = animateType
-                .replace('in', 'out')
-                .replace('down', 'up')
-                .replace('show', 'hide')
-                .replace('toggle', 'toggle'); // toggle biarkan tetap
-              $el.attr('live-animate', hideAnimate);
-              handleLiveAnimate($el);
-              $el.attr('live-animate',
-                animateType); // kembalikan supaya tidak berubah permanent
+
+            return vals;
+        }
+
+        function matchCriteria(value, criteria) {
+            criteria = criteria.trim();
+
+            // Jika numeric langsung bandingkan
+            if (!isNaN(criteria)) {
+                return Number(value) === Number(criteria);
+            }
+
+            // Excel style operator
+            const opMatch = criteria.match(/^(>=|<=|==|!=|<>|>|<)\s*(.+)$/);
+            if (opMatch) {
+                let [, op, critVal] = opMatch;
+                if (op === '<>') op = '!='; // konversi Excel <> jadi != JS
+
+                const numCrit = Number(critVal);
+                const numVal = Number(value);
+
+                switch (op) {
+                    case '>': return numVal > numCrit;
+                    case '<': return numVal < numCrit;
+                    case '>=': return numVal >= numCrit;
+                    case '<=': return numVal <= numCrit;
+                    case '==': return numVal == numCrit;
+                    case '!=': return numVal != numCrit;
+                }
+            }
+
+            // Jika string, langsung bandingkan
+            return String(value) === criteria;
+        }
+
+
+
+        function getAggregateValues(arg, globalInputs, indices) {
+            arg = arg.trim();
+            const vals = [];
+
+            if (arg.includes('?')) {
+                indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs))));
             } else {
-              $el.hide();
+                vals.push(toNumber(getValue(arg, globalInputs)));
             }
-          }
+
+            return vals;
         }
-      }
-    });
-  }
 
-  /**
-   * Handles conditional actions with 'live-if' + 'live-then' / 'live-else'
-   */
-  /**
-   * Handles conditional actions with 'live-if' + 'live-then' / 'live-else'
-   */
-  function handleLiveThenElse(scope) {
-    const $scope = $(scope || document);
-    const getInputValue = ($el) => {
-      if ($el.is(':checkbox')) return $el.prop('checked');
-      if ($el.is(':radio')) {
-        const name = $el.attr('name');
-        return $el.closest('[live-scope]').find(`input[name="${name}"]:checked`).val() || '';
-      }
-      return $el.val();
-    };
+        function calculateAggregate(fn, vals) {
+            vals = vals.filter(v => !isNaN(v));
+            switch (fn) {
+                case 'sum': return vals.reduce((a, b) => a + b, 0);
+                case 'avg': return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+                case 'min': return vals.length ? Math.min(...vals) : 0;
+                case 'max': return vals.length ? Math.max(...vals) : 0;
+                case 'count': return vals.length;
+                default: return 0;
+            }
+        }
 
-    $scope.find('[live-if][live-then], [live-if][live-else]').each(function () {
-      const $el = $(this);
-      const expr = $el.attr('live-if');
-      const thenChain = $el.attr('live-then') || null;
-      const elseChain = $el.attr('live-else') || null;
+        // PERBAIKAN: Display result dengan handling yang lebih baik untuk bidirectional elements
+        // ✅ Normalisasi angka agar tidak ada 1.99998
+        function normalizeNumber(num, decimals = 2) {
+            if (num === null || num === undefined || isNaN(num)) return 0;
+            return parseFloat(num.toFixed(decimals));
+        }
 
-      // Simpan gaya display asli jika belum disimpan, khusus untuk elemen dengan live-then tanpa live-else
-      // Ini penting untuk mengembalikan visibility jika action 'hide' atau 'show' digunakan
-      if (thenChain && !elseChain && $el.data('original-display-set') === undefined) {
-        $el.data('original-display', $el.css('display'));
-        $el.data('original-display-set', true);
-      }
+        // ✅ Display result dengan rawValue vs displayValue
+        function displayResult(element, result, cache, sourceElement = null) {
+            const format = attr(element, 'live-compute-format');
 
-      let context = {};
-      const parentStateContainer = $el.closest('[live-state]')[0];
-      if (parentStateContainer) {
-        const state = window.LiveState?.getState(parentStateContainer);
-        if (state) context = {
-          ...state
+            // raw numeric value untuk kalkulasi
+            let rawValue = toNumber(result);
+            rawValue = normalizeNumber(rawValue);
+
+            // display value untuk UI
+            let displayValue = format ? formatResult(rawValue, format) : rawValue.toString();
+
+            // Skip circular detection untuk hubungan bidirectional
+            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+            const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
+                bidirectionalMap.get(element).has(sourceElement);
+
+            if (!isBidirectional && detectCircularDependency(element, rawValue, sourceElement)) {
+                return false;
+            }
+
+            const cachedValue = cache.get(element);
+
+            // Bandingkan numeric, bukan string
+            if (!isValueConverged(cachedValue, rawValue)) {
+                cache.set(element, rawValue);
+
+                // ✅ Update element dengan raw + display
+                updateElementValue(element, rawValue, displayValue, sourceElement);
+                return true;
+            }
+
+            return false;
+        }
+
+        // ✅ Update element tanpa overwrite kalau sedang fokus
+        function updateElementValue(element, rawValue, displayValue, sourceElement = null) {
+            if (sourceElement && element === sourceElement) return;
+
+            // 🚀 Tambahkan pengecekan live-compute-auto
+            const autoAttr = attr(element, 'live-compute-auto');
+            const isAuto = (autoAttr === null || autoAttr === '' || autoAttr === 'true');
+            if (!isAuto) {
+                return; // skip update kalau auto = false
+            }
+
+            // Jangan overwrite kalau user sedang mengetik di input
+            if (document.activeElement === element) {
+                return;
+            }
+
+            // Token untuk mencegah update usang
+            const currentToken = Date.now();
+            const lastToken = getData(element, 'lastToken') || 0;
+            if (currentToken <= lastToken) return;
+
+            setData(element, 'lastToken', currentToken);
+            setData(element, 'updating', true);
+
+            if (element.matches('input, textarea, select')) {
+                // ✅ Simpan rawValue tersembunyi untuk kalkulasi
+                element.dataset.rawValue = rawValue;
+
+                // ✅ Hanya tampilkan displayValue
+                val(element, displayValue);
+            } else {
+                html(element, displayValue);
+            }
+
+            setTimeout(() => {
+                removeData(element, 'updating');
+            }, 1);
+        }
+
+
+        function formatResult(result, format) {
+            if (result === null || result === undefined) {
+                return '';
+            }
+
+            if (typeof result === 'string') {
+                result = toNumber(result);
+            }
+
+            if (typeof result === 'number' && isNaN(result)) {
+                return '';
+            }
+
+            if (typeof result === 'number') {
+                result = Math.round(result * 100000) / 100000;
+            }
+
+            switch (format?.toLowerCase()) {
+                case 'idr':
+                    try {
+                        return new Intl.NumberFormat('id-ID', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                        }).format(Math.floor(result));
+                    } catch (e) {
+                        return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                    }
+
+                case 'currency':
+                case 'dollar':
+                    try {
+                        return new Intl.NumberFormat('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                        }).format(Math.floor(result));
+                    } catch (e) {
+                        return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                    }
+
+                case 'decimal':
+                    if (typeof result === 'number') {
+                        return result.toFixed(2);
+                    }
+                    return parseFloat(result).toFixed(2);
+
+                case 'percent':
+                    if (typeof result === 'number') {
+                        return (result * 100).toFixed(2) + '%';
+                    }
+                    return (parseFloat(result) * 100).toFixed(2) + '%';
+
+                case 'number':
+                    try {
+                        return new Intl.NumberFormat('id-ID').format(result);
+                    } catch (e) {
+                        return result.toString();
+                    }
+
+                case 'days':
+                    return Math.floor(result) + ' days';
+
+                case 'months':
+                    return Math.floor(result) + ' months';
+
+                case 'years':
+                    return Math.floor(result) + ' years';
+
+                case 'weeks':
+                    return Math.floor(result) + ' weeks';
+
+                default:
+                    return result.toString();
+            }
+        }
+
+        function formatInputValue(element, value) {
+            const format = attr(element, 'live-compute-format');
+            if (!format || getData(element, 'updating')) return value;
+
+            if (!value || value.trim() === '') return value;
+
+            const numValue = toNumber(value);
+
+            if (numValue === 0 && value !== '0' && value.trim() !== '0') {
+                if (value.match(/[\d.,]/)) {
+                    return value;
+                }
+                return '';
+            }
+
+            try {
+                return formatResult(numValue, format);
+            } catch (e) {
+                console.error('Format error:', e);
+                return value;
+            }
+        }
+
+        function getValue(varName, globalInputs) {
+            const rowMatch = varName.match(/^rows_(\d+)_(.+)$/);
+            if (rowMatch) {
+                const [_, index, field] = rowMatch;
+                const selector = `[name="rows[${index}][${field}]"]`;
+                const element = rootScope.querySelector(selector);
+                return element ? val(element).toString().trim() : '';
+            }
+            return globalInputs[varName] || '';
+        }
+
+        function toNumber(val) {
+            if (val == null || val === '') return 0;
+
+            val = val.toString().trim();
+            if (val === '' || val === '-') return 0;
+
+            const isPercentage = val.includes('%');
+            val = val.replace(/%/g, '');
+
+            const isNegative = /^-/.test(val);
+            val = val.replace(/^-/, '');
+
+            val = val.replace(/[^\d.,]/g, '');
+
+            if (val === '') return 0;
+
+            let result = 0;
+
+            if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
+                result = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+            }
+            else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
+                result = parseFloat(val.replace(/,/g, ''));
+            }
+            else if (/^\d+([.,]\d+)?$/.test(val)) {
+                if (val.includes(',')) {
+                    result = parseFloat(val.replace(',', '.'));
+                } else {
+                    result = parseFloat(val);
+                }
+            }
+            else {
+                result = parseFloat(val.replace(/[.,]/g, ''));
+            }
+
+            if (isNaN(result)) result = 0;
+            if (isNegative) result = -result;
+            if (isPercentage) result = result / 100;
+
+            return result;
+        }
+
+        function extractVariables(expr) {
+            const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+            return [...new Set(vars.filter(v => !/^\d+$/.test(v) && !dateUtils[v]))];
+        }
+
+        function sanitizeInputNameToJSVariable(name) {
+            return name.replace(/\]\[/g, '_')
+                .replace(/[\[\]]/g, '')
+                .replace(/[^a-zA-Z0-9_]/g, '_');
+        }
+
+        function addEventListener(selector, event, handler, context = rootScope) {
+            context.addEventListener(event, function (e) {
+                if (e.target.matches(selector)) {
+                    handler.call(e.target, e);
+                }
+            });
+        }
+
+        function init() {
+            process();
+
+            let lastInputTime = 0;
+            let formatTimeout = new Map();
+            let bidirectionalElements = new Map();
+
+            // Identifikasi elemen bidirectional dengan lebih akurat
+            find('[live-compute-skip="true"]').forEach(function (element) {
+                const expr = attr(element, 'live-compute') || '';
+                const vars = extractVariables(expr);
+
+                // Cari elemen yang saling bergantung
+                find('[live-compute]').forEach(function (otherElement) {
+                    const otherExpr = attr(otherElement, 'live-compute') || '';
+                    const otherVars = extractVariables(otherExpr);
+
+                    // Jika ada variabel yang saling bergantung, tandai sebagai bidirectional
+                    if (vars.some(v => otherVars.includes(v)) && otherElement !== element) {
+                        if (!bidirectionalElements.has(element)) {
+                            bidirectionalElements.set(element, new Set());
+                        }
+                        bidirectionalElements.get(element).add(otherElement);
+
+                        if (!bidirectionalElements.has(otherElement)) {
+                            bidirectionalElements.set(otherElement, new Set());
+                        }
+                        bidirectionalElements.get(otherElement).add(element);
+
+                        // Simpan ke bidirectional tracking map
+                        const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+                        if (!bidirectionalMap.has(element)) {
+                            bidirectionalMap.set(element, new Set());
+                        }
+                        bidirectionalMap.get(element).add(otherElement);
+
+                        if (!bidirectionalMap.has(otherElement)) {
+                            bidirectionalMap.set(otherElement, new Set());
+                        }
+                        bidirectionalMap.get(otherElement).add(element);
+                    }
+                });
+            });
+
+            // Track manual input
+            addEventListener('[live-compute-skip="true"]', 'input', function () {
+                if (getData(this, 'updating')) return;
+                setData(this, 'lastManualInput', Date.now());
+
+                // Jika ini adalah bidirectional element, trigger process dengan source
+                if (bidirectionalElements.has(this)) {
+                    processImmediate(this);
+                } else {
+                    processImmediate();
+                }
+            });
+
+            // Format handling untuk input biasa
+            addEventListener('input[live-compute-format]:not([live-compute-skip="true"])', 'input', function () {
+                if (getData(this, 'updating')) return;
+
+                const element = this;
+                const currentValue = val(this);
+
+                if (formatTimeout.has(element)) {
+                    clearTimeout(formatTimeout.get(element));
+                }
+
+                const now = Date.now();
+                if (now - lastInputTime > 10) {
+                    lastInputTime = now;
+                    processImmediate();
+                }
+
+                const timeout = setTimeout(() => {
+                    if (getData(element, 'updating')) return;
+
+                    const cursorPos = element.selectionStart;
+                    const oldValue = val(element);
+
+                    const lastFormattedValue = getData(element, 'lastFormattedValue') || '';
+                    if (oldValue === lastFormattedValue) {
+                        formatTimeout.delete(element);
+                        return;
+                    }
+
+                    const newValue = formatInputValue(element, oldValue);
+
+                    if (oldValue !== newValue && newValue !== '') {
+                        setData(element, 'updating', true);
+                        val(element, newValue);
+                        setData(element, 'lastFormattedValue', newValue);
+
+                        let newCursorPos = cursorPos;
+                        const lengthDiff = newValue.length - oldValue.length;
+
+                        if (lengthDiff !== 0) {
+                            const beforeCursor = oldValue.substring(0, cursorPos);
+                            const numericBeforeCursor = beforeCursor.replace(/[^\d]/g, '');
+
+                            let targetPos = 0;
+                            let numericCount = 0;
+
+                            for (let i = 0; i < newValue.length; i++) {
+                                if (/\d/.test(newValue[i])) {
+                                    numericCount++;
+                                }
+                                if (numericCount >= numericBeforeCursor.length) {
+                                    targetPos = i + 1;
+                                    break;
+                                }
+                            }
+
+                            newCursorPos = Math.min(targetPos, newValue.length);
+                        }
+
+                        newCursorPos = Math.max(0, Math.min(newCursorPos, newValue.length));
+
+                        try {
+                            element.setSelectionRange(newCursorPos, newCursorPos);
+                        } catch (e) { }
+
+                        setTimeout(() => {
+                            removeData(element, 'updating');
+                        }, 50);
+                    }
+
+                    formatTimeout.delete(element);
+                }, 200);
+
+                formatTimeout.set(element, timeout);
+            });
+
+            // Handle input events untuk elemen biasa
+            addEventListener('input:not([live-compute-format]):not([live-compute-skip="true"]), select:not([live-compute-skip="true"]), textarea:not([live-compute-skip="true"])', 'input', function () {
+                if (getData(this, 'updating')) return;
+
+                const now = Date.now();
+                if (now - lastInputTime > 10) {
+                    lastInputTime = now;
+                    processImmediate();
+                }
+            });
+
+            addEventListener('input, select, textarea', 'change', function () {
+                if (getData(this, 'updating')) return;
+                debounceProcess();
+            });
+
+            // Process ketika skip element kehilangan focus
+            addEventListener('[live-compute-skip="true"]', 'blur', function () {
+                debounceProcess();
+            });
+
+            // Format saat blur
+            addEventListener('input[live-compute-format]', 'blur', function () {
+                if (getData(this, 'updating')) return;
+
+                const element = this;
+
+                if (formatTimeout.has(element)) {
+                    clearTimeout(formatTimeout.get(element));
+                    formatTimeout.delete(element);
+                }
+
+                const currentValue = val(this);
+                if (currentValue && currentValue.trim() !== '') {
+                    const formattedValue = formatInputValue(this, currentValue);
+                    if (val(this) !== formattedValue) {
+                        setData(this, 'updating', true);
+                        val(this, formattedValue);
+                        setData(this, 'lastFormattedValue', formattedValue);
+
+                        setTimeout(() => {
+                            removeData(this, 'updating');
+                        }, 50);
+                    }
+                }
+
+                debounceProcess();
+            });
+
+            // Format saat focus
+            addEventListener('input[live-compute-format]', 'focus', function () {
+                const currentValue = val(this);
+
+                const lastFormattedValue = getData(this, 'lastFormattedValue') || '';
+                if (currentValue && currentValue.trim() !== '' && currentValue !== lastFormattedValue) {
+                    const formattedValue = formatInputValue(this, currentValue);
+                    if (currentValue !== formattedValue) {
+                        setData(this, 'updating', true);
+                        val(this, formattedValue);
+                        setData(this, 'lastFormattedValue', formattedValue);
+
+                        setTimeout(() => {
+                            removeData(this, 'updating');
+                        }, 50);
+                    }
+                }
+            });
+
+            // Custom event listener for DOM changes (equivalent to jQuery's live-dom:afterAppend)
+            rootScope.addEventListener('live-dom:afterAppend', () => {
+                buildDependencyMap();
+                process();
+            });
+            rootScope.addEventListener('live-dom:afterUpdate', () => {
+                buildDependencyMap();
+                process();
+            });
+
+            // MutationObserver as fallback for DOM changes
+            if (typeof MutationObserver !== 'undefined') {
+                const observer = new MutationObserver((mutations) => {
+                    let shouldRebuild = false;
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'childList') {
+                            mutation.addedNodes.forEach((node) => {
+                                if (node.nodeType === Node.ELEMENT_NODE) {
+                                    if (node.hasAttribute && node.hasAttribute('live-compute')) {
+                                        shouldRebuild = true;
+                                    } else if (node.querySelector && node.querySelector('[live-compute]')) {
+                                        shouldRebuild = true;
+                                    }
+                                }
+                            });
+                        }
+                    });
+
+                    if (shouldRebuild) {
+                        buildDependencyMap();
+                        process();
+                    }
+                });
+
+                observer.observe(rootScope, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        }
+
+        init();
+    }
+
+
+    /*==============================
+      SPA ROUTER INTEGRATION
+    ==============================*/
+
+    let currentSpaController = null;
+
+    /**
+     * Performs an AJAX request for SPA navigation.
+     * @param {string} method - HTTP method.
+     * @param {string} url - URL to fetch.
+     * @param {object|FormData} [data=null] - Data to send.
+     * @param {function} callback - Success callback.
+     * @param {function} errorCallback - Error callback.
+     */
+    function ajaxSpa(method, url, data = null, callback, errorCallback) {
+        if (currentSpaController) {
+            currentSpaController.abort();
+        }
+
+        currentSpaController = new AbortController();
+        const signal = currentSpaController.signal;
+
+        showLoadingBar();
+
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
         };
-      }
 
-      $scope.find('input[name], select[name], textarea[name]').each(function () {
-        const $input = $(this);
-        const name = $input.attr('name');
-        const val = getInputValue($input);
-        context[name] = val === null || val === undefined ? 0 : val;
-      });
-
-      const passed = new Function('context', `with(context) { return (${expr}); }`)(context);
-
-      if (passed) {
-        if (thenChain) {
-          const chainList = thenChain.split('->').map(s => s.trim());
-          runActionChain(chainList, 0, $el, '');
-        }
-      } else {
-        if (elseChain) {
-          const chainList = elseChain.split('->').map(s => s.trim());
-          runActionChain(chainList, 0, $el, '');
-        } else if (
-          thenChain) { // Kondisi false, dan hanya live-then yang ada (tidak ada live-else)
-          // Kembalikan display ke kondisi asli
-          const originalDisplay = $el.data('original-display');
-          if (originalDisplay !== undefined) {
-            $el.css('display', originalDisplay);
-          }
-
-          // Kembalikan aksi yang ditentukan di live-then (inverse actions)
-          const thenActionList = thenChain.split('->').map(s => s.trim());
-          thenActionList.forEach(action => {
-            if (action === 'readonly') {
-              $el.removeAttr('readonly');
-            } else if (action === 'disable') {
-              $el.removeAttr('disabled');
-            } else if (action.startsWith('add-class(') && action.endsWith(')')) {
-              const className = action.substring('add-class('.length, action
-                .length - 1);
-              $el.removeClass(className);
-            } else if (action.startsWith('remove-class(') && action.endsWith(')')) {
-              const className = action.substring('remove-class('.length, action
-                .length - 1);
-              $el.addClass(className);
-            } else if (action === 'hide') {
-              $el.show(); // Jika sebelumnya disembunyikan, tampilkan lagi
-            } else if (action === 'show') {
-              $el.hide(); // Jika sebelumnya ditampilkan, sembunyikan lagi
-            }
-            // Tambahkan logika inverse untuk aksi lain jika diperlukan
-          });
-        }
-      }
-    });
-  }
-
-  function autoCoerce(val) {
-    if (val === null || val === undefined || val === '') return 0;
-    if (val === 'true') return true;
-    if (val === 'false') return false;
-    const n = parseFloat(val);
-    return isNaN(n) ? val : n;
-  }
-
-
-
-  /*==============================
-    LIVE TELEPORT
-  ==============================*/
-  function handleLiveTeleport(scope) {
-    const $scope = $(scope || document);
-
-    $scope.find('[live-teleport]').each(function () {
-      const $el = $(this);
-      const targetSelector = $el.attr('live-teleport');
-      if (!targetSelector) return;
-
-      // Hindari re-init ganda
-      if ($el.data('live-teleport-initialized')) return;
-      $el.data('live-teleport-initialized', true);
-
-      // Pastikan ada live-state pembungkus
-      const parentStateContainer = $el.closest('[live-state]')[0];
-      if (!parentStateContainer) {
-        console.warn('[LiveDomJs] live-teleport harus berada di dalam [live-state]', $el[0]);
-        return;
-      }
-
-      // Ambil state pembungkusnya
-      const state = window.LiveState?.getState(parentStateContainer);
-      if (!state) {
-        console.warn('[LiveDomJs] State pembungkus tidak ditemukan untuk live-teleport', $el[0]);
-        return;
-      }
-
-      // Simpan info state pembungkus
-      $el.data('live-teleport-state', { container: parentStateContainer, state });
-
-      // Fungsi untuk eksekusi teleport saat target ada
-      const doTeleport = () => {
-        const $target = $(targetSelector);
-        if (!$target.length) {
-          console.warn('[LiveDomJs] Target live-teleport belum ditemukan:', targetSelector);
-          return false;
-        }
-
-        // Pindahkan node ke target (menjaga urutan append)
-        $el.appendTo($target);
-
-        // Bind ulang ke state pembungkus (agar reactive tetap nyambung)
-        if (typeof window.LiveState?.bindElementToState === 'function') {
-          window.LiveState.bindElementToState($el[0], state);
-        }
-
-        return true;
-      };
-
-      // Jika target belum ada, observer akan menunggu
-      if (!doTeleport()) {
-        const observer = new MutationObserver(() => {
-          if (doTeleport()) {
-            observer.disconnect();
-          }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-      }
-    });
-  }
-
-  /*==============================
-    ACCORDION
-  ==============================*/
-
-  /**
-   * Handles click events for live-accordion elements.
-   * @param {jQuery} $el - The jQuery object of the accordion trigger.
-   */
-  function handleAccordionClick($el) {
-    const $row = $el.closest('tr');
-    if (!$row.length) return;
-
-    const controller = $row.closest('[live-scope]').attr('live-scope');
-    const method = $el.attr('live-accordion');
-    const dataArg = $el.attr('live-data');
-
-    const isOpen = $el.data('accordion-open') === true;
-    const iconSelector = $el.attr('live-icon');
-    const $icon = iconSelector ? $el.find(iconSelector) : $el.find('.accordion-icon');
-
-    const targetSelector = $el.attr('live-target');
-    const $target = targetSelector ? liveTarget($el, targetSelector) : null;
-
-    if (isOpen) {
-      if ($target?.length) {
-        $target.slideUp(200, function () {
-          $(this).remove();
-        });
-      } else {
-        const $panelRows = $row.data('accordion-tr');
-        if ($panelRows?.length) {
-          $panelRows.slideUp(200, function () {
-            $(this).remove();
-          });
-          $row.removeData('accordion-tr');
-        }
-      }
-      $icon.removeClass('rotate-90').addClass('rotate-0');
-      $el.data('accordion-open', false);
-      return;
-    }
-
-    $icon.removeClass('rotate-0').addClass('rotate-90');
-    $el.data('accordion-open', true);
-
-    if ($row.data('accordion-tr')) {
-      $row.data('accordion-tr').slideDown(200);
-      return;
-    }
-
-    if ($target?.length) {
-      $target.slideDown(200);
-      return;
-    }
-
-    const $table = $row.closest('table');
-    const colCount = getTableColumnCount($table);
-
-    const $loadingRow = $(`
-      <tr accordion-panel-loading>
-        <td colspan="${colCount}" class="text-center py-2 text-gray-500">Loading...</td>
-      </tr>
-    `);
-
-    $row.after($loadingRow);
-    $row.data('accordion-tr', $loadingRow);
-
-    if (controller && method) {
-      const data = dataArg ? {
-        data: dataArg
-      } : extractData($el, null);
-
-      const callback = function (res) {
-        if (res.success && res.data) {
-          const $childRows = $(res.data);
-          $loadingRow.replaceWith($childRows);
-          $row.data('accordion-tr', $childRows);
-          document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-        } else {
-          $loadingRow.find('td').html('<div class="text-red-500">Failed to load content</div>');
-        }
-      };
-
-      debouncedAjaxDynamic('POST', controller, method, data, '', '', true, callback);
-    }
-  }
-
-  /**
-   * Gets the column count of a table, considering colspans.
-   * @param {jQuery} $table - The jQuery object of the table.
-   * @returns {number} The total number of columns.
-   */
-  function getTableColumnCount($table) {
-    const $thead = $table.find('thead');
-    if ($thead.length) {
-      let count = 0;
-      $thead.find('tr').first().children('th, td').each(function () {
-        count += parseInt($(this).attr('colspan') || 1, 10);
-      });
-      return count;
-    } else {
-      let maxCount = 0;
-      $table.find('tbody tr').each(function () {
-        let count = 0;
-        $(this).children('td, th').each(function () {
-          count += parseInt($(this).attr('colspan') || 1, 10);
-        });
-        if (count > maxCount) maxCount = count;
-      });
-      return maxCount || 1;
-    }
-  }
-
-  /*==============================
-    LIVE TRIGGER
-  ==============================*/
-
-  /**
-   * Initializes event listeners for 'live-trigger' attributes.
-   * Ensures handlers are only bound once.
-   */
-  function initLiveTriggerEvents() {
-    $(document).off('.live-trigger');
-
-    const triggerAttributes = [
-      'live-trigger-click',
-      'live-trigger-change',
-      'live-trigger-input',
-      'live-trigger-hover'
-    ];
-
-    triggerAttributes.forEach(attr => {
-      $(`[${attr}]`).each(function () {
-        const $el = $(this);
-        if ($el.data(`live-trigger-initialized-${attr}`)) return;
-
-        $el.data(`live-trigger-initialized-${attr}`, true);
-
-        const eventType = attr.replace('live-trigger-', '');
-        const triggerValue = $el.attr(attr);
-
-        const bindHandler = (eventName, conditionFn) => {
-          $(document).on(`${eventName}.live-trigger`, function (e) {
-            const $target = $(e.target);
-            if (conditionFn($target, e)) {
-              if (!handleLiveAction($el)) $el.trigger(eventType);
-            }
-          });
+        const fetchOptions = {
+            method,
+            headers,
+            signal,
         };
 
-        if (triggerValue.startsWith('outside(')) {
-          const selector = triggerValue.match(/^outside\((.+?)\)$/)?.[1];
-          if (!selector) {
-            console.warn(`[Live Trigger] Invalid outside() selector for ${attr}`,
-              $el[0]);
-            return;
-          }
-          bindHandler(eventType, ($target) =>
-            !$target.closest(selector).length &&
-            !$el.is($target) &&
-            !$el.has($target).length &&
-            $el.is(':visible')
-          );
-        } else if (triggerValue.startsWith('inside(')) {
-          const selector = triggerValue.match(/^inside\((.+?)\)$/)?.[1];
-          if (!selector) {
-            console.warn(`[Live Trigger] Invalid inside() selector for ${attr}`,
-              $el[0]);
-            return;
-          }
-          bindHandler(eventType, ($target) =>
-            $target.closest(selector).length
-          );
-        } else if (triggerValue === 'this') {
-          $el.on(eventType, function () {
-            if (!handleLiveAction($el)) $el.trigger(eventType);
-          });
-        } else if (triggerValue === 'parent') {
-          const $parent = $el.parent();
-          $parent.on(eventType, function () {
-            if (!handleLiveAction($el)) $el.trigger(eventType);
-          });
-        } else {
-          // Direct selector
-          bindHandler(eventType, ($target) => $target.is(triggerValue) || $target
-            .closest(triggerValue).length);
+        if (method !== 'GET' && data) {
+            fetchOptions.body = data instanceof FormData ? data : new URLSearchParams(data);
         }
-      });
-    });
-  }
 
-  /*==============================
-    SPA ROUTER INTEGRATION
-  ==============================*/
-
-  let currentSpaController = null;
-
-  /**
-   * Performs an AJAX request for SPA navigation.
-   * @param {string} method - HTTP method.
-   * @param {string} url - URL to fetch.
-   * @param {object|FormData} [data=null] - Data to send.
-   * @param {function} callback - Success callback.
-   * @param {function} errorCallback - Error callback.
-   */
-  function ajaxSpa(method, url, data = null, callback, errorCallback) {
-    if (currentSpaController) {
-      currentSpaController.abort();
+        fetch(url, fetchOptions)
+            .then(async response => {
+                const html = await response.text();
+                if (!response.ok) {
+                    showErrorModal(html);
+                    throw new Error(`[${response.status}] ${response.statusText}`);
+                }
+                callback?.(html);
+            })
+            .catch(error => {
+                if (error.name === 'AbortError') {
+                    console.log('[SPA] Request dibatalkan:', url);
+                    return;
+                }
+                console.error('ajaxSpa error:', error);
+                errorCallback?.(error);
+            })
+            .finally(() => {
+                hideLoadingBar();
+                currentSpaController = null; // Clear controller after request completes
+            });
     }
 
-    currentSpaController = new AbortController();
-    const signal = currentSpaController.signal;
-
-    showLoadingBar();
-
-    const headers = {
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
-    };
-
-    const fetchOptions = {
-      method,
-      headers,
-      signal,
-    };
-
-    if (method !== 'GET' && data) {
-      fetchOptions.body = data instanceof FormData ? data : new URLSearchParams(data);
+    /**
+     * Updates SPA regions with new HTML content.
+     * @param {string} responseHtml - The HTML response to parse.
+     */
+    function updateSpaRegions(responseHtml) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(responseHtml, 'text/html');
+        const regions = document.querySelectorAll('[live-spa-region]');
+        regions.forEach(region => {
+            const regionName = region.getAttribute('live-spa-region');
+            const newRegion = doc.querySelector(`[live-spa-region="${regionName}"]`);
+            if (newRegion) {
+                region.innerHTML = newRegion.innerHTML;
+                executeScripts(region);
+            }
+        });
     }
 
-    fetch(url, fetchOptions)
-      .then(async response => {
-        const html = await response.text();
-        if (!response.ok) {
-          showErrorModal(html);
-          throw new Error(`[${response.status}] ${response.statusText}`);
+    /**
+     * Loads SPA content into regions.
+     * @param {string} url - The URL to load.
+     * @param {boolean} [pushState=true] - Whether to push the URL to browser history.
+     */
+    function loadSpaContent(url, pushState = true) {
+        const mainRegion = document.querySelector('[live-spa-region="main"]');
+        if (mainRegion) {
+            mainRegion.innerHTML = '<div class="text-center p-4 text-gray-400">Loading...</div>';
         }
-        callback?.(html);
-      })
-      .catch(error => {
-        if (error.name === 'AbortError') {
-          console.log('[SPA] Request dibatalkan:', url);
-          return;
-        }
-        console.error('ajaxSpa error:', error);
-        errorCallback?.(error);
-      })
-      .finally(() => {
-        hideLoadingBar();
-        currentSpaController = null; // Clear controller after request completes
-      });
-  }
 
-  /**
-   * Updates SPA regions with new HTML content.
-   * @param {string} responseHtml - The HTML response to parse.
-   */
-  function updateSpaRegions(responseHtml) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(responseHtml, 'text/html');
-    const regions = document.querySelectorAll('[live-spa-region]');
-    regions.forEach(region => {
-      const regionName = region.getAttribute('live-spa-region');
-      const newRegion = doc.querySelector(`[live-spa-region="${regionName}"]`);
-      if (newRegion) {
-        region.innerHTML = newRegion.innerHTML;
-        executeScripts(region);
-      }
-    });
-  }
-
-  /**
-   * Loads SPA content into regions.
-   * @param {string} url - The URL to load.
-   * @param {boolean} [pushState=true] - Whether to push the URL to browser history.
-   */
-  function loadSpaContent(url, pushState = true) {
-    const mainRegion = document.querySelector('[live-spa-region="main"]');
-    if (mainRegion) {
-      mainRegion.innerHTML = '<div class="text-center p-4 text-gray-400">Loading...</div>';
+        ajaxSpa('GET', url, null, res => {
+            updateSpaRegions(res);
+            document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+            document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
+                detail: {
+                    url
+                }
+            }));
+            if (pushState) history.pushState({
+                spa: true,
+                url
+            }, '', url);
+        }, () => {
+            if (mainRegion) {
+                mainRegion.innerHTML =
+                    '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
+            }
+        });
     }
 
-    ajaxSpa('GET', url, null, res => {
-      updateSpaRegions(res);
-      document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-      document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-        detail: {
-          url
-        }
-      }));
-      if (pushState) history.pushState({
-        spa: true,
-        url
-      }, '', url);
-    }, () => {
-      if (mainRegion) {
-        mainRegion.innerHTML =
-          '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
-      }
-    });
-  }
+    /**
+     * Handles SPA form submissions via AJAX.
+     * @param {HTMLFormElement} form - The form element.
+     * @param {function} callbackSuccess - Success callback.
+     * @param {function} callbackError - Error callback.
+     */
+    function ajaxSpaFormSubmit(form, callbackSuccess, callbackError) {
+        const url = form.action;
+        const method = form.method.toUpperCase() || 'POST';
+        const formData = new FormData(form);
+        const beforeCallbackName = form.getAttribute('live-callback-before');
+        const afterCallbackName = form.getAttribute('live-callback-after');
 
-  /**
-   * Handles SPA form submissions via AJAX.
-   * @param {HTMLFormElement} form - The form element.
-   * @param {function} callbackSuccess - Success callback.
-   * @param {function} callbackError - Error callback.
-   */
-  function ajaxSpaFormSubmit(form, callbackSuccess, callbackError) {
-    const url = form.action;
-    const method = form.method.toUpperCase() || 'POST';
-    const formData = new FormData(form);
-    const beforeCallbackName = form.getAttribute('live-callback-before');
-    const afterCallbackName = form.getAttribute('live-callback-after');
-
-    const safeEvalCallbackExpression = (expr, el) => {
-      try {
-        const replaced = expr.replace(/\bthis\b/g, '__el');
-        return Function('__el', `
+        const safeEvalCallbackExpression = (expr, el) => {
+            try {
+                const replaced = expr.replace(/\bthis\b/g, '__el');
+                return Function('__el', `
           try {
             return (${replaced});
           } catch (e) {
@@ -2128,1481 +2063,622 @@
             return undefined;
           }
         `)(el);
-      } catch (e) {
-        console.warn('[LiveDomJs] Failed to evaluate callback expression:', expr, e);
-        return undefined;
-      }
-    };
+            } catch (e) {
+                console.warn('[LiveDomJs] Failed to evaluate callback expression:', expr, e);
+                return undefined;
+            }
+        };
 
-    const runBeforeCallback = () => {
-      if (!beforeCallbackName) return Promise.resolve(true);
+        const runBeforeCallback = () => {
+            if (!beforeCallbackName) return Promise.resolve(true);
 
-      if (beforeCallbackName.includes('(')) {
-        const result = safeEvalCallbackExpression(beforeCallbackName, form);
-        return Promise.resolve(result);
-      }
+            if (beforeCallbackName.includes('(')) {
+                const result = safeEvalCallbackExpression(beforeCallbackName, form);
+                return Promise.resolve(result);
+            }
 
-      const fn = window[beforeCallbackName.trim()];
-      if (typeof fn === 'function') {
-        try {
-          return Promise.resolve(fn(form));
-        } catch (e) {
-          console.warn('[LiveDomJs] Error in live-callback-before:', e);
-          return Promise.resolve(true);
-        }
-      } else {
-        console.warn(`[LiveDomJs] Function "${beforeCallbackName}" not found.`);
-        return Promise.resolve(true);
-      }
-    };
+            const fn = window[beforeCallbackName.trim()];
+            if (typeof fn === 'function') {
+                try {
+                    return Promise.resolve(fn(form));
+                } catch (e) {
+                    console.warn('[LiveDomJs] Error in live-callback-before:', e);
+                    return Promise.resolve(true);
+                }
+            } else {
+                console.warn(`[LiveDomJs] Function "${beforeCallbackName}" not found.`);
+                return Promise.resolve(true);
+            }
+        };
 
-    const runAfterCallback = (response, isError = false) => {
-      if (afterCallbackName && typeof window[afterCallbackName] === 'function') {
-        try {
-          window[afterCallbackName](response, form, isError);
-        } catch (e) {
-          console.warn('[LiveDomJs] Error in live-callback-after:', e);
-        }
-      }
-    };
+        const runAfterCallback = (response, isError = false) => {
+            if (afterCallbackName && typeof window[afterCallbackName] === 'function') {
+                try {
+                    window[afterCallbackName](response, form, isError);
+                } catch (e) {
+                    console.warn('[LiveDomJs] Error in live-callback-after:', e);
+                }
+            }
+        };
 
-    runBeforeCallback()
-      .then(result => {
-        if (result === false) {
-          console.log('Form submit cancelled by live-callback-before.');
-          return;
-        }
+        runBeforeCallback()
+            .then(result => {
+                if (result === false) {
+                    console.log('Form submit cancelled by live-callback-before.');
+                    return;
+                }
 
-        $.ajax({
-          url,
-          method,
-          data: formData,
-          processData: false,
-          contentType: false,
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
-          },
-          beforeSend: function () {
-            showLoadingBar();
-            clearFormErrors(form);
-          },
-          success: response => {
-            const redirectUrl = response?.redirect;
+                $.ajax({
+                    url,
+                    method,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    },
+                    beforeSend: function () {
+                        showLoadingBar();
+                        clearFormErrors(form);
+                    },
+                    success: response => {
+                        const redirectUrl = response?.redirect;
 
-            if (redirectUrl) {
-              fetch(redirectUrl, {
-                headers: {
-                  'X-Requested-With': 'XMLHttpRequest'
-                },
-              })
-                .then(res => res.text())
-                .then(html => {
-                  updateSpaRegions(html);
-                  document.dispatchEvent(new CustomEvent(
-                    'live-dom:afterUpdate'));
-                  document.dispatchEvent(new CustomEvent(
-                    'live-dom:afterSpa', {
-                    detail: {
-                      url: redirectUrl
-                    }
-                  }));
-                  history.pushState({
-                    spa: true,
-                    url: redirectUrl
-                  }, '', redirectUrl);
-                  runAfterCallback(response, false);
-                  callbackSuccess?.(response);
-                })
-                .catch(err => {
-                  console.error('SPA redirect fetch error:', err);
-                  runAfterCallback(response, true);
-                  callbackError?.(err);
+                        if (redirectUrl) {
+                            fetch(redirectUrl, {
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                            })
+                                .then(res => res.text())
+                                .then(html => {
+                                    updateSpaRegions(html);
+                                    document.dispatchEvent(new CustomEvent(
+                                        'live-dom:afterUpdate'));
+                                    document.dispatchEvent(new CustomEvent(
+                                        'live-dom:afterSpa', {
+                                        detail: {
+                                            url: redirectUrl
+                                        }
+                                    }));
+                                    history.pushState({
+                                        spa: true,
+                                        url: redirectUrl
+                                    }, '', redirectUrl);
+                                    runAfterCallback(response, false);
+                                    callbackSuccess?.(response);
+                                })
+                                .catch(err => {
+                                    console.error('SPA redirect fetch error:', err);
+                                    runAfterCallback(response, true);
+                                    callbackError?.(err);
+                                });
+                        } else {
+                            runAfterCallback(response, false);
+                            callbackSuccess?.(response);
+                        }
+                    },
+                    error: xhr => {
+                        if (xhr.status === 422) {
+                            const errors = xhr.responseJSON?.errors || {};
+                            showFormErrors(form, errors);
+                        } else {
+                            console.error('Form submit error:', xhr);
+                            const content = xhr.responseText;
+                            try {
+                                const json = JSON.parse(content);
+                                showErrorModal(json);
+                            } catch {
+                                showErrorModal(content);
+                            }
+                        }
+                        runAfterCallback(xhr, true);
+                        callbackError?.(xhr);
+                    },
+                    complete: hideLoadingBar,
                 });
-            } else {
-              runAfterCallback(response, false);
-              callbackSuccess?.(response);
+            })
+            .catch(error => {
+                console.error('Error in before callback chain:', error);
+            });
+    }
+
+
+
+    /**
+     * Clears form validation errors.
+     * @param {HTMLFormElement} form - The form element.
+     */
+    function clearFormErrors(form) {
+        $(form).find('.is-invalid').removeClass('is-invalid');
+        $(form).find('.invalid-feedback').remove();
+    }
+
+    /**
+     * Displays form validation errors.
+     * @param {HTMLFormElement} form - The form element.
+     * @param {object} errors - An object where keys are field names and values are arrays of error messages.
+     */
+    function showFormErrors(form, errors) {
+        for (const [field, messages] of Object.entries(errors)) {
+            const input = $(form).find(`[name="${field}"]`);
+            if (input.length) {
+                input.addClass('is-invalid');
+                const errorHtml =
+                    `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join('<br>')}</div>`;
+                if (input.next('.invalid-feedback').length === 0) {
+                    input.after(errorHtml);
+                }
             }
-          },
-          error: xhr => {
-            if (xhr.status === 422) {
-              const errors = xhr.responseJSON?.errors || {};
-              showFormErrors(form, errors);
-            } else {
-              console.error('Form submit error:', xhr);
-              const content = xhr.responseText;
-              try {
-                const json = JSON.parse(content);
-                showErrorModal(json);
-              } catch {
-                showErrorModal(content);
-              }
-            }
-            runAfterCallback(xhr, true);
-            callbackError?.(xhr);
-          },
-          complete: hideLoadingBar,
-        });
-      })
-      .catch(error => {
-        console.error('Error in before callback chain:', error);
-      });
-  }
-
-
-
-  /**
-   * Clears form validation errors.
-   * @param {HTMLFormElement} form - The form element.
-   */
-  function clearFormErrors(form) {
-    $(form).find('.is-invalid').removeClass('is-invalid');
-    $(form).find('.invalid-feedback').remove();
-  }
-
-  /**
-   * Displays form validation errors.
-   * @param {HTMLFormElement} form - The form element.
-   * @param {object} errors - An object where keys are field names and values are arrays of error messages.
-   */
-  function showFormErrors(form, errors) {
-    for (const [field, messages] of Object.entries(errors)) {
-      const input = $(form).find(`[name="${field}"]`);
-      if (input.length) {
-        input.addClass('is-invalid');
-        const errorHtml =
-          `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join('<br>')}</div>`;
-        if (input.next('.invalid-feedback').length === 0) {
-          input.after(errorHtml);
         }
-      }
-    }
-  }
-
-  /**
-   * Checks if a URL should be excluded from SPA handling.
-   * @param {string} url - The URL to check.
-   * @returns {boolean} True if the URL should be excluded.
-   */
-  function isSpaExcluded(url) {
-    try {
-      const path = new URL(url, window.location.origin).pathname;
-      const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
-      return excludes.some(prefix => path.startsWith(prefix));
-    } catch (e) {
-      console.warn('Error parsing URL for SPA exclusion, falling back:', e);
-      const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
-      return excludes.some(prefix => url.startsWith(prefix));
-    }
-  }
-
-  /*==============================
-    LOADING BAR
-  ==============================*/
-
-  /** Initializes the global loading bar element. */
-  function initLoadingBar() {
-    if ($('#loading-bar').length === 0) {
-      const $loadingBar = $('<div id="loading-bar"></div>').css({
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '3px',
-        width: '0%',
-        backgroundColor: '#2563eb',
-        zIndex: 99999,
-        transition: 'width 0.3s ease',
-        willChange: 'width',
-        display: 'none'
-      });
-      $('body').append($loadingBar);
-    }
-  }
-
-  /** Shows the loading bar animation. */
-  function showLoadingBar() {
-    $('#loading-bar').stop(true).css({
-      width: '0%',
-      display: 'block'
-    }).animate({
-      width: '80%'
-    }, 800);
-  }
-
-  /** Hides the loading bar animation. */
-  function hideLoadingBar() {
-    $('#loading-bar').stop(true).animate({
-      width: '100%'
-    }, 300, function () {
-      $(this).fadeOut(200, function () {
-        $(this).css({
-          width: '0%'
-        });
-      });
-    });
-  }
-
-  /*==============================
-  LIVE DOM ERROR HANDLE
-  ==============================*/
-
-  /**
-   * Displays an error modal with raw HTML or a formatted JSON error.
-   * @param {string|object} rawHtmlOrJson - The error content, either raw HTML or a JSON object.
-   */
-  function showErrorModal(rawHtmlOrJson) {
-    const existing = document.getElementById('spa-error-modal');
-    if (existing) existing.remove();
-
-    const modal = document.createElement('div');
-    modal.id = 'spa-error-modal';
-    modal.innerHTML = `
-                    <style>
-                        #spa-error-modal {
-                        position: fixed; inset: 0;
-                        background: rgba(0,0,0,0.6);
-                        z-index: 99999;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-family: system-ui, sans-serif;
-                        }
-                        #spa-error-box {
-                        position: relative;
-                        background: #fff;
-                        border-radius: 12px;
-                        width: 95%;
-                        max-width: 1000px;
-                        height: 90%;
-                        box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-                        border: 1px solid #e5e7eb;
-                        overflow: hidden;
-                        display: flex;
-                        flex-direction: column;
-                        }
-                        #spa-error-header {
-                        background-color: #fef2f2;
-                        padding: 12px 20px;
-                        border-bottom: 1px solid #fca5a5;
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        }
-                        #spa-error-header h3 {
-                        margin: 0;
-                        font-size: 16px;
-                        color: #b91c1c;
-                        }
-                        #spa-error-close {
-                        font-size: 22px;
-                        font-weight: bold;
-                        color: #b91c1c;
-                        cursor: pointer;
-                        background: transparent;
-                        border: none;
-                        line-height: 1;
-                        padding: 0;
-                        user-select: none;
-                        }
-                        #spa-error-content {
-                        padding: 20px;
-                        overflow: auto;
-                        flex: 1;
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-                            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                        color: #222;
-                        background: #fff;
-                        border-top: 1px solid #eee;
-                        }
-                        @media (max-width: 640px) {
-                        #spa-error-box {
-                            width: 98%;
-                            height: 95%;
-                        }
-                        }
-                    </style>
-                    <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
-                        <div id="spa-error-header">
-                        <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
-                        <button id="spa-error-close" aria-label="Close modal">&times;</button>
-                        </div>
-                        <div id="spa-error-content"></div>
-                    </div>
-                    `;
-
-    document.body.appendChild(modal);
-    const contentDiv = modal.querySelector('#spa-error-content');
-
-    let parsedJson = null;
-    try {
-      parsedJson = typeof rawHtmlOrJson === 'string' ? JSON.parse(rawHtmlOrJson) : rawHtmlOrJson;
-    } catch (e) {
-      console.warn('Failed to parse error response as JSON:', e);
     }
 
-    if (parsedJson && typeof parsedJson === 'object' && parsedJson.message) {
-      contentDiv.innerHTML = formatLaravelError(parsedJson);
-    } else {
-      contentDiv.innerHTML = rawHtmlOrJson;
-    }
-
-    modal.querySelector('#spa-error-close').onclick = () => modal.remove();
-    modal.onclick = (e) => {
-      if (e.target === modal) modal.remove();
-    };
-  }
-
-  /**
-   * Formats a Laravel error JSON object into readable HTML.
-   * @param {object} err - The Laravel error object.
-   * @returns {string} Formatted HTML string.
-   */
-  function formatLaravelError(err) {
-    const message = err.message || 'Unknown error';
-    const exception = err.exception || '';
-    const file = err.file || '';
-    const line = err.line || '';
-    const trace = err.trace || {};
-
-    let traceHtml =
-      '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
-
-    Object.values(trace).forEach((frame, idx) => {
-      const ffile = frame.file || 'unknown file';
-      const fline = frame.line || '';
-      const func = frame.function || '';
-      const className = frame.class || '';
-      const type = frame.type || '';
-      const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
-
-      traceHtml += `
-                        <li style="margin-bottom:6px;">
-                        <div><strong>#${idx}</strong> ${fullFunc}</div>
-                        <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
-                        </li>`;
-    });
-
-    traceHtml += '</ol>';
-
-    return `
-                    <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
-                    <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
-                    <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
-                    <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
-                    <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
-                        <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
-                        ${traceHtml}
-                    </details>
-                    `;
-  }
-
-  /*==============================
-  LIVE DOM AUTO EVAL SCRIPT
-  ==============================*/
-
-  const scriptCache = new Set();
-
-  /**
-   * Executes script tags within a given container. Handles both inline and external scripts.
-   * Prevents re-execution of external scripts that have already been loaded.
-   * @param {Element} container - The DOM element containing the scripts.
-   */
-  function executeScripts(container) {
-    const scripts = container.querySelectorAll('script');
-
-    scripts.forEach(oldScript => {
-      const isExternal = oldScript.src?.trim() !== '';
-
-      if (isExternal) {
-        const src = oldScript.src;
-
-        if (scriptCache.has(src)) return;
-
-        const newScript = document.createElement('script');
-        newScript.src = src;
-        newScript.async = false;
-
-        for (const attr of oldScript.attributes) {
-          if (attr.name !== 'src') {
-            newScript.setAttribute(attr.name, attr.value);
-          }
-        }
-
-        document.head.appendChild(newScript);
-        scriptCache.add(src);
-      } else {
-        // For inline scripts, wrap them in an IIFE to ensure isolated execution context
-        // and prevent variable leakage or conflicts if re-executed.
-        const newScript = document.createElement('script');
-        let code = oldScript.textContent || '';
-        const trimmed = code.trim();
-
-        // Check if the script is already wrapped in an IIFE or async IIFE
-        const isAlreadyWrapped = /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(
-          trimmed);
-
-        if (!isAlreadyWrapped) {
-          code = `(function () {\n${code}\n})();`;
-        }
-
-        newScript.textContent = code;
-
-        for (const attr of oldScript.attributes) {
-          if (attr.name !== 'src') {
-            newScript.setAttribute(attr.name, attr.value);
-          }
-        }
-
-        document.head.appendChild(newScript);
-      }
-    });
-  }
-
-  /*==============================
-  LIVE STATE
-  ==============================*/
-
-  /*==============================
-      UTILITY FUNCTIONS
-  ==============================*/
-  const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-  const tryEval = (val, context = {}) => {
-    try {
-      return (new Function(...Object.keys(context), `return ${val}`))(...Object.values(context));
-    } catch {
-      return val;
-    }
-  };
-
-  /*==============================
-  STATE PARSING & INITIALIZATION
-  ==============================*/
-  function parseStateExpression(expr, parentContext = null) {
-    try {
-      expr = expr.trim();
-
-      // Handle object literals and JSON
-      if (expr.startsWith('{') && expr.endsWith('}')) {
+    /**
+     * Checks if a URL should be excluded from SPA handling.
+     * @param {string} url - The URL to check.
+     * @returns {boolean} True if the URL should be excluded.
+     */
+    function isSpaExcluded(url) {
         try {
-          return parentContext ?
-            (new Function('_parent', `return ${expr}`))(parentContext) :
-            (new Function(`return ${expr}`))();
+            const path = new URL(url, window.location.origin).pathname;
+            const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
+            return excludes.some(prefix => path.startsWith(prefix));
         } catch (e) {
-          return JSON.parse(expr);
+            console.warn('Error parsing URL for SPA exclusion, falling back:', e);
+            const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
+            return excludes.some(prefix => url.startsWith(prefix));
         }
-      }
+    }
 
-      // Handle simple key:value pairs
-      return expr.split(',').reduce((acc, pair) => {
-        const [key, val] = pair.split(':').map(s => s.trim());
-        if (key && val !== undefined) {
-          acc[key] = tryEval(val, parentContext);
+    /*==============================
+      LOADING BAR
+    ==============================*/
+
+    /** Initializes the global loading bar element. */
+    function initLoadingBar() {
+        if ($('#loading-bar').length === 0) {
+            const $loadingBar = $('<div id="loading-bar"></div>').css({
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                height: '3px',
+                width: '0%',
+                backgroundColor: '#2563eb',
+                zIndex: 99999,
+                transition: 'width 0.3s ease',
+                willChange: 'width',
+                display: 'none'
+            });
+            $('body').append($loadingBar);
         }
-        return acc;
-      }, {});
-    } catch (e) {
-      console.error('LiveState: Invalid state expression', expr, e);
-      return {};
-    }
-  }
-
-  function initializeState(element, parentState = null) {
-    const $el = $(element);
-    const stateExpr = $el.attr('live-state') || '{}';
-    const parentContext = parentState ? {
-      parent: parentState
-    } : null;
-
-    const initialState = parseStateExpression(stateExpr, parentContext);
-    const state = createStateProxy(initialState, element);
-
-    stateProxies.set(element, state);
-    vdomCache.set(element, element.cloneNode(true));
-    elementStateMap.set(element, {
-      parent: parentState
-    });
-
-
-    // Initialize child components
-    $el.find('[live-state]').each(function () {
-      initializeState(this, state);
-    });
-
-    updateStateBindings(element, '*');
-    return state;
-  }
-
-  /*==============================
-    REACTIVE STATE PROXY SYSTEM
-  ==============================*/
-  function createStateProxy(target, container, path = '') {
-    // Convert nested objects to proxies
-    Object.keys(target).forEach(key => {
-      if (typeof target[key] === 'object' && target[key] !== null && !target[key]._isProxy) {
-        target[key] = createStateProxy(
-          target[key],
-          container,
-          path ? `${path}.${key}` : key
-        );
-      }
-    });
-
-    return new Proxy(target, {
-      get(target, prop) {
-        if (prop === '_isProxy') return true;
-        if (prop === '_path') return path;
-
-        // Handle computed properties
-        const computed = stateComputed.get(target);
-        if (computed && computed[prop] && !target.hasOwnProperty(prop)) {
-          try {
-            target[prop] = computed[prop](target);
-            return target[prop];
-          } catch (e) {
-            console.error('Computed property error:', e);
-            return undefined;
-          }
-        }
-
-        return Reflect.get(target, prop);
-      },
-      set(target, prop, value) {
-        const oldValue = target[prop];
-        const fullPath = path ? `${path}.${prop}` : prop;
-
-        // Run middleware before update
-        const middlewares = stateMiddleware.get(container) || [];
-        let processedValue = value;
-        for (const middleware of middlewares) {
-          processedValue = middleware(fullPath, processedValue, oldValue, target);
-        }
-
-        // Handle nested objects
-        if (typeof processedValue === 'object' && processedValue !== null && !processedValue
-          ._isProxy) {
-          processedValue = createStateProxy(processedValue, container, fullPath);
-        }
-
-        const result = Reflect.set(target, prop, processedValue);
-
-        if (result && !deepEqual(oldValue, processedValue)) {
-          triggerStateUpdate(container, fullPath, processedValue, oldValue);
-        }
-        return result;
-      },
-      deleteProperty(target, prop) {
-        const fullPath = path ? `${path}.${prop}` : prop;
-        const result = Reflect.deleteProperty(target, prop);
-        if (result) {
-          triggerStateUpdate(container, fullPath, undefined, target[prop]);
-        }
-        return result;
-      }
-    });
-  }
-
-  // Fungsi baru untuk mendukung middleware
-  function addStateMiddleware(element, middleware) {
-    if (!stateMiddleware.has(element)) {
-      stateMiddleware.set(element, []);
-    }
-    stateMiddleware.get(element).push(middleware);
-  }
-
-  // Fungsi baru untuk batch updates
-  function batchStateUpdates(element, callback) {
-    const state = stateProxies.get(element);
-    if (!state) return;
-
-    // Disable sementara trigger updates
-    state._batchMode = true;
-    callback();
-    state._batchMode = false;
-
-    // Trigger update manual setelah batch selesai
-    triggerStateUpdate(element, '*', state);
-  }
-
-  function triggerStateUpdate(container, path, value, oldValue) {
-    const state = stateProxies.get(container);
-    const callbacks = stateCallbacks.get(state);
-
-    // Run beforeUpdate hooks
-    callbacks?.beforeUpdate?.forEach(cb =>
-      cb({
-        path,
-        value,
-        oldValue,
-        state
-      })
-    );
-
-    // Trigger watchers
-    const watchers = stateWatchers.get(state);
-    if (watchers) {
-      // Exact path matches
-      watchers.get(path)?.forEach(cb => cb(value, oldValue));
-
-      // Wildcard matches (e.g., 'user.*')
-      const wildcardPath = path.split('.').slice(0, -1).join('.') + '.*';
-      watchers.get(wildcardPath)?.forEach(cb => cb(value, oldValue, path));
     }
 
-    // Update DOM bindings
-    updateStateBindings(container, path);
-
-    // Run updated hooks
-    callbacks?.updated?.forEach(cb =>
-      cb({
-        path,
-        value,
-        oldValue,
-        state
-      })
-    );
-  }
-
-  /*==============================
-    DOM BINDING & RENDERING
-  ==============================*/
-  function updateStateBindings(container, changedPath) {
-    const $container = $(container);
-    const state = stateProxies.get(container);
-
-    const bindings = [
-      'live-text', 'live-html', 'live-value',
-      'live-class', 'live-style', 'live-if',
-      'live-then', 'live-else', 'live-state-for'
-    ];
-
-    bindings.forEach(attr => {
-      $container.find(`[${attr}]`).addBack(`[${attr}]`).each(function () {
-        const expr = $(this).attr(attr);
-        if (!expr) return;
-
-        if (attr === 'live-state-for') {
-          // Proses live-state-for langsung tanpa dependsOnPath
-          processForBinding($(this), expr, state);
-        } else {
-          // Untuk binding lain, cek dependsOnPath dulu
-          if (dependsOnPath(expr, changedPath)) {
-            processStateBinding(this, attr, state);
-          }
-        }
-      });
-    });
-  }
-
-
-
-  function dependsOnPath(expr, path) {
-    const extractPaths = expr => {
-      // Tangkap semua kemungkinan jalur seperti "state.items", "items"
-      const matches = [...expr.matchAll(/\b[\w$]+\.[\w$]+|\b[\w$]+\b/g)];
-      return matches.map(m => m[0]);
-    };
-
-    const allPaths = [path];
-    const parts = path.split('.');
-    for (let i = parts.length - 1; i > 0; i--) {
-      allPaths.push(parts.slice(0, i).join('.'));
+    /** Shows the loading bar animation. */
+    function showLoadingBar() {
+        $('#loading-bar').stop(true).css({
+            width: '0%',
+            display: 'block'
+        }).animate({
+            width: '80%'
+        }, 800);
     }
 
-    const exprPaths = extractPaths(expr);
-    return allPaths.some(p => exprPaths.includes(p));
-  }
-
-
-
-  function processStateBinding(element, attr, context) {
-    const $el = $(element);
-    const expr = $el.attr(attr);
-    try {
-      const value = evaluateWithState(expr, context);
-
-      switch (attr) {
-        case 'live-text':
-          if ($el.text() !== String(value)) {
-            $el.text(value != null ? value : '');
-          }
-          break;
-
-        case 'live-html':
-          if ($el.html() !== String(value)) {
-            $el.html(value);
-          }
-          break;
-
-        case 'live-value':
-          if ($el.val() !== String(value)) {
-            $el.val(value != null ? value : '');
-            $el.trigger('input');
-          }
-          break;
-
-        case 'live-class':
-          processClassBinding($el, expr, context);
-          break;
-
-        case 'live-style':
-          processStyleBinding($el, expr, context);
-          break;
-
-        case 'live-if':
-          processIfBinding($el, expr, context);
-          break;
-
-        // dst sesuai kebutuhan
-      }
-    } catch (e) {
-      console.error(`Error processing ${attr} binding:`, e);
-    }
-  }
-
-  // Fungsi baru untuk handle two-way binding
-  function setupModelBinding(element, state) {
-    const $el = $(element);
-    const expr = $el.attr('live-model');
-    console.log('[processForBinding]', expr);
-
-    $el.on('input change', function () {
-      const value = $el.is(':checkbox') ? $el.prop('checked') : $el.val();
-      LiveState.setState(element.closest('[live-state]'), expr.replace('state.', ''), value);
-    });
-
-    processStateBinding(element, 'live-model', state);
-  }
-  /**
-   * Meningkatkan evaluateWithState dengan dukungan syntax yang lebih kaya
-   * Mempertahankan signature fungsi asli
-   */
-  function evaluateWithState(expr, context) {
-    try {
-      if (!context || typeof context !== 'object') {
-        console.warn('[LiveState] State not ready');
-        return undefined;
-      }
-
-      return new Function(...Object.keys(context), `return (${expr});`)(...Object.values(context));
-    } catch (e) {
-      console.error('[LiveState] Evaluation error:', expr, e);
-      return undefined;
-    }
-  }
-
-  // Fungsi baru untuk handle object expressions
-  function evaluateObjectExpression(expr, state) {
-    try {
-      const obj = new Function('state', `
-              with(state) { return (${expr}); }
-          `)(state);
-
-      return obj;
-    } catch (e) {
-      console.warn('[LiveState] Invalid object expression:', expr, e.message);
-      return {};
-    }
-  }
-
-
-  /*==============================
-    BINDING PROCESSORS
-  ==============================*/
-  function processClassBinding($el, expr, state) {
-    const classObj = evaluateObjectExpression(expr, state);
-    if (typeof classObj !== 'object') return;
-
-    Object.entries(classObj).forEach(([className, shouldApply]) => {
-      $el.toggleClass(className, !!shouldApply);
-    });
-  }
-
-
-  // Perbaikan processStyleBinding
-  function processStyleBinding($el, expr, state) {
-    const styles = evaluateObjectExpression(expr, state);
-    if (typeof styles !== 'object') return;
-
-    for (const [property, value] of Object.entries(styles)) {
-      if (value !== undefined) {
-        $el.css(property, value);
-      }
-    }
-  }
-
-
-  function processIfBinding($el, expr, state) {
-    const result = evaluateWithState(expr, state);
-    console.log('[LiveIf] evaluating:', expr, 'context:', state);
-    const hasThenElse = $el.is('[live-then], [live-else]');
-
-    if (!hasThenElse) {
-      const animateType = $el.attr('live-animate');
-      result ? showElement($el, animateType) : hideElement($el, animateType);
-    }
-  }
-
-  function showElement($el, animateType) {
-    if (!$el.is(':visible')) {
-      animateType ? handleLiveAnimate($el) : $el.show();
-    }
-  }
-
-  function hideElement($el, animateType) {
-    if ($el.is(':visible')) {
-      if (animateType) {
-        const hideAnimate = animateType
-          .replace('in', 'out')
-          .replace('down', 'up')
-          .replace('show', 'hide');
-        $el.attr('live-animate', hideAnimate);
-        handleLiveAnimate($el);
-        $el.attr('live-animate', animateType);
-      } else {
-        $el.hide();
-      }
-    }
-  }
-
-  function processForBinding($el, expr, rootState) {
-    const match = expr.match(/^(?:(\w+)(?:,\s*(\w+))?\s+in\s+)?([\w.]+)$/);
-    if (!match) return;
-
-    const [_, itemVar, indexVar, statePath] = match;
-
-    // Evaluasi statePath dari rootState
-    // Misal statePath = 'items'
-    const stateArray = evaluateWithState(statePath, rootState);
-
-    if (!Array.isArray(stateArray)) {
-      $el.html('');
-      return;
-    }
-
-    let $template = $el.data('liveStateForTemplate');
-    if (!$template) {
-      $template = $el.children().first().clone();
-      $el.data('liveStateForTemplate', $template);
-    }
-
-    $el.empty();
-
-    stateArray.forEach((item, index) => {
-      // Buat konteks yang menggabungkan item + rootState
-      const itemContext = mergeContext(item, rootState, itemVar, indexVar, index);
-
-      const $clone = $template.clone();
-
-      ['live-text', 'live-html', 'live-value', 'live-class', 'live-style', 'live-if'].forEach(
-        attr => {
-          $clone.find(`[${attr}]`).addBack(`[${attr}]`).each(function () {
-            processStateBinding(this, attr, itemContext);
-          });
+    /** Hides the loading bar animation. */
+    function hideLoadingBar() {
+        $('#loading-bar').stop(true).animate({
+            width: '100%'
+        }, 300, function () {
+            $(this).fadeOut(200, function () {
+                $(this).css({
+                    width: '0%'
+                });
+            });
         });
+    }
 
-      $el.append($clone);
-    });
-  }
+    /*==============================
+    LIVE DOM ERROR HANDLE
+    ==============================*/
 
+    /**
+     * Displays an error modal with raw HTML or a formatted JSON error.
+     * @param {string|object} rawHtmlOrJson - The error content, either raw HTML or a JSON object.
+     */
+    function showErrorModal(rawHtmlOrJson) {
+        // Hapus modal sebelumnya jika ada
+        const existing = document.getElementById('spa-error-modal');
+        if (existing) existing.remove();
 
-  function mergeContext(item, rootState, itemVar, indexVar, index) {
-    const localContext = {
-      [itemVar]: item,
-      $index: index
-    };
-    if (indexVar) localContext[indexVar] = index;
+        // Modal container
+        const modal = document.createElement('div');
+        modal.id = 'spa-error-modal';
 
-    return new Proxy(localContext, {
-      get(target, prop) {
-        if (prop in target) return target[prop];
-        if (prop in rootState) return rootState[prop]; // fallback ke rootState
-        return undefined;
-      },
-      set(target, prop, value) {
-        if (prop in target) {
-          target[prop] = value;
-        } else if (prop in rootState) {
-          rootState[prop] = value;
-        } else {
-          target[prop] = value;
+        modal.innerHTML = `
+        <style>
+            /* ... CSS sama seperti sebelumnya ... */
+            #spa-error-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, sans-serif;
         }
-        return true;
-      }
-    });
-  }
+        #spa-error-box {
+            position: relative;
+            background: #fff;
+            border-radius: 12px;
+            width: 95%;
+            max-width: 1000px;
+            height: 90%;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #spa-error-header {
+            background-color: #fef2f2;
+            padding: 12px 20px;
+            border-bottom: 1px solid #fca5a5;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        #spa-error-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #b91c1c;
+        }
+        #spa-error-close {
+            font-size: 22px;
+            font-weight: bold;
+            color: #b91c1c;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            line-height: 1;
+            padding: 0;
+            user-select: none;
+        }
+        #spa-error-content {
+            padding: 20px;
+            overflow: auto;
+            flex: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            color: #222;
+            background: #fff;
+            border-top: 1px solid #eee;
+        }
+        @media (max-width: 640px) {
+            #spa-error-box {
+                width: 98%;
+                height: 95%;
+            }
+        }
+        </style>
 
-  /*==============================
-    EVENT HANDLING
-  ==============================*/
-  /**
-   * Memperbarui setupEventHandlers untuk support binding baru
-   * Mempertahankan signature fungsi asli
-   */
-  function setupEventHandlers() {
-    // Support both old-style (live-state-click) and new-style (@click) events
-    const events = ['click', 'change', 'input', 'submit', 'mouseenter', 'mouseleave'];
+        <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
+            <div id="spa-error-header">
+                <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
+                <button id="spa-error-close" aria-label="Close modal">&times;</button>
+            </div>
+            <div id="spa-error-content"></div>
+        </div>
+        `;
 
-    events.forEach(event => {
-      // Tangani event biasa (live-state-* dan @*)
-      $(document).off(`.liveState${event}`).on(
-        `${event}.liveState${event}`,
-        `[live-state-${event}], [\\@${event}]`, // Escape @ dengan \\
-        handleStateEvent
-      );
+        document.body.appendChild(modal);
 
-      // Tangani event khusus @click.outside
-      if ($('[\\@click\\.outside]').length > 0) {
-        initClickOutsideHandler();
-      }
-    });
+        const contentDiv = modal.querySelector('#spa-error-content');
 
-    // Setup for two-way binding
-    $(document).on('input change', '[live-model]', function () {
-      const $el = $(this);
-      const stateContainer = $el.closest('[live-state]')[0];
-      if (!stateContainer) return;
-
-      const state = stateProxies.get(stateContainer);
-      if (!state) return;
-
-      setupModelBinding(this, state);
-    });
-  }
-
-  function initClickOutsideHandler() {
-    let lastClickTarget = null;
-
-    // Tangkap elemen yang diklik
-    document.addEventListener('mousedown', function (e) {
-      lastClickTarget = e.target;
-    }, true);
-
-    // Handle click outside
-    $(document).on('mousedown', function (e) {
-      // Cari semua elemen dengan @click.outside
-      $('[\\@click\\.outside]').each(function () {
-        const $el = $(this);
-        const expr = $el.attr('@click.outside');
-
-        if (!expr || !$el.length || !$el[0].isConnected) return;
-
-        // Skip jika klik terjadi pada elemen itu sendiri atau child-nya
-        if ($el[0].contains(lastClickTarget)) return;
-
-        // Skip jika ada [live-state-click] yang terkait
-        const clickTriggers = $('[live-state-click], [\\@click]');
-        let shouldSkip = false;
-
-        clickTriggers.each(function () {
-          if ($(this)[0].contains(lastClickTarget)) {
-            shouldSkip = true;
-            return false; // break loop
-          }
-        });
-
-        if (shouldSkip) return;
-
-        // Eksekusi expression
-        const parentStateContainer = $el.closest('[live-state]')[0];
-        if (!parentStateContainer || !window.LiveState) return;
-
-        const state = window.LiveState.getState(parentStateContainer);
-        if (!state) return;
-
+        // Coba parse json, kalau gagal berarti rawHtml lengkap (HTML)
+        let parsedJson = null;
         try {
-          new Function('state', 'event', `
-                      with(state) { ${expr} }
-                  `)(state, e);
-
-          // Update UI jika diperlukan
-          handleLiveIf(parentStateContainer);
-          handleLiveThenElse(parentStateContainer);
-        } catch (err) {
-          console.warn('[LiveState] Error in @click.outside:', err);
-        }
-      });
-    });
-  }
-
-  function handleStateEvent(e) {
-    const $el = $(this);
-    const eventType = e.type;
-
-    // Check for both old and new style event attributes
-    const expr = $el.attr(`live-state-${eventType}`) || $el.attr(`@${eventType}`);
-    if (!expr) return;
-
-    const stateContainer = $el.closest('[live-state]')[0];
-    if (!stateContainer) return;
-
-    const state = stateProxies.get(stateContainer);
-    if (!state) return;
-
-    try {
-      // Support both direct expressions and method calls
-      const isMethodCall = expr.match(/^(\w+)\(([^)]*)\)$/);
-
-      if (isMethodCall) {
-        const [, methodName, argsStr] = isMethodCall;
-        const args = argsStr.split(',').map(arg => arg.trim());
-
-        // Call the method with state context
-        if (state[methodName] && typeof state[methodName] === 'function') {
-          state[methodName](...args, e, $el);
-        }
-      } else {
-        // Direct expression evaluation
-        const fn = new Function('state', 'event', '$el', `
-                    with(state) {
-                        ${expr}
-                    }
-                `);
-        fn(state, e, $el);
-      }
-
-      // Trigger update after execution
-      triggerStateUpdate(stateContainer, '*', state);
-    } catch (error) {
-      console.error(`Error executing ${eventType} handler:`, error);
-    }
-  }
-
-  function initLiveStateClickOutside() {
-    let lastClickTarget = null;
-
-    document.addEventListener('mousedown', function (e) {
-      lastClickTarget = e.target;
-    }, true);
-
-    // Ganti event 'click' jadi 'mousedown' di sini
-    $(document).on('mousedown', function () {
-      $('[live-state-click-outside]').each(function () {
-        const $el = $(this);
-        const expr = $el.attr('live-state-click-outside');
-        if (!expr) return;
-
-        if (!$el.length || !$el[0].isConnected) return;
-
-        const el = $el[0];
-        if (el.contains(lastClickTarget)) return;
-
-        const openers = document.querySelectorAll('[live-state-click]');
-        for (const opener of openers) {
-          if (opener.contains(lastClickTarget)) {
-            const openerState = opener.closest('[live-state]');
-            const targetState = $el.closest('[live-state]');
-            if (openerState === targetState) return;
-          }
+            parsedJson = typeof rawHtmlOrJson === 'string' ? JSON.parse(rawHtmlOrJson) : rawHtmlOrJson;
+        } catch {
+            parsedJson = null;
         }
 
-        setTimeout(() => {
-          const parentStateContainer = $el.closest('[live-state]')[0];
-          if (!parentStateContainer || !window.LiveState) return;
-
-          const state = window.LiveState.getState(parentStateContainer);
-          if (!state) return;
-
-          try {
-            const func = new Function('state', 'with(state) { ' + expr +
-              '; }');
-            func(state);
-
-            handleLiveIf(parentStateContainer);
-            handleLiveThenElse(parentStateContainer);
-            // Jika handleLiveClass ada, aktifkan kembali
-            // handleLiveClass(parentStateContainer);
-          } catch (err) {
-            console.warn('[LiveDomJs] Error in live-state-click-outside:',
-              expr, err);
-          }
-        }, 0);
-      });
-    });
-  }
-
-  /*==============================
-    PUBLIC API
-  ==============================*/
-  // Mempertahankan API asli tapi menambahkan fitur baru
-  window.LiveState = {
-    parseEvents: function (element) {
-      const $el = $(element);
-
-      // Daftar event yang didukung
-      const events = ['click', 'change', 'input', 'submit', 'mouseenter', 'mouseleave'];
-
-      if ($el.is('[\\@click\\.outside]')) {
-        // Tidak perlu inisialisasi ulang jika sudah diinisialisasi
-        if (!$el.data('click-outside-bound')) {
-          $el.data('click-outside-bound', true);
-          initClickOutsideHandler();
-        }
-      }
-
-
-      events.forEach(event => {
-        // Tangani atribut @event
-        const expr = $el.attr(`@${event}`);
-        if (expr) {
-          $el.on(event, function (e) {
-            const stateContainer = $(this).closest('[live-state]')[0];
-            if (!stateContainer) return;
-
-            const state = stateProxies.get(stateContainer);
-            if (!state) return;
-
-            try {
-              new Function('state', 'event', '$el', `
-                              with(state) { ${expr} }
-                          `)(state, e, $(this));
-            } catch (err) {
-              console.error(`Error in @${event} handler:`, err);
-            }
-          });
-        }
-      });
-
-      // Tangani @click.outside khusus
-      if ($el.attr('@click.outside')) {
-        initAtClickOutsideHandler();
-      }
-    },
-
-    init: function (scope = document) {
-      $(scope).find('[live-state]').each(function () {
-        if (!stateProxies.has(this)) {
-          initializeState(this);
-          window.LiveState.parseEvents(this);
-        }
-      });
-      setupEventHandlers();
-    },
-
-    watch: function (element, path, callback) {
-      const state = stateProxies.get(element);
-      if (!state) return;
-
-      const watchers = stateWatchers.get(state) || new Map();
-      if (!watchers.has(path)) watchers.set(path, []);
-      watchers.get(path).push(callback);
-      stateWatchers.set(state, watchers);
-    },
-
-    getState: function (element, path = '') {
-      const state = stateProxies.get(element);
-      return path ?
-        path.split('.').reduce((obj, key) => obj?.[key], state) :
-        state;
-    },
-
-    addCallback: function (element, hook, callback) {
-      const state = stateProxies.get(element);
-      if (!state) return;
-
-      const callbacks = stateCallbacks.get(state) || {
-        beforeUpdate: [],
-        updated: [],
-        beforeMount: [],
-        mounted: []
-      };
-
-      if (callbacks[hook]) {
-        callbacks[hook].push(callback);
-        stateCallbacks.set(state, callbacks);
-      }
-    },
-
-    setState: function (element, path, value) {
-      const state = stateProxies.get(element);
-      if (!state) return;
-
-      const parts = path.split('.');
-      const last = parts.pop();
-      const target = parts.reduce((obj, key) => obj[key], state);
-
-      if (target) {
-        target[last] = value;
-      }
-    },
-
-    // Fungsi baru
-    addMiddleware: function (element, middleware) {
-      addStateMiddleware(element, middleware);
-    },
-
-    // Fungsi baru
-    batchUpdate: function (element, callback) {
-      batchStateUpdates(element, callback);
-    },
-
-    // Fungsi baru
-    compute: function (element, name, computeFn) {
-      const state = stateProxies.get(element);
-      if (!state) return;
-
-      const computed = stateComputed.get(state) || {};
-      computed[name] = computeFn;
-      stateComputed.set(state, computed);
-
-      // Trigger initial computation
-      state[name] = computeFn(state);
-    }
-  };
-
-  // Component system similar to x-data
-  window.LiveComponent = function (selector, setupFn) {
-    document.querySelectorAll(selector).forEach(el => {
-      const state = setupFn();
-      el.setAttribute('live-state', JSON.stringify(state));
-      LiveState.init(el);
-    });
-  };
-
-  // Watch system
-  LiveState.watchEffect = function (element, depsFn, effectFn) {
-    const state = LiveState.getState(element);
-    const deps = depsFn(state);
-    effectFn(state);
-
-    // Simple implementation - in real case should track dependencies
-    setInterval(() => {
-      const newDeps = depsFn(state);
-      if (!deepEqual(deps, newDeps)) {
-        effectFn(state);
-      }
-    }, 100);
-  };
-
-  // Global state
-  LiveState.store = (function () {
-    const stores = {};
-
-    return {
-      create(name, initialState) {
-        stores[name] = createStateProxy(initialState);
-        return stores[name];
-      },
-      get(name) {
-        return stores[name];
-      }
-    };
-  })();
-  // Initialize on DOM ready
-
-
-  /*==============================
-    END LIVE STATE
-  ==============================*/
-
-  /**
-   * Handles two-way data binding for elements with 'live-bind' attribute.
-   * This should be called after `initLiveState`.
-   */
-  function handleLiveBind() {
-    $(document).on('input change', 'input[name], select[name], textarea[name]', function () {
-      const $source = $(this);
-      const name = $source.attr('name');
-      if (!name) return;
-
-      const value = $source.is(':checkbox') ? $source.prop('checked') : $source.val();
-
-      $(`[live-bind="${name}"]`).each(function () {
-        const $target = $(this);
-        if ($target.is('input, textarea, select')) {
-          $target.val(value);
+        if (parsedJson && typeof parsedJson === 'object' && parsedJson.message) {
+            // Jika json error, render pakai fungsi formatLaravelError agar rapi
+            contentDiv.innerHTML = formatLaravelError(parsedJson);
         } else {
-          $target.text(value);
+            // Kalau bukan json, asumsi itu HTML langsung masukkan ke dalam div (atau iframe kalau mau)
+            // Untuk HTML lengkap dengan dump, lebih baik iframe, tapi disini pakai div:
+            contentDiv.innerHTML = rawHtmlOrJson;
         }
-      });
-    });
-  }
 
-  /*==============================
-    LIVE DOM HOOKS & INITIALIZATION
-  ==============================*/
+        modal.querySelector('#spa-error-close').onclick = () => modal.remove();
 
-  /** Binds all initial live DOM event handlers. */
-  function bindLiveDomEvents() {
-    $(document).on('click', '[live-click]', function () {
-      handleLiveEvent($(this), 'click');
-    });
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
 
-    $(document).on('mouseenter mouseleave', '[live-hover]', function () {
-      handleLiveEvent($(this), 'hover');
-    });
-
-    $(document).on('change', '[live-change]', function () {
-      handleLiveEvent($(this), 'change');
-    });
-
-    $(document).on('submit', '[live-submit]', function (e) {
-      e.preventDefault();
-      handleLiveEvent($(this), 'submit');
-    });
-
-    $(document).on('keyup', '[live-keyup]', function () {
-      handleLiveEvent($(this), 'keyup');
-    });
-
-    $(document).on('input', '[live-input]', function () {
-      handleLiveEvent($(this), 'input');
-    });
-
-    $(document).on('input', '[live-bind]', function () {
-      handleLiveEvent($(this), 'input');
-    });
-
-    $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea',
-      function () {
-        handleLiveComputeUnified();
-      });
-
-    $(document).on('click', '[live-accordion]', function () {
-      handleAccordionClick($(this));
-    });
-
-    handleLiveBind();
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const $el = $(entry.target);
-          if ($el.attr('live-load-once') === 'true') {
-            handleLiveEvent($el, 'load'); // Trigger load event
-            observer.unobserve(entry.target); // Stop observing after load
-          }
-        }
-      });
-    }, {
-      threshold: 0.1
-    });
-
-    $('[live-load-once="true"]').each(function () {
-      observer.observe(this);
-    });
-
-    $(document).on('click', '[live-spa-region] a[href]:not([href^="#"]):not([href=""])', function (e) {
-      const url = $(this).attr('href');
-      if (!url || isSpaExcluded(url)) return;
-      e.preventDefault();
-      loadSpaContent(url);
-    });
-
-    $(document).on('submit', '[live-spa-region] form', function (e) {
-      const form = this;
-      const url = form.action || '';
-      const method = form.method.toUpperCase() || 'GET';
-
-      if (isSpaExcluded(url)) return;
-      e.preventDefault();
-
-      if (method === 'GET') {
-        const formParams = new URLSearchParams(new FormData(form));
-        const existingUrl = new URL(url, window.location.origin);
-        formParams.forEach((value, key) => {
-          existingUrl.searchParams.set(key, value);
+        contentDiv.querySelectorAll('script').forEach(oldScript => {
+            const newScript = document.createElement('script');
+            if (oldScript.src) {
+                newScript.src = oldScript.src;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            document.head.appendChild(newScript); // atau gunakan contentDiv.appendChild
         });
-        const fullUrl = existingUrl.toString();
+    }
 
-        fetch(fullUrl, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-        })
-          .then(res => res.text())
-          .then(html => {
-            updateSpaRegions(html);
-            document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-            document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-              detail: {
-                url: fullUrl
-              }
-            }));
-            history.replaceState({
-              spa: true,
-              url: fullUrl
-            }, '', fullUrl);
-          })
-          .catch(err => console.error('SPA GET error:', err));
-        return;
-      }
 
-      ajaxSpaFormSubmit(form, function (response) {
-        if (typeof response === 'string') {
-          updateSpaRegions(response);
-          document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-          document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-            detail: {
-              url
+    // Fungsi format error JSON seperti yang sudah kamu punya
+    function formatLaravelError(err) {
+        const message = err.message || 'Unknown error';
+        const exception = err.exception || '';
+        const file = err.file || '';
+        const line = err.line || '';
+        const trace = err.trace || {};
+
+        let traceHtml = '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
+
+        Object.values(trace).forEach((frame, idx) => {
+            const ffile = frame.file || 'unknown file';
+            const fline = frame.line || '';
+            const func = frame.function || '';
+            const className = frame.class || '';
+            const type = frame.type || '';
+            const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
+
+            traceHtml += `
+                <li style="margin-bottom:6px;">
+                    <div><strong>#${idx}</strong> ${fullFunc}</div>
+                    <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
+                </li>`;
+        });
+
+        traceHtml += '</ol>';
+
+        return `
+            <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
+            <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
+            <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
+            <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
+            <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
+                <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
+                ${traceHtml}
+            </details>
+            `;
+    }
+
+
+    /*==============================
+    LIVE DOM AUTO EVAL SCRIPT
+    ==============================*/
+
+    const scriptCache = new Set();
+
+    /**
+     * Executes script tags within a given container. Handles both inline and external scripts.
+     * Prevents re-execution of external scripts that have already been loaded.
+     * @param {Element} container - The DOM element containing the scripts.
+     */
+    function executeScripts(container) {
+        const scripts = container.querySelectorAll('script');
+
+        scripts.forEach(oldScript => {
+            const isExternal = oldScript.src?.trim() !== '';
+
+            if (isExternal) {
+                const src = oldScript.src;
+
+                if (scriptCache.has(src)) return;
+
+                const newScript = document.createElement('script');
+                newScript.src = src;
+                newScript.async = false;
+
+                for (const attr of oldScript.attributes) {
+                    if (attr.name !== 'src') {
+                        newScript.setAttribute(attr.name, attr.value);
+                    }
+                }
+
+                document.head.appendChild(newScript);
+                scriptCache.add(src);
+            } else {
+                // For inline scripts, wrap them in an IIFE to ensure isolated execution context
+                // and prevent variable leakage or conflicts if re-executed.
+                const newScript = document.createElement('script');
+                let code = oldScript.textContent || '';
+                const trimmed = code.trim();
+
+                // Check if the script is already wrapped in an IIFE or async IIFE
+                const isAlreadyWrapped = /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(
+                    trimmed);
+
+                if (!isAlreadyWrapped) {
+                    code = `(function () {\n${code}\n})();`;
+                }
+
+                newScript.textContent = code;
+
+                for (const attr of oldScript.attributes) {
+                    if (attr.name !== 'src') {
+                        newScript.setAttribute(attr.name, attr.value);
+                    }
+                }
+
+                document.head.appendChild(newScript);
             }
-          }));
-          history.pushState({
-            spa: true,
-            url
-          }, '', url);
-        } else if (response && typeof response === 'object' && response.redirect) {
-          console.log('SPA redirect handled.');
-        } else {
-          console.log('Form SPA submit success (non-redirect):', response);
+        });
+    }
+
+    function handleLiveBind() {
+        $(document).on('input change', 'input[name], select[name], textarea[name]', function () {
+            const $source = $(this);
+            const name = $source.attr('name');
+            if (!name) return;
+
+            const value = $source.is(':checkbox') ? $source.prop('checked') : $source.val();
+
+            $(`[live-bind="${name}"]`).each(function () {
+                const $target = $(this);
+                if ($target.is('input, textarea, select')) {
+                    $target.val(value);
+                } else {
+                    $target.text(value);
+                }
+            });
+        });
+    }
+
+    /*==============================
+      LIVE DOM HOOKS & INITIALIZATION
+    ==============================*/
+
+    /** Binds all initial live DOM event handlers. */
+    function bindLiveDomEvents() {
+        $(document).on('click', '[live-click]', function () {
+            handleLiveEvent($(this), 'click');
+        });
+
+        $(document).on('mouseenter mouseleave', '[live-hover]', function () {
+            handleLiveEvent($(this), 'hover');
+        });
+
+        $(document).on('change', '[live-change]', function () {
+            handleLiveEvent($(this), 'change');
+        });
+
+        $(document).on('submit', '[live-submit]', function (e) {
+            e.preventDefault();
+            handleLiveEvent($(this), 'submit');
+        });
+
+        $(document).on('keyup', '[live-keyup]', function () {
+            handleLiveEvent($(this), 'keyup');
+        });
+
+        $(document).on('input', '[live-input]', function () {
+            handleLiveEvent($(this), 'input');
+        });
+
+        $(document).on('input', '[live-bind]', function () {
+            handleLiveEvent($(this), 'input');
+        });
+
+        $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea',
+            function () {
+                handleLiveComputeUnified();
+                handleLiveDirectives();
+            });
+
+        $(document).on('click', '[live-spa-region] a[href]:not([href^="#"]):not([href=""])', function (e) {
+            const url = $(this).attr('href');
+            if (!url || isSpaExcluded(url)) return;
+            e.preventDefault();
+            loadSpaContent(url);
+        });
+
+        $(document).on('submit', '[live-spa-region] form', function (e) {
+            const form = this;
+            const url = form.action || '';
+            const method = form.method.toUpperCase() || 'GET';
+
+            if (isSpaExcluded(url)) return;
+            e.preventDefault();
+
+            if (method === 'GET') {
+                const formParams = new URLSearchParams(new FormData(form));
+                const existingUrl = new URL(url, window.location.origin);
+                formParams.forEach((value, key) => {
+                    existingUrl.searchParams.set(key, value);
+                });
+                const fullUrl = existingUrl.toString();
+
+                fetch(fullUrl, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                })
+                    .then(res => res.text())
+                    .then(html => {
+                        updateSpaRegions(html);
+                        document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+                        document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
+                            detail: {
+                                url: fullUrl
+                            }
+                        }));
+                        history.replaceState({
+                            spa: true,
+                            url: fullUrl
+                        }, '', fullUrl);
+                    })
+                    .catch(err => console.error('SPA GET error:', err));
+                return;
+            }
+
+            ajaxSpaFormSubmit(form, function (response) {
+                if (typeof response === 'string') {
+                    updateSpaRegions(response);
+                    document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+                    document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
+                        detail: {
+                            url
+                        }
+                    }));
+                    history.pushState({
+                        spa: true,
+                        url
+                    }, '', url);
+                } else if (response && typeof response === 'object' && response.redirect) {
+                    console.log('SPA redirect handled.');
+                } else {
+                    console.log('Form SPA submit success (non-redirect):', response);
+                }
+            });
+        });
+    }
+
+    function initLiveDom() {
+        initLoadingBar();               // loading bar
+        handleLiveBind();               // live-bind
+        bindLiveDomEvents();            // event handler utama
+        handlePollers();                // pollers (live-poll)
+        handleLiveComputeUnified();     // inisialisasi live-compute
+        handleLiveDirectives();
+
+        // SPA state awal
+        if (document.querySelector('[live-spa-region="main"]')) {
+            const currentUrl = window.location.href;
+            history.replaceState({ spa: true, url: currentUrl }, '', currentUrl);
         }
-      });
+
+        // Dispatch event agar ekstensi luar bisa ikut hook
+        document.dispatchEvent(new CustomEvent('live-dom:init'));
+    }
+
+    // Event listener for general DOM updates
+    document.addEventListener('live-dom:afterUpdate', function () {
+        initLiveDom();
     });
-  }
 
-  // Event listener for general DOM updates
-  document.addEventListener('live-dom:afterUpdate', function () {
-    window.LiveState?.init();
-    handleLiveComputeUnified();
-    handleLiveIf();
-    initLiveTriggerEvents(); // Re-initialize triggers for newly added DOM elements
-    handleLiveTeleport();
-  });
+    // Event listener after SPA content loads
+    document.addEventListener('live-dom:afterSpa', function () {
+        initLiveDom();
+    });
 
-  // Event listener after SPA content loads
-  document.addEventListener('live-dom:afterSpa', function () {
-    window.LiveState?.init();
-    // You might want to re-run other initializations here that depend on SPA content
-    initLoadingBar(); // Ensure loading bar is initialized (it's safe to call multiple times)
-    handlePollers(); // Restart pollers if needed for new content
-    handleLiveTeleport();
-  });
+    // Handle browser's back/forward buttons for SPA
+    window.addEventListener('popstate', function (event) {
+        if (event.state && event.state.spa && event.state.url) {
+            loadSpaContent(event.state.url, false); // false to prevent pushing state again
+        }
+    });
 
-  // Handle browser's back/forward buttons for SPA
-  window.addEventListener('popstate', function (event) {
-    if (event.state && event.state.spa && event.state.url) {
-      loadSpaContent(event.state.url, false); // false to prevent pushing state again
-    }
-  });
+    // window.ajaxDynamic = ajaxDynamic;
+    window.debouncedAjaxDynamic = debouncedAjaxDynamic;
 
-  // window.ajaxDynamic = ajaxDynamic;
-  window.debouncedAjaxDynamic = debouncedAjaxDynamic;
-  window.LiveState?.init();
-
-  // Initial setup when the DOM is ready
-  $(document).ready(function () {
-    initLoadingBar(); // Initialize the loading bar once
-    if (document.querySelector('[live-spa-region="main"]')) {
-      const currentUrl = window.location.href;
-      // Replace initial history state to mark it as SPA-managed
-      history.replaceState({
-        spa: true,
-        url: currentUrl
-      }, '', currentUrl);
-    }
-    window.LiveState?.init();
-    handleLiveBind();
-    bindLiveDomEvents(); // Bind all event handlers
-    handlePollers(); // Start initial pollers
-    handleLiveIf(); // Initial evaluation of live-if conditions
-    initLiveTriggerEvents(); // Initial setup of live-triggers
-    handleLiveComputeUnified(); // Initial computation for live-compute elements
-    initLiveStateClickOutside(); // ← tambahkan ini
-    handleLiveTeleport();
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    LiveState.init();
-    handleLiveTeleport();
-  });
+    // Initial setup when the DOM is ready
+    $(document).ready(function () {
+        initLiveDom();
+    });
 })(jQuery);
