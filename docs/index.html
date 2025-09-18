@@ -1,763 +1,1026 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LiveDomJS - Dokumentasi Lengkap</title>
+    <title>LiveDomJS - Framework AJAX Laravel Modern</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="livedom.js"></script>
     <style>
-        .sidebar-link:hover .sidebar-icon {
-            transform: translateX(3px);
+        html {
+            scroll-behavior: smooth;
         }
-        pre code.hljs {
-            border-radius: 0.5rem;
-            padding: 1.5rem !important;
+
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
-        .animate-bounce-custom {
-            animation: bounce-custom 2s infinite;
+
+        .code-highlight {
+            background: #2d3748;
+            color: #e2e8f0;
         }
-        @keyframes bounce-custom {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+
+        .syntax-php {
+            color: #81E6D9;
+        }
+
+        .syntax-html {
+            color: #FEB2B2;
+        }
+
+        .syntax-js {
+            color: #F6E05E;
+        }
+
+        .syntax-comment {
+            color: #A0AEC0;
+        }
+
+        .feature-card {
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .navbar-blur {
+            backdrop-filter: blur(20px);
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .logo-container {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
         }
     </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800">
-    <!-- Header -->
-    <header class="bg-indigo-600 text-white shadow-lg">
-        <div class="container mx-auto px-4 py-6 flex justify-between items-center">
-            <div class="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 animate-bounce-custom" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <h1 class="text-2xl font-bold">LiveDomJS</h1>
-            </div>
-            <div class="flex items-center space-x-4">
-                <a href="#" class="hover:text-indigo-200 transition">GitHub</a>
-                <a href="#" class="bg-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-800 transition">Download</a>
+
+<body class="bg-gray-50 text-gray-900">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 navbar-blur border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="logo-container">LD</div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">LiveDomJS</h1>
+                        <p class="text-xs text-gray-500">Framework AJAX Laravel Modern</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#instalasi" class="text-gray-600 hover:text-blue-600 transition-colors">Instalasi</a>
+                    <a href="#fitur" class="text-gray-600 hover:text-blue-600 transition-colors">Fitur</a>
+                    <a href="#dokumentasi" class="text-gray-600 hover:text-blue-600 transition-colors">Dokumentasi</a>
+                    <a href="#contoh" class="text-gray-600 hover:text-blue-600 transition-colors">Contoh</a>
+                </div>
             </div>
         </div>
-    </header>
+    </nav>
 
-    <div class="container mx-auto px-4 flex flex-col lg:flex-row">
-        <!-- Sidebar -->
-        <aside class="lg:w-64 bg-white shadow-lg rounded-lg lg:mr-6 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto p-4 mt-6">
-            <div class="mb-6">
-                <input type="text" placeholder="Cari dokumentasi..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <!-- Hero Section -->
+    <section class="hero-gradient pt-24 pb-16 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="logo-container mx-auto mb-6 w-20 h-20 text-3xl">LD</div>
+            <h1 class="text-5xl md:text-6xl font-bold mb-6">LiveDomJS</h1>
+            <p class="text-xl md:text-2xl mb-8 text-blue-100">Framework AJAX Laravel Modern untuk Pengembangan Web yang
+                Lebih Cepat</p>
+            <p class="text-lg mb-12 text-blue-100 max-w-3xl mx-auto">
+                Solusi komprehensif untuk interaksi dinamis, SPA routing, live computation, dan banyak lagi.
+                Tingkatkan pengalaman pengguna dengan mudah tanpa kompleksitas JavaScript yang berlebihan.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#instalasi"
+                    class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                    Mulai Sekarang
+                </a>
+                <a href="#dokumentasi"
+                    class="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors">
+                    Lihat Dokumentasi
+                </a>
             </div>
-            
-            <nav>
-                <h2 class="text-lg font-semibold text-gray-700 mb-2">Dasar</h2>
-                <ul class="space-y-1 mb-6">
-                    <li><a href="#pengenalan" class="sidebar-link flex items-center text-indigo-600 hover:text-indigo-800 transition">
-                        <span class="sidebar-icon transition">→</span> Pengenalan
-                    </a></li>
-                    <li><a href="#instalasi" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Instalasi
-                    </a></li>
-                    <li><a href="#konsep-dasar" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Konsep Dasar
-                    </a></li>
-                </ul>
+        </div>
+    </section>
 
-                <h2 class="text-lg font-semibold text-gray-700 mb-2">Fitur Inti</h2>
-                <ul class="space-y-1 mb-6">
-                    <li><a href="#event-handler" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Event Handler
-                    </a></li>
-                    <li><a href="#data-binding" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Data Binding
-                    </a></li>
-                    <li><a href="#animasi" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Sistem Animasi
-                    </a></li>
-                    <li><a href="#spa" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> SPA Router
-                    </a></li>
-                    <li><a href="#komputasi" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Komputasi Real-time
-                    </a></li>
-                </ul>
+    <!-- Features Overview -->
+    <section id="fitur" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Fitur Utama LiveDomJS</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    Framework all-in-one yang memberikan pengalaman pengembangan web modern dengan Laravel
+                </p>
+            </div>
 
-                <h2 class="text-lg font-semibold text-gray-700 mb-2">Fitur Lanjutan</h2>
-                <ul class="space-y-1">
-                    <li><a href="#accordion" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Sistem Accordion
-                    </a></li>
-                    <li><a href="#polling" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Auto Polling
-                    </a></li>
-                    <li><a href="#error-handling" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Error Handling
-                    </a></li>
-                    <li><a href="#kombinasi" class="sidebar-link flex items-center text-gray-600 hover:text-indigo-600 transition">
-                        <span class="sidebar-icon transition">→</span> Kombinasi Fitur
-                    </a></li>
-                </ul>
-            </nav>
-        </aside>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div
+                    class="feature-card bg-gradient-to-br from-blue-50 to-indigo-100 p-8 rounded-2xl border border-blue-200">
+                    <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">AJAX Dinamis</h3>
+                    <p class="text-gray-600">Sistem AJAX otomatis dengan attribute HTML sederhana. Tidak perlu menulis
+                        JavaScript manual.</p>
+                </div>
 
-        <!-- Main Content -->
-        <main class="flex-1 py-6">
-            <!-- Pengenalan -->
-            <section id="pengenalan" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Pengenalan LiveDomJS</h2>
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS adalah library JavaScript modern yang dibangun di atas jQuery untuk membangun aplikasi web interaktif dengan pendekatan deklaratif menggunakan atribut HTML.
+                <div
+                    class="feature-card bg-gradient-to-br from-green-50 to-emerald-100 p-8 rounded-2xl border border-green-200">
+                    <div class="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Computation</h3>
+                    <p class="text-gray-600">Kalkulasi otomatis dan real-time dengan formula Excel-like. Mendukung SUM,
+                        AVG, SUMIF dan fungsi tanggal.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-purple-50 to-violet-100 p-8 rounded-2xl border border-purple-200">
+                    <div class="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">SPA Router</h3>
+                    <p class="text-gray-600">Single Page Application dengan routing otomatis. Navigation yang smooth
+                        tanpa reload halaman.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-orange-50 to-red-100 p-8 rounded-2xl border border-orange-200">
+                    <div class="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Conditionals</h3>
+                    <p class="text-gray-600">Show/hide element secara dinamis berdasarkan kondisi input. Reactive UI
+                        tanpa JavaScript kompleks.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-teal-50 to-cyan-100 p-8 rounded-2xl border border-teal-200">
+                    <div class="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Auto Polling</h3>
+                    <p class="text-gray-600">Refresh konten secara berkala otomatis. Ideal untuk dashboard real-time dan
+                        notifikasi.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-pink-50 to-rose-100 p-8 rounded-2xl border border-pink-200">
+                    <div class="w-12 h-12 bg-pink-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Data Binding</h3>
+                    <p class="text-gray-600">Sinkronisasi data otomatis antar element. Two-way data binding yang mudah
+                        digunakan.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="instalasi" class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Instalasi</h2>
+                <p class="text-xl text-gray-600">Mulai menggunakan LiveDomJS dalam hitungan menit</p>
+            </div>
+
+            <div class="max-w-4xl mx-auto space-y-8">
+                <div class="bg-white rounded-2xl shadow-lg p-8">
+                    <h3 class="text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">1</span>
+                        Via Composer (Laravel)
+                    </h3>
+                    <p class="text-gray-600 mb-6">Jika menggunakan Laravel, instalasi LiveDomJs dapat dilakukan langsung
+                        melalui Packagist:</p>
+
+                    <div class="code-highlight rounded-lg p-6 mb-6">
+                        <pre class="text-sm"><code><span class="syntax-comment"># Install package</span>
+<span class="syntax-php">composer require gadingrengga/livedomjs</span>
+
+<span class="syntax-comment"># Jalankan instalasi untuk publish asset dan route</span>
+<span class="syntax-php">php artisan livedomjs:install</span></code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-8">
+                    <h3 class="text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">2</span>
+                        Penggunaan di Blade
+                    </h3>
+                    <p class="text-gray-600 mb-6">Tambahkan script berikut ke dalam layout Blade Anda setelah jQuery:
                     </p>
-                    
-                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-yellow-700">
-                                    LiveDomJS dirancang untuk developer yang ingin membangun aplikasi interaktif tanpa kompleksitas framework modern seperti React/Vue, namun tetap membutuhkan fitur-fitur canggih seperti binding data, animasi, dan SPA routing.
-                                </p>
+
+                    <div class="code-highlight rounded-lg p-6 mb-6">
+                        <pre
+                            class="text-sm"><code><span class="syntax-html">&lt;script src="https://code.jquery.com/jquery-3.6.0.min.js"&gt;&lt;/script&gt;</span>
+<span class="syntax-html">&lt;script src="{{ asset('vendor/livedomjs/livedom.js') }}"&gt;&lt;/script&gt;</span></code></pre>
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p class="text-blue-800"><strong>Catatan:</strong> Pastikan jQuery sudah dimuat sebelum
+                            LiveDomJS untuk menghindari error.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-8">
+                    <h3 class="text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">3</span>
+                        Setup CSRF Token
+                    </h3>
+                    <p class="text-gray-600 mb-6">Tambahkan CSRF token di bagian head template Anda:</p>
+
+                    <div class="code-highlight rounded-lg p-6">
+                        <pre
+                            class="text-sm"><code><span class="syntax-html">&lt;meta name="csrf-token" content="{{ csrf_token() }}"&gt;</span></code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section id="dokumentasi" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Dokumentasi Lengkap</h2>
+                <p class="text-xl text-gray-600">Panduan komprehensif untuk semua fitur LiveDomJS</p>
+            </div>
+
+            <!-- AJAX Dynamic -->
+            <div class="max-w-6xl mx-auto space-y-16">
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-8 border border-blue-100">
+                    <h3 class="text-3xl font-bold mb-6 text-blue-900">1. AJAX Dinamis</h3>
+                    <p class="text-lg text-gray-700 mb-8">Sistem AJAX otomatis dengan attribute HTML sederhana untuk
+                        interaksi server tanpa reload halaman.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Attribute Utama:</h4>
+                            <ul class="space-y-2 text-gray-700">
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-scope</code> - Menentukan
+                                    controller</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-click</code> - Method yang
+                                    dipanggil saat click</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-target</code> - Element target
+                                    untuk response</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-method</code> - HTTP method
+                                    (GET/POST)</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-loading</code> - Tampilkan loading
+                                    indicator</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Event Handlers:</h4>
+                            <ul class="space-y-2 text-gray-700">
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-submit</code> - Submit form via
+                                    AJAX</li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-change</code> - Trigger saat value
+                                    berubah</li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-keyup</code> - Trigger saat keyup
+                                </li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-input</code> - Trigger saat input
+                                </li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-hover</code> - Trigger saat hover
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h4 class="text-xl font-semibold mb-4">Contoh Penggunaan:</h4>
+                        <div class="code-highlight rounded-lg p-6">
+                            <pre class="text-sm"><code><span class="syntax-html">&lt;div live-scope="user"&gt;</span>
+    <span class="syntax-html">&lt;input name="name" type="text" placeholder="Nama User"&gt;</span>
+    <span class="syntax-html">&lt;button live-click="save" live-target="#result" live-loading="true"&gt;</span>
+        <span class="syntax-html">Simpan User</span>
+    <span class="syntax-html">&lt;/button&gt;</span>
+    <span class="syntax-html">&lt;div id="result"&gt;&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Computation -->
+                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-3xl p-8 border border-green-100">
+                    <h3 class="text-3xl font-bold mb-6 text-green-900">2. Live Computation</h3>
+                    <p class="text-lg text-gray-700 mb-8">Sistem kalkulasi real-time dengan formula Excel-like.
+                        Mendukung berbagai fungsi matematika dan tanggal.</p>
+
+                    <div class="grid md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Fungsi Matematika</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>sum(field)</code></li>
+                                <li><code>avg(field)</code></li>
+                                <li><code>min(field)</code></li>
+                                <li><code>max(field)</code></li>
+                                <li><code>count(field)</code></li>
+                                <li><code>sumif(range, criteria, sum_range)</code></li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Fungsi Tanggal</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>rangeDate(start, end)</code></li>
+                                <li><code>rangeMonth(start, end)</code></li>
+                                <li><code>rangeYear(start, end)</code></li>
+                                <li><code>rangeWeek(start, end)</code></li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Format Output</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>idr</code> - Format Rupiah</li>
+                                <li><code>currency</code> - Format Dollar</li>
+                                <li><code>decimal</code> - 2 Desimal</li>
+                                <li><code>percent</code> - Persentase</li>
+                                <li><code>days/months/years</code></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-xl font-semibold mb-4">Contoh Penggunaan:</h4>
+                        <div class="code-highlight rounded-lg p-6">
+                            <pre class="text-sm"><code><span class="syntax-comment">&lt;!-- Kalkulasi otomatis --&gt;</span>
+<span class="syntax-html">&lt;input name="qty" type="number" value="10"&gt;</span>
+<span class="syntax-html">&lt;input name="price" type="number" value="5000"&gt;</span>
+<span class="syntax-html">&lt;input live-compute="qty * price" live-compute-format="idr" readonly&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Dengan kontrol manual --&gt;</span>
+<span class="syntax-html">&lt;input name="subtotal" live-compute="sum(rows_?_qty * rows_?_price)" </span>
+<span class="syntax-html">       live-compute-format="idr" live-compute-skip="true"&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Conditionals -->
+                <div class="bg-gradient-to-r from-purple-50 to-violet-50 rounded-3xl p-8 border border-purple-100">
+                    <h3 class="text-3xl font-bold mb-6 text-purple-900">3. Live Conditionals</h3>
+                    <p class="text-lg text-gray-700 mb-8">Kontrol visibility dan styling element berdasarkan kondisi
+                        input secara real-time.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Directive yang Tersedia:</h4>
+                            <ul class="space-y-3">
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-show</code>
+                                    <p class="text-sm text-gray-600 mt-1">Menampilkan/menyembunyikan element berdasarkan
+                                        kondisi</p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-class</code>
+                                    <p class="text-sm text-gray-600 mt-1">Menambah/menghapus CSS class secara dinamis
+                                    </p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-style</code>
+                                    <p class="text-sm text-gray-600 mt-1">Mengubah inline style secara dinamis</p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-attr</code>
+                                    <p class="text-sm text-gray-600 mt-1">Mengubah attribute element secara dinamis</p>
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Contoh Kondisi:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm"><code><span class="syntax-comment">&lt;!-- Show berdasarkan value --&gt;</span>
+<span class="syntax-html">&lt;div live-show="status == 'active'"&gt;</span>
+    <span class="syntax-html">Content untuk status aktif</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Class berdasarkan kondisi --&gt;</span>
+<span class="syntax-html">&lt;div live-class="price > 1000 ? 'text-red-500' : 'text-green-500'"&gt;</span>
+    <span class="syntax-html">Harga berubah warna</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
                             </div>
                         </div>
                     </div>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">Fitur Utama</h3>
-                    <ul class="list-disc pl-5 space-y-2 text-gray-600">
-                        <li><strong>Event Handler Deklaratif</strong> - Kontrol logika aplikasi langsung dari HTML</li>
-                        <li><strong>Data Binding Otomatis</strong> - Sinkronisasi data antara JavaScript dan DOM</li>
-                        <li><strong>Sistem Animasi Built-in</strong> - 15+ jenis animasi siap pakai</li>
-                        <li><strong>SPA Router</strong> - Navigasi halaman tanpa reload</li>
-                        <li><strong>Komputasi Real-time</strong> - Kalkulasi otomatis saat data berubah</li>
-                        <li><strong>Error Handling Canggih</strong> - Tampilan error Laravel yang informatif</li>
+                </div>
+
+                <!-- SPA Router -->
+                <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-3xl p-8 border border-orange-100">
+                    <h3 class="text-3xl font-bold mb-6 text-orange-900">4. SPA Router</h3>
+                    <p class="text-lg text-gray-700 mb-8">Single Page Application dengan routing otomatis dan navigasi
+                        smooth tanpa reload halaman.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Cara Kerja:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Intercept semua link dan form dalam region SPA</li>
+                                <li>• Loading content via AJAX tanpa reload</li>
+                                <li>• Update browser history otomatis</li>
+                                <li>• Support browser back/forward button</li>
+                                <li>• Error handling terintegrasi</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Konfigurasi:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm"><code><span class="syntax-js">window.liveDomConfig = {</span>
+    <span class="syntax-js">spaExcludePrefixes: [</span>
+        <span class="syntax-js">'/api/',</span>
+        <span class="syntax-js">'/download/',</span>
+        <span class="syntax-js">'/admin/export'</span>
+    <span class="syntax-js">]</span>
+<span class="syntax-js">};</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-xl font-semibold mb-4">Setup HTML:</h4>
+                        <div class="code-highlight rounded-lg p-6">
+                            <pre class="text-sm"><code><span class="syntax-comment">&lt;!-- Layout dengan SPA regions --&gt;</span>
+<span class="syntax-html">&lt;div live-spa-region="header"&gt;</span>
+    <span class="syntax-html">&lt;nav&gt;...&lt;/nav&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-html">&lt;div live-spa-region="main"&gt;</span>
+    <span class="syntax-html">&lt;!-- Konten utama yang akan di-update --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-html">&lt;div live-spa-region="sidebar"&gt;</span>
+    <span class="syntax-html">&lt;!-- Sidebar yang bisa diupdate --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Data Binding -->
+                <div class="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-3xl p-8 border border-teal-100">
+                    <h3 class="text-3xl font-bold mb-6 text-teal-900">5. Live Data Binding</h3>
+                    <p class="text-lg text-gray-700 mb-8">Sinkronisasi data otomatis antar element dengan two-way data
+                        binding yang mudah digunakan.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Fitur Binding:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Sync otomatis berdasarkan name attribute</li>
+                                <li>• Support input, select, textarea</li>
+                                <li>• Two-way binding dengan live-bind</li>
+                                <li>• Event trigger otomatis (input, change)</li>
+                                <li>• Cross-element synchronization</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Contoh Implementasi:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm"><code><span class="syntax-comment">&lt;!-- Input source --&gt;</span>
+<span class="syntax-html">&lt;input name="username" type="text"&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Elemen yang akan ter-sync --&gt;</span>
+<span class="syntax-html">&lt;span live-bind="username"&gt;&lt;/span&gt;</span>
+<span class="syntax-html">&lt;input live-bind="username" readonly&gt;</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auto Polling -->
+                <div class="bg-gradient-to-r from-pink-50 to-rose-50 rounded-3xl p-8 border border-pink-100">
+                    <h3 class="text-3xl font-bold mb-6 text-pink-900">6. Auto Polling</h3>
+                    <p class="text-lg text-gray-700 mb-8">Refresh konten secara berkala otomatis. Ideal untuk dashboard
+                        real-time, notifikasi, dan monitoring.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8 mb-8">
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Cara Kerja:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Interval dalam milliseconds</li>
+                                <li>• Auto-abort request sebelumnya</li>
+                                <li>• Error handling otomatis</li>
+                                <li>• Memory management yang baik</li>
+                                <li>• Stop polling saat element dihapus</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-xl font-semibold mb-4">Contoh Penggunaan:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm"><code><span class="syntax-comment">&lt;!-- Polling setiap 5 detik --&gt;</span>
+<span class="syntax-html">&lt;div id="notifications" </span>
+<span class="syntax-html">     live-poll="5000" </span>
+<span class="syntax-html">     live-scope="dashboard" </span>
+<span class="syntax-html">     live-click="getNotifications"&gt;</span>
+    <span class="syntax-html">&lt;!-- Konten akan diupdate otomatis --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="contoh" class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Contoh Implementasi</h2>
+                <p class="text-xl text-gray-600">Lihat LiveDomJS beraksi dalam berbagai skenario nyata</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto space-y-12">
+                <!-- Example 1: Form CRUD -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">Form CRUD Dinamis</h3>
+                        <p class="text-blue-100 mt-2">Create, Read, Update, Delete dengan AJAX tanpa reload</p>
+                    </div>
+                    <div class="p-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML Blade:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="UserController"&gt;</span>
+    <span class="syntax-html">&lt;form live-submit="store" live-target="#user-list"&gt;</span>
+        <span class="syntax-html">&lt;input type="text" name="name" placeholder="Nama" required&gt;</span>
+        <span class="syntax-html">&lt;input type="email" name="email" placeholder="Email" required&gt;</span>
+        <span class="syntax-html">&lt;button type="submit" &gt;</span>
+            <span class="syntax-html">Simpan</span>
+        <span class="syntax-html">&lt;/button&gt;</span>
+    <span class="syntax-html">&lt;/form&gt;</span>
+    
+    <span class="syntax-html">&lt;div id="user-list"&gt;</span>
+        <span class="syntax-html">@include('users.list')</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Controller Laravel:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-php">class UserController extends Controller</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">public function store(Request $request)</span>
+    <span class="syntax-php">{</span>
+        <span class="syntax-php">$user = User::create($request->all());</span>
+        
+        <span class="syntax-php">return view('users.list')->render();</span>
+    <span class="syntax-php">}</span>
+<span class="syntax-php">}</span></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 2: Live Calculator -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">Kalkulator Live</h3>
+                        <p class="text-green-100 mt-2">Kalkulasi real-time dengan formatting otomatis</p>
+                    </div>
+                    <div class="p-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML Form:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="invoice"&gt;</span>
+    <span class="syntax-html">&lt;input name="qty" type="number" value="1"&gt;</span>
+    <span class="syntax-html">&lt;input name="price" type="number" value="100000"&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Subtotal otomatis --&gt;</span>
+    <span class="syntax-html">&lt;input name="subtotal" </span>
+           <span class="syntax-html">live-compute="qty * price"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Pajak 10% --&gt;</span>
+    <span class="syntax-html">&lt;input name="tax" </span>
+           <span class="syntax-html">live-compute="subtotal * 0.1"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Total --&gt;</span>
+    <span class="syntax-html">&lt;input name="total" </span>
+           <span class="syntax-html">live-compute="subtotal + tax"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Hasilnya:</h4>
+                                <div class="bg-gray-50 rounded-lg p-6">
+                                    <div class="space-y-4">
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Qty:</label>
+                                            <input type="number" value="2" class="border rounded px-3 py-1 w-20">
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Harga:</label>
+                                            <input type="number" value="150000" class="border rounded px-3 py-1 w-32">
+                                        </div>
+                                        <hr>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Subtotal:</label>
+                                            <span id="subtotal" class="font-bold">300.000</span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Pajak (10%):</label>
+                                            <span id="tax" class="font-bold">30.000</span>
+                                        </div>
+                                        <div class="flex justify-between items-center border-t pt-2">
+                                            <label class="font-bold">Total:</label>
+                                            <span class="font-bold text-green-600">330.000</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 3: Conditional UI -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-purple-600 to-violet-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">UI Kondisional</h3>
+                        <p class="text-purple-100 mt-2">Tampilkan/sembunyikan element berdasarkan input user</p>
+                    </div>
+                    <div class="p-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML dengan Kondisi:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="form"&gt;</span>
+    <span class="syntax-html">&lt;select name="user_type"&gt;</span>
+        <span class="syntax-html">&lt;option value="personal"&gt;Personal&lt;/option&gt;</span>
+        <span class="syntax-html">&lt;option value="company"&gt;Company&lt;/option&gt;</span>
+    <span class="syntax-html">&lt;/select&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Muncul jika company --&gt;</span>
+    <span class="syntax-html">&lt;div live-show="user_type == 'company'"&gt;</span>
+        <span class="syntax-html">&lt;input name="company_name" placeholder="Nama Perusahaan"&gt;</span>
+        <span class="syntax-html">&lt;input name="tax_id" placeholder="NPWP"&gt;</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Class dinamis berdasarkan kondisi --&gt;</span>
+    <span class="syntax-html">&lt;div live-class="user_type == 'company' ? 'bg-blue-100' : 'bg-gray-100'"&gt;</span>
+        <span class="syntax-html">Info tambahan</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Demo Interaktif:</h4>
+                                <div class="bg-gray-50 rounded-lg p-6">
+                                    <select class="border rounded px-3 py-2 mb-4 w-full">
+                                        <option>Personal</option>
+                                        <option>Company</option>
+                                    </select>
+                                    <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+                                        <p class="text-sm text-blue-800 mb-3">Fields untuk Company:</p>
+                                        <input type="text" placeholder="Nama Perusahaan"
+                                            class="border rounded px-3 py-2 w-full mb-2">
+                                        <input type="text" placeholder="NPWP" class="border rounded px-3 py-2 w-full">
+                                    </div>
+                                    <div class="bg-blue-100 rounded p-3">
+                                        <p class="text-sm">Info tambahan (background berubah otomatis)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advanced Features -->
+    <section class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Fitur Lanjutan</h2>
+                <p class="text-xl text-gray-600">Kemampuan tingkat lanjut untuk aplikasi yang kompleks</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto space-y-8">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Callbacks -->
+                    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-2xl border border-indigo-200">
+                        <h3 class="text-2xl font-bold mb-4 text-indigo-900">Callback Functions</h3>
+                        <p class="text-gray-700 mb-6">Jalankan fungsi sebelum dan sesudah AJAX request untuk kontrol
+                            yang lebih detail.</p>
+
+                        <div class="code-highlight rounded-lg p-4 text-sm">
+                            <pre><code><span class="syntax-html">&lt;button live-click="save"</span>
+        <span class="syntax-html">live-callback-before="beforeSave"</span>
+        <span class="syntax-html">live-callback-after="afterSave"&gt;</span>
+    <span class="syntax-html">Simpan Data</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-js">function beforeSave(element) {</span>
+    <span class="syntax-js">// Validasi atau konfirmasi</span>
+    <span class="syntax-js">return confirm('Yakin mau simpan?');</span>
+<span class="syntax-js">}</span></code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Target Selectors -->
+                    <div class="bg-gradient-to-br from-green-50 to-teal-50 p-8 rounded-2xl border border-green-200">
+                        <h3 class="text-2xl font-bold mb-4 text-green-900">Advanced Targeting</h3>
+                        <p class="text-gray-700 mb-6">Target element dengan selector jQuery yang fleksibel untuk
+                            manipulasi DOM yang presisi.</p>
+
+                        <div class="code-highlight rounded-lg p-4 text-sm">
+                            <pre><code><span class="syntax-comment">&lt;!-- Target multiple dengan selector --&gt;</span>
+<span class="syntax-html">&lt;button live-click="update"</span>
+        <span class="syntax-html">live-target="closest(.card), next(.info)"&gt;</span>
+    <span class="syntax-html">Update</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- DOM actions yang beragam --&gt;</span>
+<span class="syntax-html">&lt;button live-click="add"</span>
+        <span class="syntax-html">live-dom="append,show"</span>
+        <span class="syntax-html">live-target="#list,#notification"&gt;</span>
+    <span class="syntax-html">Tambah Item</span>
+<span class="syntax-html">&lt;/button&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Method Arguments -->
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 p-8 rounded-2xl border border-yellow-200">
+                    <h3 class="text-2xl font-bold mb-6 text-orange-900">Method dengan Argumen</h3>
+                    <p class="text-gray-700 mb-6">Kirim argumen spesifik ke controller method untuk logika yang lebih
+                        dinamis.</p>
+
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h4 class="text-lg font-semibold mb-4">HTML:</h4>
+                            <div class="code-highlight rounded-lg p-4 text-sm">
+                                <pre><code><span class="syntax-comment">&lt;!-- Single argument --&gt;</span>
+<span class="syntax-html">&lt;button live-click="updateStatus('active')"&gt;</span>
+    <span class="syntax-html">Aktifkan</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Multiple arguments --&gt;</span>
+<span class="syntax-html">&lt;button live-click="setPrice(100000, 'idr')"&gt;</span>
+    <span class="syntax-html">Set Harga</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Dynamic dengan element value --&gt;</span>
+<span class="syntax-html">&lt;button live-click="calculate(this.dataset.id, qty)"&gt;</span>
+    <span class="syntax-html">Hitung</span>
+<span class="syntax-html">&lt;/button&gt;</span></code></pre>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold mb-4">Controller:</h4>
+                            <div class="code-highlight rounded-lg p-4 text-sm">
+                                <pre><code><span class="syntax-php">public function updateStatus($status)</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">// $status berisi 'active'</span>
+    <span class="syntax-php">$model->status = $status;</span>
+    <span class="syntax-php">$model->save();</span>
+<span class="syntax-php">}</span>
+
+<span class="syntax-php">public function setPrice($amount, $currency)</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">// Handle price dengan currency</span>
+    <span class="syntax-php">return response()->json([</span>
+        <span class="syntax-php">'success' => true,</span>
+        <span class="syntax-php">'data' => "Price set to {$amount} {$currency}"</span>
+    <span class="syntax-php">]);</span>
+<span class="syntax-php">}</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tips & Best Practices -->
+    <section class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Tips & Best Practices</h2>
+                <p class="text-xl text-gray-600">Panduan untuk menggunakan LiveDomJS dengan optimal</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-green-600">✅ Yang Harus Dilakukan</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Gunakan <code class="bg-gray-100 px-2 py-1 rounded">live-scope</code> untuk organisasi
+                                yang baik</li>
+                            <li>• Implementasikan error handling di controller</li>
+                            <li>• Gunakan <code class="bg-gray-100 px-2 py-1 rounded">live-loading</code> untuk UX yang
+                                baik</li>
+                            <li>• Validasi input di sisi server tetap diperlukan</li>
+                            <li>• Gunakan callback untuk logika kompleks</li>
+                            <li>• Test dengan berbagai browser dan device</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-blue-600">💡 Tips Optimasi</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Gunakan <code class="bg-gray-100 px-2 py-1 rounded">live-compute-skip</code> untuk
+                                input manual</li>
+                            <li>• Batasi polling frequency untuk performa</li>
+                            <li>• Gunakan debouncing untuk input real-time</li>
+                            <li>• Cache response jika memungkinkan</li>
+                            <li>• Minimize DOM manipulation yang tidak perlu</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-red-600">❌ Yang Harus Dihindari</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Jangan lupa include jQuery sebelum LiveDomJS</li>
+                            <li>• Hindari nested live-scope yang kompleks</li>
+                            <li>• Jangan gunakan polling untuk data yang jarang berubah</li>
+                            <li>• Hindari live-compute untuk kalkulasi yang berat</li>
+                            <li>• Jangan abaikan CSRF protection</li>
+                            <li>• Hindari circular dependency dalam computation</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-purple-600">🔧 Troubleshooting</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Check browser console untuk error JavaScript</li>
+                            <li>• Periksa Network tab untuk request yang gagal</li>
+                            <li>• Pastikan controller method sudah ada dan accessible</li>
+                            <li>• Cek format response JSON dari server</li>
+                            <li>• Verifikasi CSRF token sudah benar</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-3 gap-8">
+                <div>
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="logo-container w-10 h-10 text-lg">LD</div>
+                        <span class="text-xl font-bold">LiveDomJS</span>
+                    </div>
+                    <p class="text-gray-400">Framework AJAX Laravel Modern untuk pengembangan web yang lebih cepat dan
+                        efisien.</p>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#dokumentasi" class="hover:text-white transition-colors">Dokumentasi</a></li>
+                        <li><a href="#contoh" class="hover:text-white transition-colors">Contoh</a></li>
+                        <li><a href="#instalasi" class="hover:text-white transition-colors">Instalasi</a></li>
                     </ul>
                 </div>
-            </section>
-
-            <!-- Instalasi -->
-            <section id="instalasi" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Instalasi</h2>
-
-                <div class="mb-6">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-3">Via Composer (Laravel)</h3>
-                    <p class="text-gray-600 mb-2">Jika menggunakan Laravel, instalasi LiveDomJs dapat dilakukan langsung melalui Packagist:</p>
-                    <pre><code class="language-bash">composer require gadingrengga/livedomjs</code></pre>
-
-                    <p class="text-gray-600 mt-4">Setelah itu jalankan perintah instalasi untuk publish asset dan route:</p>
-                    <pre><code class="language-bash">php artisan livedomjs:install</code></pre>
-                </div>
-
-                <div class="mb-6">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-3">Penggunaan di Blade</h3>
-                    <p class="text-gray-600">Tambahkan script berikut ke dalam layout Blade Anda setelah jQuery:</p>
-                    <pre><code class="language-html">&lt;script src="https://code.jquery.com/jquery-3.6.0.min.js"&gt;&lt;/script&gt;
-                &lt;script src="{{ asset('vendor/livedomjs/livedom.js') }}"&gt;&lt;/script&gt;</code></pre>
-                </div>
-            </section>
-
-                <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
-                    <div class="flex">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <p class="text-sm text-blue-700">
-                                Pastikan jQuery di-load sebelum LiveDomJS karena library ini bergantung pada jQuery. Versi jQuery 3.x+ direkomendasikan.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Konsep Dasar -->
-            <section id="konsep-dasar" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Konsep Dasar</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS bekerja dengan mendefinisikan perilaku aplikasi melalui atribut HTML khusus. Berikut konsep intinya:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Live Scope</h3>
-                    <p class="text-gray-600 mb-4">
-                        Setiap komponen harus dibungkus dalam elemen dengan atribut <code>live-scope</code> yang berisi nama controller:
-                    </p>
-                    <pre><code class="language-html">&lt;div live-scope="ProductController"&gt;
-    &lt;!-- Konten komponen --&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Event Handler</h3>
-                    <p class="text-gray-600 mb-4">
-                        Tangani event dengan atribut seperti <code>live-click</code>, <code>live-change</code>, dll:
-                    </p>
-                    <pre><code class="language-html">&lt;button live-click="updateData"&gt;Update&lt;/button&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Data Binding</h3>
-                    <p class="text-gray-600 mb-4">
-                        Binding data otomatis antara JavaScript dan DOM:
-                    </p>
-                    <pre><code class="language-html">&lt;input type="text" live-model="namaProduk"&gt;
-&lt;span live-bind="namaProduk"&gt;&lt;/span&gt;</code></pre>
-                </div>
-            </section>
-
-            <!-- Event Handler -->
-            <section id="event-handler" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Event Handler</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS menyediakan berbagai event handler deklaratif:
-                    </p>
-                    
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Atribut</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contoh</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">live-click</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Klik mouse</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>&lt;button live-click="save"&gt;</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">live-change</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Perubahan nilai input</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>&lt;select live-change="filter"&gt;</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">live-input</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Input realtime (dengan debounce)</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>&lt;input live-input="search"&gt;</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">live-submit</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Form submit</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>&lt;form live-submit="process"&gt;</code></td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">live-hover</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Mouse hover</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>&lt;div live-hover="showTooltip"&gt;</code></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">Contoh Lengkap</h3>
-                    <pre><code class="language-html">&lt;div live-scope="UserController"&gt;
-    &lt;input type="text" live-model="username" placeholder="Username"&gt;
-    
-    &lt;select live-change="updateRole" live-model="role"&gt;
-        &lt;option value="admin"&gt;Admin&lt;/option&gt;
-        &lt;option value="user"&gt;User&lt;/option&gt;
-    &lt;/select&gt;
-    
-    &lt;button live-click="saveUser" class="bg-blue-500 text-white px-4 py-2 rounded"&gt;
-        Simpan
-    &lt;/button&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <div class="bg-green-50 border-l-4 border-green-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-green-700">
-                                    Semua event handler otomatis terhubung ke method controller dengan nama yang sama. Misal <code>live-click="save"</code> akan memanggil method <code>save()</code> di controller.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Data Binding -->
-            <section id="data-binding" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Data Binding</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS menyediakan beberapa cara untuk binding data antara JavaScript dan DOM:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Two-way Binding (live-model)</h3>
-                    <p class="text-gray-600 mb-4">
-                        Sinkronisasi dua arah antara input dan variabel:
-                    </p>
-                    <pre><code class="language-html">&lt;div live-scope="FormController"&gt;
-    &lt;input type="text" live-model="nama" placeholder="Nama lengkap"&gt;
-    &lt;p&gt;Halo, &lt;span live-bind="nama"&gt;&lt;/span&gt;!&lt;/p&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. One-way Binding (live-bind)</h3>
-                    <p class="text-gray-600 mb-4">
-                        Hanya menampilkan nilai dari variabel:
-                    </p>
-                    <pre><code class="language-html">&lt;div live-scope="ProductController"&gt;
-    &lt;span live-bind="harga"&gt;&lt;/span&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Auto Binding dari Response</h3>
-                    <p class="text-gray-600 mb-4">
-                        Otomatis binding data dari respons AJAX:
-                    </p>
-                    <pre><code class="language-javascript">// Response dari server
-{
-    "success": true,
-    "data": {
-        "namaProduk": "Laptop Gaming",
-        "harga": 15000000,
-        "stok": 10
-    }
-}</code></pre>
-                    
-                    <pre><code class="language-html">&lt;div live-scope="ProductController"&gt;
-    &lt;h3 live-bind="namaProduk"&gt;&lt;/h3&gt;
-    &lt;p live-bind="harga" live-compute-format="currency"&gt;&lt;/p&gt;
-    &lt;p live-bind="stok"&gt;&lt;/p&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <div class="bg-purple-50 border-l-4 border-purple-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-purple-700">
-                                    LiveDomJS akan otomatis mencocokkan key dari response JSON dengan atribut <code>live-bind</code> di DOM. Jika key tidak ditemukan, elemen tidak akan diupdate.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Animasi -->
-            <section id="animasi" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Sistem Animasi</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS memiliki sistem animasi built-in yang bisa diakses melalui atribut <code>live-animate</code>:
-                    </p>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div class="border p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-2">Fade</h4>
-                            <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                                <li><code>fade-in</code></li>
-                                <li><code>fade-out</code></li>
-                                <li><code>fade-toggle</code></li>
-                            </ul>
-                        </div>
-                        <div class="border p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-2">Slide</h4>
-                            <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                                <li><code>slide-up</code></li>
-                                <li><code>slide-down</code></li>
-                                <li><code>slide-left</code></li>
-                                <li><code>slide-right</code></li>
-                                <li><code>slide-toggle</code></li>
-                            </ul>
-                        </div>
-                        <div class="border p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-2">Zoom</h4>
-                            <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                                <li><code>zoom-in</code></li>
-                                <li><code>zoom-out</code></li>
-                                <li><code>zoom-toggle</code></li>
-                            </ul>
-                        </div>
-                        <div class="border p-4 rounded-lg">
-                            <h4 class="font-semibold text-gray-800 mb-2">Scale</h4>
-                            <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                                <li><code>scale-up</code></li>
-                                <li><code>scale-down</code></li>
-                                <li><code>scale-toggle</code></li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">Contoh Penggunaan</h3>
-                    <pre><code class="language-html">&lt;!-- Animasi dasar --&gt;
-&lt;button live-click="togglePanel" live-target="#panel" live-animate="fade-toggle"&gt;
-    Toggle Panel
-&lt;/button&gt;
-
-&lt;!-- Animasi dengan pengaturan khusus --&gt;
-&lt;div id="panel" live-animate="slide-down" live-duration="500" live-easing="ease-out"&gt;
-    Konten panel...
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">Atribut Pendukung</h3>
-                    <ul class="list-disc pl-5 space-y-2 text-gray-600">
-                        <li><code>live-duration</code>: Durasi animasi dalam milidetik (default: 300)</li>
-                        <li><code>live-easing</code>: Fungsi easing (default: 'swing')</li>
-                        <li><code>live-target</code>: Target elemen untuk animasi (default: elemen itu sendiri)</li>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Support</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="https://github.com/gadingrengga/livedomjs"
+                                class="hover:text-white transition-colors">GitHub</a></li>
+                        <li><a href="https://packagist.org/packages/gadingrengga/livedomjs"
+                                class="hover:text-white transition-colors">Packagist</a></li>
+                        <li><a href="mailto:support@livedomjs.com" class="hover:text-white transition-colors">Email
+                                Support</a></li>
                     </ul>
-                    
-                    <div class="bg-pink-50 border-l-4 border-pink-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-pink-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-pink-700">
-                                    Untuk animasi custom, Anda bisa menggunakan nama class CSS sebagai nilai <code>live-animate</code>. LiveDomJS akan otomatis menambahkan dan menghapus class tersebut sesuai durasi yang ditentukan.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
-            </section>
-
-            <!-- SPA Router -->
-            <section id="spa" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">SPA Router</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS memiliki sistem routing SPA (Single Page Application) built-in yang memungkinkan navigasi antar halaman tanpa reload browser.
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Setup Dasar</h3>
-                    <pre><code class="language-html">&lt;body&gt;
-    &lt;!-- Header tetap --&gt;
-    &lt;header&gt;...&lt;/header&gt;
-    
-    &lt;!-- Region konten dinamis --&gt;
-    &lt;main live-spa-region="main"&gt;
-        &lt;!-- Konten akan diupdate via AJAX --&gt;
-    &lt;/main&gt;
-    
-    &lt;!-- Footer tetap --&gt;
-    &lt;footer&gt;...&lt;/footer&gt;
-&lt;/body&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Navigasi SPA</h3>
-                    <p class="text-gray-600 mb-4">
-                        Semua link dalam <code>live-spa-region</code> otomatis menjadi SPA links:
-                    </p>
-                    <pre><code class="language-html">&lt;nav&gt;
-    &lt;a href="/dashboard"&gt;Dashboard&lt;/a&gt;
-    &lt;a href="/products"&gt;Produk&lt;/a&gt;
-    &lt;a href="/contact"&gt;Kontak&lt;/a&gt;
-&lt;/nav&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Form Handling</h3>
-                    <p class="text-gray-600 mb-4">
-                        Form dalam SPA region otomatis dihandle via AJAX:
-                    </p>
-                    <pre><code class="language-html">&lt;form method="POST" action="/contact"&gt;
-    &lt;input type="text" name="name"&gt;
-    &lt;button type="submit"&gt;Kirim&lt;/button&gt;
-&lt;/form&gt;</code></pre>
-                    
-                    <div class="bg-indigo-50 border-l-4 border-indigo-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-indigo-700">
-                                    Untuk mengecualikan URL tertentu dari SPA (misal link ke halaman luar), tambahkan atribut <code>data-spa-exclude</code> atau konfigurasi global di <code>window.liveDomConfig.spaExcludePrefixes</code>.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Komputasi Real-time -->
-            <section id="komputasi" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Komputasi Real-time</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        Fitur <code>live-compute</code> memungkinkan kalkulasi otomatis saat data berubah:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Ekspresi Dasar</h3>
-                    <pre><code class="language-html">&lt;div live-scope="OrderController"&gt;
-    &lt;input type="number" live-model="quantity"&gt;
-    &lt;input type="number" live-model="price"&gt;
-    
-    &lt;p&gt;Total: &lt;span live-compute="quantity * price"&gt;&lt;/span&gt;&lt;/p&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Fungsi Agregasi</h3>
-                    <p class="text-gray-600 mb-4">
-                        Khusus untuk data tabel dengan struktur array:
-                    </p>
-                    <pre><code class="language-html">&lt;table live-scope="OrderController"&gt;
-    &lt;!-- Baris data --&gt;
-    &lt;tr&gt;
-        &lt;td&gt;&lt;input type="number" name="rows[0][qty]"&gt;&lt;/td&gt;
-        &lt;td&gt;&lt;input type="number" name="rows[0][price]"&gt;&lt;/td&gt;
-        &lt;td live-compute="rows_0_qty * rows_0_price"&gt;&lt;/td&gt;
-    &lt;/tr&gt;
-    
-    &lt;!-- Total --&gt;
-    &lt;tr&gt;
-        &lt;td colspan="2"&gt;Grand Total&lt;/td&gt;
-        &lt;td live-compute="sum('rows[?][price]')"&gt;&lt;/td&gt;
-    &lt;/tr&gt;
-&lt;/table&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Format Output</h3>
-                    <pre><code class="language-html">&lt;!-- Format mata uang --&gt;
-&lt;span live-compute="total" live-compute-format="currency"&gt;&lt;/span&gt;
-
-&lt;!-- Format tanggal --&gt;
-&lt;span live-compute="days" live-compute-format="hari"&gt;&lt;/span&gt;</code></pre>
-                    
-                    <div class="bg-orange-50 border-l-4 border-orange-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-orange-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-orange-700">
-                                    LiveDomJS otomatis mendeteksi perubahan pada input terkait dan menghitung ulang nilai. Untuk tabel dinamis, gunakan pola <code>rows[?][field]</code> dimana <code>?</code> akan diganti dengan index setiap baris.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Sistem Accordion -->
-            <section id="accordion" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Sistem Accordion</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS menyediakan sistem accordion khusus untuk tabel/data grid:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Basic Usage</h3>
-                    <pre><code class="language-html">&lt;table live-scope="OrderController"&gt;
-    &lt;tr live-accordion="loadDetails"&gt;
-        &lt;td&gt;Order #123&lt;/td&gt;
-        &lt;td&gt;
-            &lt;button live-accordion&gt;
-                &lt;span class="accordion-icon"&gt;▼&lt;/span&gt;
-            &lt;/button&gt;
-        &lt;/td&gt;
-    &lt;/tr&gt;
-    &lt;!-- Konten accordion akan dimuat via AJAX --&gt;
-&lt;/table&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Custom Target</h3>
-                    <pre><code class="language-html">&lt;div live-scope="ProductController"&gt;
-    &lt;div live-click="toggleDetails" live-accordion live-target="#product-details"&gt;
-        Klik untuk detail
-    &lt;/div&gt;
-    
-    &lt;div id="product-details" style="display: none;"&gt;
-        Konten detail produk...
-    &lt;/div&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Callback & Event</h3>
-                    <pre><code class="language-javascript">// Callback saat accordion terbuka
-document.addEventListener('live-accordion:opened', (e) => {
-    console.log('Accordion opened:', e.detail);
-});
-
-// Callback saat accordion tertutup
-document.addEventListener('live-accordion:closed', (e) => {
-    console.log('Accordion closed:', e.detail);
-});</code></pre>
-                </div>
-            </section>
-
-            <!-- Auto Polling -->
-            <section id="polling" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Auto Polling</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        Fitur polling otomatis untuk update data berkala:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Basic Polling</h3>
-                    <pre><code class="language-html">&lt;div live-poll="5000" live-click="updateData"&gt;
-    Data terakhir diupdate: &lt;span live-bind="lastUpdated"&gt;&lt;/span&gt;
-&lt;/div&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Conditional Polling</h3>
-                    <pre><code class="language-html">&lt;div live-poll="3000" live-poll-when="needsUpdate === true"&gt;
-    Data akan diupdate setiap 3 detik jika kondisi terpenuhi
-&lt;/div&gt;</code></pre>
-                    
-                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mt-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-blue-700">
-                                    Nilai <code>live-poll</code> adalah interval dalam milidetik. Polling akan berjalan selama elemen tetap ada di DOM dan halaman visible.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Error Handling -->
-            <section id="error-handling" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Error Handling</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        LiveDomJS memiliki sistem penanganan error yang canggih untuk menampilkan error dari server:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Error Modal Otomatis</h3>
-                    <p class="text-gray-600 mb-4">
-                        Semua error dari server akan ditampilkan dalam modal yang informatif:
-                    </p>
-                    <div class="bg-gray-100 p-4 rounded-lg mb-4">
-                        <img src="https://example.com/error-modal-screenshot.png" alt="Tampilan Error Modal" class="rounded border">
-                    </div>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Validasi Form</h3>
-                    <pre><code class="language-html">&lt;form live-submit="saveData"&gt;
-    &lt;input type="text" name="email"&gt;
-    &lt;!-- Pesan error akan muncul di sini --&gt;
-&lt;/form&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Custom Error Handler</h3>
-                    <pre><code class="language-javascript">// Override default error handler
-window.liveDomConfig = {
-    onError: function(error) {
-        // Custom logic
-        console.error('LiveDomJS Error:', error);
-    }
-};</code></pre>
-                </div>
-            </section>
-
-            <!-- Kombinasi Fitur -->
-            <section id="kombinasi" class="mb-12 bg-white p-6 rounded-lg shadow">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Kombinasi Fitur</h2>
-                
-                <div class="prose max-w-none">
-                    <p class="text-gray-600 mb-4">
-                        Kekuatan LiveDomJS terletak pada kemampuannya mengkombinasikan berbagai fitur:
-                    </p>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">1. Form dengan Validasi & Animasi</h3>
-                    <pre><code class="language-html">&lt;form live-scope="ContactController" live-submit="sendMessage" 
-      live-animate="fade-in" live-target=".feedback-message"&gt;
-    
-    &lt;input type="text" live-model="name" placeholder="Nama"&gt;
-    &lt;input type="email" live-model="email" placeholder="Email"&gt;
-    
-    &lt;button live-click="submit" live-action="disable: self; add-class: bg-gray-400"&gt;
-        Kirim Pesan
-    &lt;/button&gt;
-    
-    &lt;div class="feedback-message hidden"&gt;
-        &lt;p live-bind="feedback"&gt;&lt;/p&gt;
-    &lt;/div&gt;
-&lt;/form&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">2. Tabel Interaktif</h3>
-                    <pre><code class="language-html">&lt;table live-scope="ProductController" live-poll="10000"&gt;
-    &lt;thead&gt;
-        &lt;tr&gt;
-            &lt;th live-click="sortBy('name')"&gt;Nama Produk&lt;/th&gt;
-            &lt;th live-click="sortBy('price')"&gt;Harga&lt;/th&gt;
-        &lt;/tr&gt;
-    &lt;/thead&gt;
-    
-    &lt;tbody&gt;
-        &lt;tr live-accordion="loadDetail" live-target="next tr"&gt;
-            &lt;td live-bind="name"&gt;&lt;/td&gt;
-            &lt;td live-compute="price" live-compute-format="currency"&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-    &lt;/tbody&gt;
-&lt;/table&gt;</code></pre>
-                    
-                    <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">3. Dashboard Real-time</h3>
-                    <pre><code class="language-html">&lt;div live-scope="DashboardController"&gt;
-    &lt;div live-spa-region="stats" live-poll="5000"&gt;
-        &lt;div class="stat-card" live-animate="fade-in" live-duration="300"&gt;
-            &lt;h3&gt;Total Pengunjung&lt;/h3&gt;
-            &lt;p live-bind="visitors"&gt;&lt;/p&gt;
-        &lt;/div&gt;
-    &lt;/div&gt;
-    
-    &lt;div live-if="visitors > 1000" live-action="show" live-animate="pulse"&gt;
-        Pencapaian tercapai!
-    &lt;/div&gt;
-&lt;/div&gt;</code></pre>
-                </div>
-            </section>
-
-            <!-- Footer -->
-            <footer class="mt-12 py-6 border-t border-gray-200 text-center text-gray-500 text-sm">
-                <p>© 2025 LiveDomJS. Dokumentasi ini diperbarui terakhir pada 29 Juni 2025.</p>
-                <p class="mt-2">Dikembangkan dengan ❤️ untuk developer Indonesia.</p>
-            </footer>
-        </main>
-    </div>
+            </div>
+            <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 LiveDomJS. Dikembangkan dengan ❤️ untuk komunitas Laravel Indonesia.</p>
+            </div>
+        </div>
+    </footer>
 
     <script>
-        // Aktifkan syntax highlighting
-        hljs.highlightAll();
-        
-        // Smooth scroll untuk anchor link
-        $(document).on('click', 'a[href^="#"]', function(e) {
-            e.preventDefault();
-            $('html, body').animate({
-                scrollTop: $($(this).attr('href')).offset().top - 20
-            }, 300);
-        });
-        
-        // Update sidebar aktif saat scroll
-        $(window).scroll(function() {
-            const scrollPosition = $(window).scrollTop();
-            
-            $('section').each(function() {
-                const currentSection = $(this);
-                const sectionTop = currentSection.offset().top - 50;
-                const sectionId = currentSection.attr('id');
-                
-                if (scrollPosition >= sectionTop) {
-                    $('.sidebar-link').removeClass('text-indigo-600').addClass('text-gray-600');
-                    $(`.sidebar-link[href="#${sectionId}"]`).removeClass('text-gray-600').addClass('text-indigo-600');
+        // Smooth scrolling untuk navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
                 }
             });
         });
+
+        // Navbar background change on scroll
+        window.addEventListener('scroll', function () {
+            const navbar = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                navbar.classList.add('shadow-md');
+            } else {
+                navbar.classList.remove('shadow-md');
+            }
+        });
+
+        // Format number to Indonesian currency format
+        function formatRupiah(angka) {
+            return new Intl.NumberFormat('id-ID').format(angka);
+        }
+
+        // Demo interactivity untuk contoh section
+        document.addEventListener('DOMContentLoaded', function () {
+            // Demo kalkulator
+            const demoCalculator = document.querySelector('#contoh');
+            if (demoCalculator) {
+                const qtyInput = demoCalculator.querySelector('input[value="2"]');
+                const priceInput = demoCalculator.querySelector('input[value="150000"]');
+
+                if (qtyInput && priceInput) {
+                    const updateDemoCalc = () => {
+                        const qty = parseInt(qtyInput.value) || 0;
+                        const price = parseInt(priceInput.value) || 0;
+                        const subtotal = qty * price;
+                        const tax = Math.round(subtotal * 0.1);
+                        const total = subtotal + tax;
+
+                        const subtotalEl = demoCalculator.querySelector('#subtotal');
+                        const taxEl = demoCalculator.querySelector('#tax');
+                        const totalEl = demoCalculator.querySelector('.text-green-600');
+
+                        if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
+                        if (taxEl) taxEl.textContent = formatRupiah(tax);
+                        if (totalEl) totalEl.textContent = formatRupiah(total);
+                    };
+
+                    qtyInput.addEventListener('input', updateDemoCalc);
+                    priceInput.addEventListener('input', updateDemoCalc);
+
+                    // Initialize calculation
+                    updateDemoCalc();
+                }
+            }
+
+            // Demo conditional UI
+            const demoConditional = demoCalculator?.querySelector('select');
+            if (demoConditional) {
+                demoConditional.addEventListener('change', function () {
+                    const companyFields = demoCalculator.querySelector('.bg-blue-50');
+                    const infoBox = demoCalculator.querySelector('.bg-blue-100');
+
+                    if (this.value === 'Company') {
+                        companyFields.classList.remove('hidden');
+                        infoBox.classList.add('bg-blue-100');
+                        infoBox.classList.remove('bg-gray-100');
+                    } else {
+                        companyFields.classList.add('hidden');
+                        infoBox.classList.remove('bg-blue-100');
+                        infoBox.classList.add('bg-gray-100');
+                    }
+                });
+
+                // Initialize conditional UI
+                demoConditional.value = 'Personal';
+                demoConditional.dispatchEvent(new Event('change'));
+            }
+        });
     </script>
 </body>
+
 </html>

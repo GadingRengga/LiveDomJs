@@ -8,10 +8,8 @@
 
 ## ✨ Fitur Unggulan
 
-- 🔁 **SPA Routing** dengan `pushState` tanpa reload  
-- ⚡ **Event binding dinamis** (`live-action`, `live-event`, dll)  
-- 🔄 **Reaktivitas otomatis** via `live-compute`, `live-if`  
-- 🌐 **AJAX handler otomatis** untuk endpoint seperti `/ajax/{controller}/{action}`  
+- 🔁 **SPA Routing** dengan
+- 🔄 **Reaktivitas otomatis** via `live-compute`, `live-show`,`live-class`, `live-attr` , `live-style`, `live-event(click,change,input dll)`
 - 📦 **Asset publishing otomatis** ke `public/vendor/livedomjs`  
 - 🛠️ **Integrasi langsung ke Laravel** melalui `composer` & `artisan`  
 
