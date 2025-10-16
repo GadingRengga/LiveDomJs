@@ -1,4 +1,4 @@
-# ⚡ LiveDomJs for Laravel
+# ⚡ LiveDomJs
 
 > Framework JavaScript ringan yang menghadirkan reaktivitas alami di dalam Laravel Blade tanpa harus menggunakan framework frontend besar seperti Vue, React, atau Alpine.  
 > *Integrasi cepat. Interaksi reaktif. Tanpa ribet.*
