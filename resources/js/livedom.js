@@ -253,7 +253,7 @@
         const timer = setTimeout(() => {
             ajaxDynamic(methodType, controller, method, data, target, targetId, loading, callback);
             debounceMap.delete(key);
-        }, 150);
+        }, 400);
 
         debounceMap.set(key, timer);
     }
@@ -302,19 +302,28 @@
 
             for (const selector of selectors) {
                 const $el = $(selector);
-                // if ($el.length) {
-                //   $el.is('input, textarea, select') ? $el.val(value) : $el.html(value);
+                // if ($el.is('input, textarea, select')) {
+                //     $el.val(value);
+                //     $el.each(function () {
+                //         this.dispatchEvent(new Event('input', {
+                //             bubbles: true
+                //         }));
+                //         this.dispatchEvent(new Event('change', {
+                //             bubbles: true
+                //         }));
+                //     });
+                // } else {
+                //     $el.html(value);
                 // }
+
                 if ($el.is('input, textarea, select')) {
-                    $el.val(value);
-                    $el.each(function () {
-                        this.dispatchEvent(new Event('input', {
-                            bubbles: true
-                        }));
-                        this.dispatchEvent(new Event('change', {
-                            bubbles: true
-                        }));
-                    });
+                    if ($el.val() !== String(value)) {
+                        $el.val(value);
+                        $el.each(function () {
+                            this.dispatchEvent(new Event('input', { bubbles: true }));
+                            this.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    }
                 } else {
                     $el.html(value);
                 }
@@ -399,7 +408,6 @@
             const name = $(this).attr('name');
             if (!name) return;
             let val;
-
             if ($(this).is(':checkbox')) {
                 val = $(this).is(':checked') ? $(this).val() : null;
             } else if ($(this).is(':radio')) {
@@ -408,29 +416,60 @@
                 val = $(this).val();
             }
 
-            // convert name `qty[item][0]` -> safe var name qty_item_0
             const safeName = name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
-            inputs[safeName] = val;
+            const numVal = parseFloat(String(val).replace(/[^\d.-]/g, ''));
+            inputs[safeName] = isNaN(numVal) ? val : numVal;
+
         });
 
+        // biar ekspresi kayak dpp_[1] tetap bisa dipakai
+        expr = expr.replace(/\[\s*(\w+)\s*\]/g, '_$1');
+
         try {
-            return Function('ctx', `
-            with(ctx){ return (${expr}) }
-        `)(inputs);
+            return Function('ctx', `with(ctx){ return (${expr}) }`)(inputs);
         } catch (e) {
             console.warn('Eval error:', expr, e);
             return null;
         }
     }
 
-    function handleLiveDirectives() {
-        $('[live-show]').each(function () {
+
+    // util debounce biar gak spam CPU
+    function debounce(fn, delay) {
+        let t;
+        return function (...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    // cache parsing live-attr biar sekali aja
+    const liveAttrCache = new WeakMap();
+
+    function parseLiveAttr($el) {
+        if (liveAttrCache.has($el[0])) {
+            return liveAttrCache.get($el[0]);
+        }
+        const expr = $el.attr('live-attr');
+        if (!expr) return [];
+        const parsed = expr.split(',').map(pair => {
+            const [attr, js] = pair.split(':');
+            return { attr: attr.trim(), js: js.trim() };
+        });
+        liveAttrCache.set($el[0], parsed);
+        return parsed;
+    }
+
+    function handleLiveDirectives(scope) {
+        const $scope = scope ? $(scope) : $(document);
+
+        $scope.find('[live-show]').each(function () {
             const expr = $(this).attr('live-show');
             const result = evaluateExpr(expr, $(this));
             $(this).toggle(!!result);
         });
 
-        $('[live-class]').each(function () {
+        $scope.find('[live-class]').each(function () {
             const expr = $(this).attr('live-class');
             const result = evaluateExpr(expr, $(this));
             if (typeof result === 'string') {
@@ -438,7 +477,7 @@
             }
         });
 
-        $('[live-style]').each(function () {
+        $scope.find('[live-style]').each(function () {
             const expr = $(this).attr('live-style');
             const result = evaluateExpr(expr, $(this));
             if (typeof result === 'string') {
@@ -446,10 +485,9 @@
             }
         });
 
-        $('[live-attr]').each(function () {
-            const expr = $(this).attr('live-attr');
-            expr.split(',').forEach(pair => {
-                const [attr, js] = pair.split(':');
+        $scope.find('[live-attr]').each(function () {
+            const parsed = parseLiveAttr($(this));
+            parsed.forEach(({ attr, js }) => {
                 const result = evaluateExpr(js, $(this));
                 if (result === false || result == null) {
                     $(this).removeAttr(attr);
@@ -459,6 +497,7 @@
             });
         });
     }
+
 
     /**
      * Extracts content from an element (e.g., its value for inputs, or HTML content).
@@ -760,7 +799,7 @@
         const $targets = targetSel ? liveTarget($el, targetSel) : $el;
         if (domAction === 'remove') {
             $targets.remove();
-            initLiveDom();
+            // initLiveDom();
             return;
         }
 
@@ -875,15 +914,1143 @@
       LIVE COMPUTE
     ==============================*/
 
+    // function handleLiveComputeUnified(scope) {
+    //     const rootScope = scope || document;
+    //     const COMPUTE_CACHE_KEY = 'liveComputeCache';
+    //     const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
+    //     const CIRCULAR_DETECTION_KEY = 'circularDetection';
+    //     const BIDIRECTIONAL_TRACKING_KEY = 'bidirectionalTracking';
+    //     const DEBOUNCE_DELAY = 100;
+    //     const BATCH_SIZE = 15;
+    //     const MAX_ITERATIONS = 3;
+    //     const PRECISION_TOLERANCE = 0.0001;
+
+    //     let processingPromise = null;
+    //     let debounceTimer;
+    //     let immediateTimeout;
+    //     let iterationCount = 0;
+    //     let bidirectionalUpdateInProgress = false;
+
+    //     // Data storage using WeakMap for element data and Map for scope data
+    //     const elementData = new WeakMap();
+    //     const scopeData = new Map();
+
+    //     // Helper functions to replace jQuery data functionality
+    //     function getData(element, key) {
+    //         if (element === rootScope) {
+    //             return scopeData.get(key);
+    //         }
+    //         const data = elementData.get(element) || {};
+    //         return data[key];
+    //     }
+
+    //     function setData(element, key, value) {
+    //         if (element === rootScope) {
+    //             scopeData.set(key, value);
+    //             return;
+    //         }
+    //         const data = elementData.get(element) || {};
+    //         data[key] = value;
+    //         elementData.set(element, data);
+    //     }
+
+    //     function removeData(element, key) {
+    //         if (element === rootScope) {
+    //             scopeData.delete(key);
+    //             return;
+    //         }
+    //         const data = elementData.get(element) || {};
+    //         delete data[key];
+    //         elementData.set(element, data);
+    //     }
+
+    //     // Helper functions to replace jQuery selectors and methods
+    //     function find(selector, context = rootScope) {
+    //         return Array.from(context.querySelectorAll(selector));
+    //     }
+
+    //     function filter(elements, callback) {
+    //         return elements.filter(callback);
+    //     }
+
+    //     function val(element, value) {
+    //         if (value !== undefined) {
+    //             element.value = value;
+    //             return element;
+    //         }
+    //         return element.value || '';
+    //     }
+
+    //     function attr(element, attribute) {
+    //         return element.getAttribute(attribute);
+    //     }
+
+    //     function html(element, content) {
+    //         if (content !== undefined) {
+    //             element.innerHTML = content;
+    //             return element;
+    //         }
+    //         return element.innerHTML;
+    //     }
+
+    //     function is(element, selector) {
+    //         if (selector === ':focus') {
+    //             return document.activeElement === element;
+    //         }
+    //         return element.matches(selector);
+    //     }
+
+    //     // Date calculation functions
+    //     const dateUtils = {
+    //         rangeDate: (start, end) => {
+    //             try {
+    //                 if (!start || !end) return 0;
+
+    //                 const [sY, sM, sD] = start.split('-').map(Number);
+    //                 const [eY, eM, eD] = end.split('-').map(Number);
+
+    //                 const startDate = new Date(sY, sM - 1, sD);
+    //                 const endDate = new Date(eY, eM - 1, eD);
+
+    //                 // hitung selisih berdasarkan tanggal saja
+    //                 const diffTime = endDate.getTime() - startDate.getTime();
+    //                 const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    //                 return diffDays;
+    //             } catch (e) {
+    //                 console.error('rangeDate error:', e);
+    //                 return 0;
+    //             }
+    //         },
+
+    //         rangeMonth: (start, end) => {
+    //             try {
+    //                 if (!start || !end) return 0;
+    //                 const d1 = new Date(start);
+    //                 const d2 = new Date(end);
+    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+    //                 return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+    //             } catch (e) {
+    //                 console.error('rangeMonth error:', e);
+    //                 return 0;
+    //             }
+    //         },
+    //         rangeYear: (start, end) => {
+    //             try {
+    //                 if (!start || !end) return 0;
+    //                 const d1 = new Date(start);
+    //                 const d2 = new Date(end);
+    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+    //                 return d2.getFullYear() - d1.getFullYear();
+    //             } catch (e) {
+    //                 console.error('rangeYear error:', e);
+    //                 return 0;
+    //             }
+    //         },
+    //         rangeWeek: (start, end) => {
+    //             try {
+    //                 if (!start || !end) return 0;
+    //                 const d1 = new Date(start);
+    //                 const d2 = new Date(end);
+    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+    //                 return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24 * 7));
+    //             } catch (e) {
+    //                 console.error('rangeWeek error:', e);
+    //                 return 0;
+    //             }
+    //         }
+    //     };
+
+    //     if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
+    //         setData(rootScope, COMPUTE_CACHE_KEY, new Map());
+    //     }
+    //     if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
+    //         buildDependencyMap();
+    //     }
+    //     if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
+    //         setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+    //     }
+    //     if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
+    //         setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
+    //     }
+
+    //     function isValueConverged(oldValue, newValue) {
+    //         // bedakan "" dengan 0 supaya tetap update
+    //         if (oldValue === "" && newValue === 0) return false;
+
+    //         if (oldValue === newValue) return true;
+
+    //         const oldNum = parseFloat(oldValue);
+    //         const newNum = parseFloat(newValue);
+
+    //         if (!isNaN(oldNum) && !isNaN(newNum)) {
+    //             if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
+    //             if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
+    //         }
+
+    //         return false;
+    //     }
+
+
+    //     // PERBAIKAN: Deteksi circular dependency yang lebih baik
+    //     function detectCircularDependency(element, newValue, sourceElement = null) {
+    //         // Skip circular detection untuk elemen yang saling bergantung (bidirectional)
+    //         if (sourceElement) {
+    //             const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+    //             if (bidirectionalMap.has(element) && bidirectionalMap.get(element).has(sourceElement)) {
+    //                 return false;
+    //             }
+    //         }
+
+    //         const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
+    //         const key = element;
+
+    //         if (!circularMap.has(key)) {
+    //             circularMap.set(key, []);
+    //         }
+
+    //         const history = circularMap.get(key);
+
+    //         // Track source element untuk bidirectional
+    //         if (sourceElement) {
+    //             const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+    //             if (!bidirectionalMap.has(key)) {
+    //                 bidirectionalMap.set(key, new Set());
+    //             }
+    //             bidirectionalMap.get(key).add(sourceElement);
+    //         }
+
+    //         if (history.length > 0) {
+    //             const lastValue = history[history.length - 1];
+    //             if (isValueConverged(lastValue, newValue)) {
+    //                 return true;
+    //             }
+    //         }
+
+    //         history.push(newValue);
+
+    //         if (history.length > 10) {
+    //             history.shift();
+    //         }
+
+    //         if (history.length >= 4) {
+    //             const len = history.length;
+    //             const isOscillating =
+    //                 isValueConverged(history[len - 1], history[len - 3]) &&
+    //                 isValueConverged(history[len - 2], history[len - 4]);
+
+    //             if (isOscillating) {
+    //                 console.warn('Circular dependency detected, stabilizing value:', key);
+    //                 return true;
+    //             }
+    //         }
+
+    //         return false;
+    //     }
+
+    //     // PERBAIKAN: Process function dengan handling bidirectional yang lebih baik
+    //     function process(sourceElement = null) {
+    //         if (processingPromise) {
+    //             return processingPromise;
+    //         }
+
+    //         if (bidirectionalUpdateInProgress && sourceElement) {
+    //             return Promise.resolve();
+    //         }
+
+    //         iterationCount = 0;
+    //         bidirectionalUpdateInProgress = !!sourceElement;
+
+    //         processingPromise = new Promise((resolve) => {
+    //             const cache = getData(rootScope, COMPUTE_CACHE_KEY);
+
+    //             const elements = filter(find('[live-compute]'), function (element) {
+    //                 const expr = attr(element, 'live-compute')?.trim() || '';
+    //                 return expr.length > 0;
+    //             });
+
+    //             let index = 0;
+    //             let hasChanges = false;
+
+    //             function processBatch() {
+    //                 const batch = elements.slice(index, index + BATCH_SIZE);
+    //                 let batchHasChanges = false;
+
+    //                 batch.forEach(function (element) {
+    //                     // Skip jika ini adalah source element dari bidirectional update
+    //                     if (sourceElement && element === sourceElement) {
+    //                         return;
+    //                     }
+
+    //                     const expr = attr(element, 'live-compute')?.trim() || '';
+
+    //                     try {
+    //                         const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
+    //                         const isFocused = is(element, ':focus');
+    //                         const isUpdating = getData(element, 'updating') === true;
+
+    //                         if (hasSkipAttr && isFocused) {
+    //                             return;
+    //                         }
+
+    //                         if (isUpdating) {
+    //                             return;
+    //                         }
+
+    //                         const lastManualInput = getData(element, 'lastManualInput') || 0;
+    //                         if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
+    //                             return;
+    //                         }
+
+    //                         // ===== ADDED: support live-compute-trigger =====
+    //                         const triggerAttr = attr(element, 'live-compute-trigger') || '';
+    //                         if (triggerAttr.trim()) {
+    //                             const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+    //                             let anyRecent = false;
+    //                             const now = Date.now();
+    //                             const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
+
+    //                             // cari input yang sesuai setiap trigger, cek lastManualInput-nya
+    //                             for (const t of triggers) {
+    //                                 // cari input/select/textarea dengan nama yang jika disanitize = t
+    //                                 const inputs = find('input[name], select[name], textarea[name]');
+    //                                 for (const inp of inputs) {
+    //                                     const nameAttr = attr(inp, 'name');
+    //                                     if (!nameAttr) continue;
+    //                                     const sanitized = sanitizeInputNameToJSVariable(nameAttr);
+    //                                     if (sanitized === t) {
+    //                                         const last = getData(inp, 'lastManualInput') || 0;
+    //                                         if (now - last < THRESHOLD_MS) {
+    //                                             anyRecent = true;
+    //                                             break;
+    //                                         }
+    //                                     }
+    //                                 }
+    //                                 if (anyRecent) break;
+    //                             }
+
+    //                             // kalau tidak ada trigger recent, skip element ini
+    //                             if (!anyRecent) {
+    //                                 return;
+    //                             }
+    //                         }
+    //                         // ===== END ADDED =====
+
+    //                         const globalInputs = getGlobalInputs();
+    //                         const indices = getRowIndices();
+    //                         const result = evaluateExpression(expr, globalInputs, indices);
+    //                         const changed = displayResult(element, result, cache, sourceElement);
+
+    //                         if (changed) {
+    //                             batchHasChanges = true;
+    //                             hasChanges = true;
+    //                         }
+    //                     } catch (error) {
+    //                         console.error('LiveCompute error:', error);
+    //                         if (attr(element, 'live-compute-skip') !== 'true') {
+    //                             displayResult(element, '', cache, sourceElement);
+    //                         }
+    //                     }
+    //                 });
+
+    //                 index += BATCH_SIZE;
+
+    //                 if (index < elements.length) {
+    //                     if ('requestIdleCallback' in window) {
+    //                         requestIdleCallback(processBatch, { timeout: 100 });
+    //                     } else {
+    //                         setTimeout(processBatch, 20);
+    //                     }
+    //                 } else {
+    //                     iterationCount++;
+
+    //                     if (hasChanges && iterationCount < MAX_ITERATIONS) {
+    //                         index = 0;
+    //                         hasChanges = false;
+    //                         setTimeout(processBatch, 10);
+    //                     } else {
+    //                         if (iterationCount >= MAX_ITERATIONS) {
+    //                             console.warn('Live compute reached max iterations');
+    //                         }
+
+    //                         setTimeout(() => {
+    //                             // Hanya reset circular detection jika bukan bidirectional update
+    //                             if (!sourceElement) {
+    //                                 setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+    //                             }
+    //                         }, 1000);
+
+    //                         processingPromise = null;
+    //                         bidirectionalUpdateInProgress = false;
+    //                         resolve();
+    //                     }
+    //                 }
+    //             }
+
+    //             processBatch();
+    //         }).finally(() => {
+    //             processingPromise = null;
+    //             bidirectionalUpdateInProgress = false;
+    //         });
+
+    //         return processingPromise;
+    //     }
+
+
+    //     function scheduleProcess(delay = 0, sourceElement = null) {
+    //         clearTimeout(immediateTimeout);
+    //         clearTimeout(debounceTimer);
+
+    //         const timerId = setTimeout(() => {
+    //             process(sourceElement);
+    //         }, delay);
+
+    //         if (delay <= 30) {
+    //             immediateTimeout = timerId;
+    //         } else {
+    //             debounceTimer = timerId;
+    //         }
+    //     }
+
+    //     function processImmediate(sourceElement = null) {
+    //         scheduleProcess(30, sourceElement);
+    //     }
+
+    //     function debounceProcess(sourceElement = null) {
+    //         scheduleProcess(DEBOUNCE_DELAY, sourceElement);
+    //     }
+
+    //     function buildDependencyMap() {
+    //         const depMap = new Map();
+    //         find('[live-compute]').forEach(function (element) {
+    //             const expr = attr(element, 'live-compute')?.trim() || '';
+    //             depMap.set(element, extractVariables(expr));
+
+    //             // parse live-compute-trigger dan simpan pada element (untuk akses cepat)
+    //             const triggerAttr = attr(element, 'live-compute-trigger') || '';
+    //             if (triggerAttr.trim()) {
+    //                 const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+    //                 setData(element, 'liveComputeTriggers', triggers);
+    //             } else {
+    //                 removeData(element, 'liveComputeTriggers');
+    //             }
+    //         });
+    //         setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
+
+    //         // build trigger map: varName -> Set(elements)
+    //         const triggerMap = new Map();
+    //         find('[live-compute-trigger]').forEach(function (element) {
+    //             const triggers = getData(element, 'liveComputeTriggers') || [];
+    //             triggers.forEach(t => {
+    //                 const setFor = triggerMap.get(t) || new Set();
+    //                 setFor.add(element);
+    //                 triggerMap.set(t, setFor);
+    //             });
+    //         });
+    //         setData(rootScope, 'liveComputeTriggerMap', triggerMap);
+    //     }
+
+
+    //     function getGlobalInputs() {
+    //         const inputs = {};
+    //         find('input[name], select[name], textarea[name]').forEach(function (element) {
+    //             const name = attr(element, 'name');
+    //             if (name) {
+    //                 inputs[sanitizeInputNameToJSVariable(name)] = val(element)?.toString().trim();
+    //             }
+    //         });
+    //         return inputs;
+    //     }
+
+    //     function getRowIndices() {
+    //         const indices = new Set();
+    //         find('input[name], select[name], textarea[name]').forEach(function (element) {
+    //             const nameAttr = attr(element, 'name');
+    //             if (!nameAttr) return;
+    //             const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
+    //             if (matches.length) {
+    //                 matches.forEach(match => {
+    //                     const num = parseInt(match[1], 10);
+    //                     if (!isNaN(num)) indices.add(num);
+    //                 });
+    //             }
+    //         });
+    //         return indices;
+    //     }
+
+    //     function evaluateExpression(expr, globalInputs, indices) {
+    //         const dateFnMatch = expr.match(/(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/);
+    //         if (dateFnMatch) {
+    //             return handleDateFunction(dateFnMatch[1], dateFnMatch[2], globalInputs);
+    //         }
+
+    //         expr = processAggregateFunctions(expr, globalInputs, indices);
+
+    //         const vars = extractVariables(expr);
+    //         const vals = vars.map(v => toNumber(getValue(v, globalInputs)));
+
+    //         try {
+    //             return safeFunctionEvaluation(vars, vals, expr);
+    //         } catch (e) {
+    //             console.error('Evaluation error:', expr, e);
+    //             return 0;
+    //         }
+    //     }
+
+    //     function handleDateFunction(fnName, argsStr, globalInputs) {
+    //         const args = argsStr.split(',').map(arg => {
+    //             const varName = arg.trim();
+    //             return getValue(varName, globalInputs);
+    //         });
+
+    //         if (args.length !== 2 || !args[0] || !args[1]) return 0;
+
+    //         try {
+    //             return dateUtils[fnName](args[0], args[1]);
+    //         } catch (e) {
+    //             console.error(`${fnName} execution error:`, e);
+    //             return 0;
+    //         }
+    //     }
+
+    //     const exprFuncCache = new Map();
+
+    //     function safeFunctionEvaluation(vars, vals, expr) {
+    //         if (!exprFuncCache.has(expr)) {
+    //             const context = { ...dateUtils, parseFloat };
+    //             const argNames = [...vars, ...Object.keys(context)];
+    //             const func = new Function(...argNames, `return ${expr}`);
+    //             exprFuncCache.set(expr, { func, context });
+    //         }
+    //         const { func, context } = exprFuncCache.get(expr);
+    //         const argValues = [...vals, ...Object.values(context)];
+    //         return func(...argValues);
+    //     }
+
+    //     function processAggregateFunctions(expr, globalInputs, indices) {
+    //         // SUMIF
+    //         expr = expr.replace(/sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/g,
+    //             (_, criteriaRange, criteria, sumRange) => {
+    //                 const vals = getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices);
+    //                 return calculateAggregate('sum', vals);
+    //             }
+    //         );
+
+    //         // SUM, AVG, MIN, MAX, COUNT
+    //         return expr.replace(/(sum|avg|min|max|count)\(([^()]+)\)/g,
+    //             (_, fn, arg) => {
+    //                 const vals = getAggregateValues(arg, globalInputs, indices);
+    //                 return calculateAggregate(fn, vals);
+    //             }
+    //         );
+    //     }
+
+    //     function getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices) {
+    //         const vals = [];
+
+    //         // Kalau pakai wildcard ? → iterasi semua index
+    //         if (criteriaRange.includes('?') || sumRange.includes('?')) {
+    //             indices.forEach(i => {
+    //                 const critVal = getValue(criteriaRange.replace(/\?/g, i), globalInputs);
+    //                 const sumVal = toNumber(getValue(sumRange.replace(/\?/g, i), globalInputs));
+
+    //                 if (matchCriteria(critVal, criteria)) {
+    //                     vals.push(sumVal);
+    //                 }
+    //             });
+    //         } else {
+    //             const critVal = getValue(criteriaRange, globalInputs);
+    //             const sumVal = toNumber(getValue(sumRange, globalInputs));
+    //             if (matchCriteria(critVal, criteria)) {
+    //                 vals.push(sumVal);
+    //             }
+    //         }
+
+    //         return vals;
+    //     }
+
+    //     function matchCriteria(value, criteria) {
+    //         criteria = criteria.trim();
+
+    //         // Jika numeric langsung bandingkan
+    //         if (!isNaN(criteria)) {
+    //             return Number(value) === Number(criteria);
+    //         }
+
+    //         // Excel style operator
+    //         const opMatch = criteria.match(/^(>=|<=|==|!=|<>|>|<)\s*(.+)$/);
+    //         if (opMatch) {
+    //             let [, op, critVal] = opMatch;
+    //             if (op === '<>') op = '!='; // konversi Excel <> jadi != JS
+
+    //             const numCrit = Number(critVal);
+    //             const numVal = Number(value);
+
+    //             switch (op) {
+    //                 case '>': return numVal > numCrit;
+    //                 case '<': return numVal < numCrit;
+    //                 case '>=': return numVal >= numCrit;
+    //                 case '<=': return numVal <= numCrit;
+    //                 case '==': return numVal == numCrit;
+    //                 case '!=': return numVal != numCrit;
+    //             }
+    //         }
+
+    //         // Jika string, langsung bandingkan
+    //         return String(value) === criteria;
+    //     }
+
+
+
+    //     function getAggregateValues(arg, globalInputs, indices) {
+    //         arg = arg.trim();
+    //         const vals = [];
+
+    //         if (arg.includes('?')) {
+    //             indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs))));
+    //         } else {
+    //             vals.push(toNumber(getValue(arg, globalInputs)));
+    //         }
+
+    //         return vals;
+    //     }
+
+    //     function calculateAggregate(fn, vals) {
+    //         vals = vals.filter(v => !isNaN(v));
+    //         switch (fn) {
+    //             case 'sum': return vals.reduce((a, b) => a + b, 0);
+    //             case 'avg': return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    //             case 'min': return vals.length ? Math.min(...vals) : 0;
+    //             case 'max': return vals.length ? Math.max(...vals) : 0;
+    //             case 'count': return vals.length;
+    //             default: return 0;
+    //         }
+    //     }
+
+    //     // PERBAIKAN: Display result dengan handling yang lebih baik untuk bidirectional elements
+    //     // ✅ Normalisasi angka agar tidak ada 1.99998
+    //     function normalizeNumber(num, decimals = 2) {
+    //         if (num === null || num === undefined || isNaN(num)) return 0;
+    //         return parseFloat(num.toFixed(decimals));
+    //     }
+
+    //     // ✅ Display result dengan rawValue vs displayValue
+    //     function displayResult(element, result, cache, sourceElement = null) {
+    //         const format = attr(element, 'live-compute-format');
+
+    //         // raw numeric value untuk kalkulasi
+    //         let rawValue = toNumber(result);
+    //         rawValue = normalizeNumber(rawValue);
+
+    //         // display value untuk UI
+    //         let displayValue = format ? formatResult(rawValue, format) : rawValue.toString();
+
+    //         // Skip circular detection untuk hubungan bidirectional
+    //         const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+    //         const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
+    //             bidirectionalMap.get(element).has(sourceElement);
+
+    //         if (!isBidirectional && detectCircularDependency(element, rawValue, sourceElement)) {
+    //             return false;
+    //         }
+
+    //         const cachedValue = cache.get(element);
+
+    //         // Bandingkan numeric, bukan string
+    //         if (!isValueConverged(cachedValue, rawValue)) {
+    //             cache.set(element, rawValue);
+
+    //             // ✅ Update element dengan raw + display
+    //             updateElementValue(element, rawValue, displayValue, sourceElement);
+    //             return true;
+    //         }
+
+    //         return false;
+    //     }
+
+    //     // ✅ Update element tanpa overwrite kalau sedang fokus
+    //     function updateElementValue(element, rawValue, displayValue, sourceElement = null) {
+    //         if (sourceElement && element === sourceElement) return;
+
+    //         // 🚀 Tambahkan pengecekan live-compute-auto
+    //         const autoAttr = attr(element, 'live-compute-auto');
+    //         const isAuto = (autoAttr === null || autoAttr === '' || autoAttr === 'true');
+    //         if (!isAuto) {
+    //             return; // skip update kalau auto = false
+    //         }
+
+    //         // Jangan overwrite kalau user sedang mengetik di input
+    //         if (document.activeElement === element) {
+    //             return;
+    //         }
+
+    //         // Token untuk mencegah update usang
+    //         const currentToken = Date.now();
+    //         const lastToken = getData(element, 'lastToken') || 0;
+    //         if (currentToken <= lastToken) return;
+
+    //         setData(element, 'lastToken', currentToken);
+    //         setData(element, 'updating', true);
+
+    //         if (element.matches('input, textarea, select')) {
+    //             // ✅ Simpan rawValue tersembunyi untuk kalkulasi
+    //             element.dataset.rawValue = rawValue;
+
+    //             // ✅ Hanya tampilkan displayValue
+    //             val(element, displayValue);
+    //         } else {
+    //             html(element, displayValue);
+    //         }
+
+    //         setTimeout(() => {
+    //             removeData(element, 'updating');
+    //         }, 1);
+    //     }
+
+
+    //     function formatResult(result, format) {
+    //         if (result === null || result === undefined) {
+    //             return '';
+    //         }
+
+    //         if (typeof result === 'string') {
+    //             result = toNumber(result);
+    //         }
+
+    //         if (typeof result === 'number' && isNaN(result)) {
+    //             return '';
+    //         }
+
+    //         if (typeof result === 'number') {
+    //             result = Math.round(result * 100000) / 100000;
+    //         }
+
+    //         switch (format?.toLowerCase()) {
+    //             case 'idr':
+    //                 try {
+    //                     return new Intl.NumberFormat('id-ID', {
+    //                         minimumFractionDigits: 0,
+    //                         maximumFractionDigits: 0
+    //                     }).format(Math.floor(result));
+    //                 } catch (e) {
+    //                     return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    //                 }
+
+    //             case 'currency':
+    //             case 'dollar':
+    //                 try {
+    //                     return new Intl.NumberFormat('en-US', {
+    //                         minimumFractionDigits: 0,
+    //                         maximumFractionDigits: 0
+    //                     }).format(Math.floor(result));
+    //                 } catch (e) {
+    //                     return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    //                 }
+
+    //             case 'decimal':
+    //                 if (typeof result === 'number') {
+    //                     return result.toFixed(2);
+    //                 }
+    //                 return parseFloat(result).toFixed(2);
+
+    //             case 'percent':
+    //                 if (typeof result === 'number') {
+    //                     return (result * 100).toFixed(2) + '%';
+    //                 }
+    //                 return (parseFloat(result) * 100).toFixed(2) + '%';
+
+    //             case 'number':
+    //                 try {
+    //                     return new Intl.NumberFormat('id-ID').format(result);
+    //                 } catch (e) {
+    //                     return result.toString();
+    //                 }
+
+    //             case 'days':
+    //                 return Math.floor(result) + ' days';
+
+    //             case 'months':
+    //                 return Math.floor(result) + ' months';
+
+    //             case 'years':
+    //                 return Math.floor(result) + ' years';
+
+    //             case 'weeks':
+    //                 return Math.floor(result) + ' weeks';
+
+    //             default:
+    //                 return result.toString();
+    //         }
+    //     }
+
+    //     function formatInputValue(element, value) {
+    //         const format = attr(element, 'live-compute-format');
+    //         if (!format || getData(element, 'updating')) return value;
+
+    //         if (!value || value.trim() === '') return value;
+
+    //         const numValue = toNumber(value);
+
+    //         if (numValue === 0 && value !== '0' && value.trim() !== '0') {
+    //             if (value.match(/[\d.,]/)) {
+    //                 return value;
+    //             }
+    //             return '';
+    //         }
+
+    //         try {
+    //             return formatResult(numValue, format);
+    //         } catch (e) {
+    //             console.error('Format error:', e);
+    //             return value;
+    //         }
+    //     }
+
+    //     function getValue(varName, globalInputs) {
+    //         const rowMatch = varName.match(/^rows_(\d+)_(.+)$/);
+    //         if (rowMatch) {
+    //             const [_, index, field] = rowMatch;
+    //             const selector = `[name="rows[${index}][${field}]"]`;
+    //             const element = rootScope.querySelector(selector);
+    //             return element ? val(element).toString().trim() : '';
+    //         }
+    //         return globalInputs[varName] || '';
+    //     }
+
+    //     function toNumber(val) {
+    //         if (val == null || val === '') return 0;
+
+    //         val = val.toString().trim();
+    //         if (val === '' || val === '-') return 0;
+
+    //         const isPercentage = val.includes('%');
+    //         val = val.replace(/%/g, '');
+
+    //         const isNegative = /^-/.test(val);
+    //         val = val.replace(/^-/, '');
+
+    //         val = val.replace(/[^\d.,]/g, '');
+
+    //         if (val === '') return 0;
+
+    //         let result = 0;
+
+    //         if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
+    //             result = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+    //         }
+    //         else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
+    //             result = parseFloat(val.replace(/,/g, ''));
+    //         }
+    //         else if (/^\d+([.,]\d+)?$/.test(val)) {
+    //             if (val.includes(',')) {
+    //                 result = parseFloat(val.replace(',', '.'));
+    //             } else {
+    //                 result = parseFloat(val);
+    //             }
+    //         }
+    //         else {
+    //             result = parseFloat(val.replace(/[.,]/g, ''));
+    //         }
+
+    //         if (isNaN(result)) result = 0;
+    //         if (isNegative) result = -result;
+    //         if (isPercentage) result = result / 100;
+
+    //         return result;
+    //     }
+
+    //     function extractVariables(expr) {
+    //         const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+    //         return [...new Set(vars.filter(v => !/^\d+$/.test(v) && !dateUtils[v]))];
+    //     }
+
+    //     function sanitizeInputNameToJSVariable(name) {
+    //         return name.replace(/\]\[/g, '_')
+    //             .replace(/[\[\]]/g, '')
+    //             .replace(/[^a-zA-Z0-9_]/g, '_');
+    //     }
+
+    //     function addEventListener(selector, event, handler, context = rootScope) {
+    //         context.addEventListener(event, function (e) {
+    //             if (e.target.matches(selector)) {
+    //                 handler.call(e.target, e);
+    //             }
+    //         });
+    //     }
+
+    //     function init() {
+    //         process();
+
+    //         let lastInputTime = 0;
+    //         let formatTimeout = new Map();
+    //         let bidirectionalElements = new Map();
+
+    //         // Identifikasi elemen bidirectional dengan lebih akurat
+    //         find('[live-compute-skip="true"]').forEach(function (element) {
+    //             const expr = attr(element, 'live-compute') || '';
+    //             const vars = extractVariables(expr);
+
+    //             find('[live-compute]').forEach(function (otherElement) {
+    //                 const otherExpr = attr(otherElement, 'live-compute') || '';
+    //                 const otherVars = extractVariables(otherExpr);
+
+    //                 if (vars.some(v => otherVars.includes(v)) && otherElement !== element) {
+    //                     if (!bidirectionalElements.has(element)) {
+    //                         bidirectionalElements.set(element, new Set());
+    //                     }
+    //                     bidirectionalElements.get(element).add(otherElement);
+
+    //                     if (!bidirectionalElements.has(otherElement)) {
+    //                         bidirectionalElements.set(otherElement, new Set());
+    //                     }
+    //                     bidirectionalElements.get(otherElement).add(element);
+
+    //                     const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
+    //                     if (!bidirectionalMap.has(element)) {
+    //                         bidirectionalMap.set(element, new Set());
+    //                     }
+    //                     bidirectionalMap.get(element).add(otherElement);
+
+    //                     if (!bidirectionalMap.has(otherElement)) {
+    //                         bidirectionalMap.set(otherElement, new Set());
+    //                     }
+    //                     bidirectionalMap.get(otherElement).add(element);
+
+    //                     setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
+    //                 }
+    //             });
+    //         });
+
+    //         addEventListener('[live-compute-skip="true"]', 'input', function () {
+    //             if (getData(this, 'updating')) return;
+    //             setData(this, 'lastManualInput', Date.now());
+
+    //             if (bidirectionalElements.has(this)) {
+    //                 processImmediate(this);
+    //             } else {
+    //                 processImmediate();
+    //             }
+    //         });
+
+    //         addEventListener('input[name], select[name], textarea[name]', 'input', function () {
+    //             if (getData(this, 'updating')) return;
+    //             setData(this, 'lastManualInput', Date.now());
+    //             processImmediate();
+    //         });
+
+    //         // === PATCHED ===
+    //         addEventListener('input[live-compute-format]', 'input', function () {
+    //             if (getData(this, 'updating')) return;
+
+    //             const element = this;
+    //             const currentValue = val(this);
+
+    //             setData(element, 'lastManualInput', Date.now());
+
+    //             // 🚫 Jika ada live-compute-skip → jangan format realtime
+    //             if (element.hasAttribute('live-compute-skip')) {
+    //                 return; // biarkan user ngetik normal
+    //             }
+
+    //             if (formatTimeout.has(element)) {
+    //                 clearTimeout(formatTimeout.get(element));
+    //             }
+
+    //             const now = Date.now();
+    //             if (!element.hasAttribute('live-compute-skip')) {
+    //                 if (now - lastInputTime > 10) {
+    //                     lastInputTime = now;
+    //                     processImmediate();
+    //                 }
+    //             }
+
+    //             const timeout = setTimeout(() => {
+    //                 if (getData(element, 'updating')) return;
+
+    //                 const cursorPos = element.selectionStart;
+    //                 const oldValue = val(element);
+
+    //                 const lastFormattedValue = getData(element, 'lastFormattedValue') || '';
+    //                 if (oldValue === lastFormattedValue) {
+    //                     formatTimeout.delete(element);
+    //                     return;
+    //                 }
+
+    //                 const newValue = formatInputValue(element, oldValue);
+
+    //                 if (oldValue !== newValue && newValue !== '') {
+    //                     setData(element, 'updating', true);
+    //                     val(element, newValue);
+    //                     setData(element, 'lastFormattedValue', newValue);
+
+    //                     let newCursorPos = cursorPos;
+    //                     const lengthDiff = newValue.length - oldValue.length;
+
+    //                     if (lengthDiff !== 0) {
+    //                         const beforeCursor = oldValue.substring(0, cursorPos);
+    //                         const numericBeforeCursor = beforeCursor.replace(/[^\d]/g, '');
+
+    //                         let targetPos = 0;
+    //                         let numericCount = 0;
+
+    //                         for (let i = 0; i < newValue.length; i++) {
+    //                             if (/\d/.test(newValue[i])) {
+    //                                 numericCount++;
+    //                             }
+    //                             if (numericCount >= numericBeforeCursor.length) {
+    //                                 targetPos = i + 1;
+    //                                 break;
+    //                             }
+    //                         }
+
+    //                         newCursorPos = Math.min(targetPos, newValue.length);
+    //                     }
+
+    //                     newCursorPos = Math.max(0, Math.min(newCursorPos, newValue.length));
+
+    //                     try {
+    //                         element.setSelectionRange(newCursorPos, newCursorPos);
+    //                     } catch (e) { }
+
+    //                     setTimeout(() => {
+    //                         removeData(element, 'updating');
+    //                     }, 50);
+    //                 }
+
+    //                 formatTimeout.delete(element);
+    //             }, 200);
+
+    //             formatTimeout.set(element, timeout);
+    //         });
+    //         // === END PATCH ===
+
+    //         addEventListener('input:not([live-compute-format]):not([live-compute-skip="true"]), select:not([live-compute-skip="true"]), textarea:not([live-compute-skip="true"])', 'input', function () {
+    //             if (getData(this, 'updating')) return;
+
+    //             const now = Date.now();
+    //             if (now - lastInputTime > 10) {
+    //                 lastInputTime = now;
+    //                 processImmediate();
+    //             }
+    //         });
+
+    //         addEventListener('input, select, textarea', 'change', function () {
+    //             if (getData(this, 'updating')) return;
+    //             debounceProcess();
+    //         });
+
+    //         addEventListener('[live-compute-skip="true"]', 'blur', function () {
+    //             debounceProcess();
+    //         });
+
+    //         addEventListener('input[live-compute-format]', 'blur', function () {
+    //             const element = this;
+
+    //             if (formatTimeout.has(element)) {
+    //                 clearTimeout(formatTimeout.get(element));
+    //                 formatTimeout.delete(element);
+    //             }
+
+    //             const currentValue = val(this);
+
+    //             if (currentValue && currentValue.trim() !== '') {
+    //                 let formattedValue = formatInputValue(this, currentValue);
+
+    //                 // 🚀 PATCH: kalau hasil format kosong → paksa fallback ke number formatting
+    //                 if (!formattedValue || formattedValue.trim() === '') {
+    //                     const numValue = toNumber(currentValue);
+    //                     formattedValue = formatResult(numValue, attr(this, 'live-compute-format'));
+    //                 }
+
+    //                 // 🚀 PATCH: walaupun ada live-compute-skip tetap paksa format saat blur
+    //                 val(this, formattedValue);
+    //                 setData(this, 'lastFormattedValue', formattedValue);
+    //             }
+
+    //             // Hapus flag updating biar siap dipakai lagi
+    //             removeData(this, 'updating');
+
+    //             // Tetap trigger proses compute lain
+    //             debounceProcess();
+    //         });
+
+
+
+    //         addEventListener('input[live-compute-format]', 'focus', function () {
+    //             const currentValue = val(this);
+
+    //             const lastFormattedValue = getData(this, 'lastFormattedValue') || '';
+    //             if (currentValue && currentValue.trim() !== '' && currentValue !== lastFormattedValue) {
+    //                 const formattedValue = formatInputValue(this, currentValue);
+    //                 if (currentValue !== formattedValue) {
+    //                     setData(this, 'updating', true);
+    //                     val(this, formattedValue);
+    //                     setData(this, 'lastFormattedValue', formattedValue);
+
+    //                     setTimeout(() => {
+    //                         removeData(this, 'updating');
+    //                     }, 50);
+    //                 }
+    //             }
+    //         });
+
+    //         rootScope.addEventListener('live-dom:afterAppend', () => {
+    //             buildDependencyMap();
+    //             process();
+    //         });
+    //         rootScope.addEventListener('live-dom:afterUpdate', () => {
+    //             buildDependencyMap();
+    //             process();
+    //         });
+
+    //         if (typeof MutationObserver !== 'undefined') {
+    //             const observer = new MutationObserver((mutations) => {
+    //                 let shouldRebuild = false;
+    //                 mutations.forEach((mutation) => {
+    //                     if (mutation.type === 'childList') {
+    //                         mutation.addedNodes.forEach((node) => {
+    //                             if (node.nodeType === Node.ELEMENT_NODE) {
+    //                                 if (node.hasAttribute && node.hasAttribute('live-compute')) {
+    //                                     shouldRebuild = true;
+    //                                 } else if (node.querySelector && node.querySelector('[live-compute]')) {
+    //                                     shouldRebuild = true;
+    //                                 }
+    //                             }
+    //                         });
+    //                     }
+    //                 });
+
+    //                 if (shouldRebuild) {
+    //                     buildDependencyMap();
+    //                     process();
+    //                 }
+    //             });
+
+    //             observer.observe(rootScope, {
+    //                 childList: true,
+    //                 subtree: true
+    //             });
+    //         }
+    //     }
+
+    //     init();
+    // }
+
+
+    /*==============================
+      LIVE COMPUTE
+    ==============================*/
+
     function handleLiveComputeUnified(scope) {
         const rootScope = scope || document;
         const COMPUTE_CACHE_KEY = 'liveComputeCache';
         const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
         const CIRCULAR_DETECTION_KEY = 'circularDetection';
         const BIDIRECTIONAL_TRACKING_KEY = 'bidirectionalTracking';
+        const UPDATE_QUEUE_KEY = 'computeUpdateQueue';
         const DEBOUNCE_DELAY = 100;
-        const BATCH_SIZE = 3;
-        const MAX_ITERATIONS = 5;
+        const BATCH_SIZE = 15;
+        const MAX_ITERATIONS = 3;
         const PRECISION_TOLERANCE = 0.0001;
 
         let processingPromise = null;
@@ -1022,43 +2189,438 @@
             }
         };
 
-        if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
-            setData(rootScope, COMPUTE_CACHE_KEY, new Map());
-        }
-        if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
-            buildDependencyMap();
-        }
-        if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
-            setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-        }
-        if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
-            setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
+        // ========== BIDIRECTIONAL QUEUE SYSTEM ==========
+
+        function initBidirectionalQueue() {
+            if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
+                setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
+            }
+            if (!getData(rootScope, UPDATE_QUEUE_KEY)) {
+                setData(rootScope, UPDATE_QUEUE_KEY, {
+                    queue: [],
+                    processing: false,
+                    priorities: new Map()
+                });
+            }
+            if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
+                setData(rootScope, COMPUTE_CACHE_KEY, new Map());
+            }
+            if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
+                buildDependencyMap();
+            }
+            if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
+                setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+            }
         }
 
-        function isValueConverged(oldValue, newValue) {
-            // bedakan "" dengan 0 supaya tetap update
-            if (oldValue === "" && newValue === 0) return false;
+        function enqueueComputeUpdate(element, priority = 'normal', sourceElement = null) {
+            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
+            const existingIndex = queueData.queue.findIndex(item =>
+                item.element === element && item.priority === priority
+            );
 
-            if (oldValue === newValue) return true;
-
-            const oldNum = parseFloat(oldValue);
-            const newNum = parseFloat(newValue);
-
-            if (!isNaN(oldNum) && !isNaN(newNum)) {
-                if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
-                if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
+            if (existingIndex >= 0) {
+                queueData.queue.splice(existingIndex, 1);
             }
 
-            return false;
+            queueData.queue.push({
+                element,
+                priority,
+                sourceElement,
+                timestamp: Date.now()
+            });
+
+            // Sort by priority: high > normal > low
+            queueData.queue.sort((a, b) => {
+                const priorityOrder = { high: 3, normal: 2, low: 1 };
+                return priorityOrder[b.priority] - priorityOrder[a.priority] ||
+                    a.timestamp - b.timestamp;
+            });
+
+            // Limit queue size to prevent memory leaks
+            if (queueData.queue.length > 100) {
+                queueData.queue = queueData.queue.slice(-80);
+            }
         }
 
+        function processComputeQueue() {
+            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
+            if (queueData.processing || queueData.queue.length === 0) {
+                return;
+            }
 
-        // PERBAIKAN: Deteksi circular dependency yang lebih baik
-        function detectCircularDependency(element, newValue, sourceElement = null) {
+            queueData.processing = true;
+            const batch = queueData.queue.splice(0, BATCH_SIZE);
+
+            processBatchWithQueue(batch).finally(() => {
+                queueData.processing = false;
+                if (queueData.queue.length > 0) {
+                    setTimeout(processComputeQueue, 10);
+                }
+            });
+        }
+
+        async function processBatchWithQueue(batch) {
+            const cache = getData(rootScope, COMPUTE_CACHE_KEY);
+            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+
+            for (const { element, sourceElement } of batch) {
+                if (!element.isConnected) continue;
+
+                const expr = attr(element, 'live-compute')?.trim() || '';
+                if (!expr) continue;
+
+                try {
+                    // Skip if this is source element in bidirectional update
+                    if (sourceElement && element === sourceElement) {
+                        continue;
+                    }
+
+                    const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
+                    const isFocused = is(element, ':focus');
+                    const isUpdating = getData(element, 'updating') === true;
+
+                    if (hasSkipAttr && isFocused) {
+                        continue;
+                    }
+
+                    if (isUpdating) {
+                        continue;
+                    }
+
+                    const lastManualInput = getData(element, 'lastManualInput') || 0;
+                    if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
+                        continue;
+                    }
+
+                    // ===== ADDED: support live-compute-trigger =====
+                    const triggerAttr = attr(element, 'live-compute-trigger') || '';
+                    if (triggerAttr.trim()) {
+                        const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+                        let anyRecent = false;
+                        const now = Date.now();
+                        const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
+
+                        // cari input yang sesuai setiap trigger, cek lastManualInput-nya
+                        for (const t of triggers) {
+                            // cari input/select/textarea dengan nama yang jika disanitize = t
+                            const inputs = find('input[name], select[name], textarea[name]');
+                            for (const inp of inputs) {
+                                const nameAttr = attr(inp, 'name');
+                                if (!nameAttr) continue;
+                                const sanitized = sanitizeInputNameToJSVariable(nameAttr);
+                                if (sanitized === t) {
+                                    const last = getData(inp, 'lastManualInput') || 0;
+                                    if (now - last < THRESHOLD_MS) {
+                                        anyRecent = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (anyRecent) break;
+                        }
+
+                        // kalau tidak ada trigger recent, skip element ini
+                        if (!anyRecent) {
+                            continue;
+                        }
+                    }
+                    // ===== END ADDED =====
+
+                    const globalInputs = getGlobalInputs();
+                    const indices = getRowIndices();
+                    const result = evaluateExpression(expr, globalInputs, indices);
+
+                    // Enhanced circular detection for bidirectional
+                    const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
+                        bidirectionalMap.get(element).has(sourceElement);
+
+                    const changed = displayResult(element, result, cache, sourceElement, isBidirectional);
+
+                    if (changed && !isBidirectional) {
+                        // If this element changed and has bidirectional relationships, queue them
+                        if (bidirectionalMap.has(element)) {
+                            bidirectionalMap.get(element).forEach(bidirectionalEl => {
+                                if (bidirectionalEl !== sourceElement && bidirectionalEl.isConnected) {
+                                    enqueueComputeUpdate(bidirectionalEl, 'high', element);
+                                }
+                            });
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('LiveCompute error:', error);
+                    if (attr(element, 'live-compute-skip') !== 'true') {
+                        displayResult(element, '', cache, sourceElement, false);
+                    }
+                }
+            }
+
+            // Process next batch if queue has more items
+            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
+            if (queueData.queue.length > 0) {
+                setTimeout(processComputeQueue, 5);
+            }
+        }
+
+        // ========== ENHANCED DEPENDENCY MAPPING ==========
+
+        function buildDependencyMap() {
+            const depMap = new Map();
+            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
+            bidirectionalMap.clear();
+
+            find('[live-compute]').forEach(function (element) {
+                const expr = attr(element, 'live-compute')?.trim() || '';
+                depMap.set(element, extractVariables(expr));
+
+                // Enhanced bidirectional detection
+                const dependencies = extractVariables(expr);
+                dependencies.forEach(dep => {
+                    find('[live-compute]').forEach(otherElement => {
+                        if (otherElement === element) return;
+
+                        const otherExpr = attr(otherElement, 'live-compute')?.trim() || '';
+                        const otherDeps = extractVariables(otherExpr);
+
+                        if (otherDeps.includes(dep)) {
+                            if (!bidirectionalMap.has(element)) {
+                                bidirectionalMap.set(element, new Set());
+                            }
+                            bidirectionalMap.get(element).add(otherElement);
+                        }
+                    });
+                });
+
+                // parse live-compute-trigger dan simpan pada element (untuk akses cepat)
+                const triggerAttr = attr(element, 'live-compute-trigger') || '';
+                if (triggerAttr.trim()) {
+                    const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+                    setData(element, 'liveComputeTriggers', triggers);
+                } else {
+                    removeData(element, 'liveComputeTriggers');
+                }
+            });
+            setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
+            setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
+
+            // build trigger map: varName -> Set(elements)
+            const triggerMap = new Map();
+            find('[live-compute-trigger]').forEach(function (element) {
+                const triggers = getData(element, 'liveComputeTriggers') || [];
+                triggers.forEach(t => {
+                    const setFor = triggerMap.get(t) || new Set();
+                    setFor.add(element);
+                    triggerMap.set(t, setFor);
+                });
+            });
+            setData(rootScope, 'liveComputeTriggerMap', triggerMap);
+        }
+
+        // ========== OPTIMIZED PROCESS FUNCTION ==========
+
+        function process(sourceElement = null) {
+            if (processingPromise) {
+                return processingPromise.then(() => {
+                    // After current process, enqueue new one
+                    if (sourceElement) {
+                        enqueueComputeUpdate(sourceElement, 'high');
+                    } else {
+                        // Process all compute elements with normal priority
+                        const computeElements = find('[live-compute]');
+                        computeElements.forEach(el => {
+                            if (el.isConnected) {
+                                enqueueComputeUpdate(el, 'normal', sourceElement);
+                            }
+                        });
+                    }
+                    processComputeQueue();
+                });
+            }
+
+            processingPromise = new Promise((resolve) => {
+                const cache = getData(rootScope, COMPUTE_CACHE_KEY);
+                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+                iterationCount = 0;
+                bidirectionalUpdateInProgress = !!sourceElement;
+
+                const elements = filter(find('[live-compute]'), function (element) {
+                    const expr = attr(element, 'live-compute')?.trim() || '';
+                    return expr.length > 0 && element.isConnected;
+                });
+
+                let index = 0;
+                let hasChanges = false;
+
+                function processBatch() {
+                    const batch = elements.slice(index, index + BATCH_SIZE);
+                    let batchHasChanges = false;
+
+                    batch.forEach(function (element) {
+                        // Skip jika ini adalah source element dari bidirectional update
+                        if (sourceElement && element === sourceElement) {
+                            return;
+                        }
+
+                        const expr = attr(element, 'live-compute')?.trim() || '';
+
+                        try {
+                            const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
+                            const isFocused = is(element, ':focus');
+                            const isUpdating = getData(element, 'updating') === true;
+
+                            if (hasSkipAttr && isFocused) {
+                                return;
+                            }
+
+                            if (isUpdating) {
+                                return;
+                            }
+
+                            const lastManualInput = getData(element, 'lastManualInput') || 0;
+                            if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
+                                return;
+                            }
+
+                            // ===== ADDED: support live-compute-trigger =====
+                            const triggerAttr = attr(element, 'live-compute-trigger') || '';
+                            if (triggerAttr.trim()) {
+                                const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+                                let anyRecent = false;
+                                const now = Date.now();
+                                const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
+
+                                // cari input yang sesuai setiap trigger, cek lastManualInput-nya
+                                for (const t of triggers) {
+                                    // cari input/select/textarea dengan nama yang jika disanitize = t
+                                    const inputs = find('input[name], select[name], textarea[name]');
+                                    for (const inp of inputs) {
+                                        const nameAttr = attr(inp, 'name');
+                                        if (!nameAttr) continue;
+                                        const sanitized = sanitizeInputNameToJSVariable(nameAttr);
+                                        if (sanitized === t) {
+                                            const last = getData(inp, 'lastManualInput') || 0;
+                                            if (now - last < THRESHOLD_MS) {
+                                                anyRecent = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (anyRecent) break;
+                                }
+
+                                // kalau tidak ada trigger recent, skip element ini
+                                if (!anyRecent) {
+                                    return;
+                                }
+                            }
+                            // ===== END ADDED =====
+
+                            const globalInputs = getGlobalInputs();
+                            const indices = getRowIndices();
+                            const result = evaluateExpression(expr, globalInputs, indices);
+
+                            // Check if this is a bidirectional relationship
+                            const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
+                                bidirectionalMap.get(element).has(sourceElement);
+
+                            const changed = displayResult(element, result, cache, sourceElement, isBidirectional);
+
+                            if (changed) {
+                                batchHasChanges = true;
+                                hasChanges = true;
+
+                                // If this element changed and has bidirectional relationships, queue them
+                                if (!isBidirectional && bidirectionalMap.has(element)) {
+                                    bidirectionalMap.get(element).forEach(bidirectionalEl => {
+                                        if (bidirectionalEl !== sourceElement && bidirectionalEl.isConnected) {
+                                            enqueueComputeUpdate(bidirectionalEl, 'high', element);
+                                        }
+                                    });
+                                }
+                            }
+                        } catch (error) {
+                            console.error('LiveCompute error:', error);
+                            if (attr(element, 'live-compute-skip') !== 'true') {
+                                displayResult(element, '', cache, sourceElement, false);
+                            }
+                        }
+                    });
+
+                    index += BATCH_SIZE;
+
+                    if (index < elements.length) {
+                        if ('requestIdleCallback' in window) {
+                            requestIdleCallback(processBatch, { timeout: 100 });
+                        } else {
+                            setTimeout(processBatch, 20);
+                        }
+                    } else {
+                        iterationCount++;
+
+                        if (hasChanges && iterationCount < MAX_ITERATIONS) {
+                            index = 0;
+                            hasChanges = false;
+                            setTimeout(processBatch, 10);
+                        } else {
+                            if (iterationCount >= MAX_ITERATIONS) {
+                                console.warn('Live compute reached max iterations');
+                            }
+
+                            setTimeout(() => {
+                                // Hanya reset circular detection jika bukan bidirectional update
+                                if (!sourceElement) {
+                                    setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
+                                }
+                            }, 1000);
+
+                            processingPromise = null;
+                            bidirectionalUpdateInProgress = false;
+                            resolve();
+                        }
+                    }
+                }
+
+                processBatch();
+            }).finally(() => {
+                processingPromise = null;
+                bidirectionalUpdateInProgress = false;
+            });
+
+            return processingPromise;
+        }
+
+        // ========== ENHANCED CIRCULAR DEPENDENCY DETECTION ==========
+
+        function detectCircularDependency(element, newValue, sourceElement = null, isBidirectional = false) {
             // Skip circular detection untuk elemen yang saling bergantung (bidirectional)
             if (sourceElement) {
                 const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
                 if (bidirectionalMap.has(element) && bidirectionalMap.get(element).has(sourceElement)) {
+                    // For bidirectional, use more lenient detection
+                    if (isBidirectional) {
+                        const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
+                        const key = element;
+
+                        if (!circularMap.has(key)) {
+                            circularMap.set(key, []);
+                        }
+
+                        const history = circularMap.get(key);
+
+                        if (history.length > 0) {
+                            const lastValue = history[history.length - 1];
+                            if (isValueConverged(lastValue, newValue)) {
+                                return true;
+                            }
+                        }
+
+                        history.push(newValue);
+                        if (history.length > 8) {
+                            history.shift();
+                        }
+                        return false;
+                    }
                     return false;
                 }
             }
@@ -1109,150 +2671,41 @@
             return false;
         }
 
-        // PERBAIKAN: Process function dengan handling bidirectional yang lebih baik
-        function process(sourceElement = null) {
-            if (processingPromise) {
-                return processingPromise;
-            }
-
-            if (bidirectionalUpdateInProgress && sourceElement) {
-                return Promise.resolve();
-            }
-
-            iterationCount = 0;
-            bidirectionalUpdateInProgress = !!sourceElement;
-
-            processingPromise = new Promise((resolve) => {
-                const cache = getData(rootScope, COMPUTE_CACHE_KEY);
-
-                const elements = filter(find('[live-compute]'), function (element) {
-                    const expr = attr(element, 'live-compute')?.trim() || '';
-                    return expr.length > 0;
-                });
-
-                let index = 0;
-                let hasChanges = false;
-
-                function processBatch() {
-                    const batch = elements.slice(index, index + BATCH_SIZE);
-                    let batchHasChanges = false;
-
-                    batch.forEach(function (element) {
-                        // Skip jika ini adalah source element dari bidirectional update
-                        if (sourceElement && element === sourceElement) {
-                            return;
-                        }
-
-                        const expr = attr(element, 'live-compute')?.trim() || '';
-
-                        try {
-                            const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
-                            const isFocused = is(element, ':focus');
-                            const isUpdating = getData(element, 'updating') === true;
-
-                            if (hasSkipAttr && isFocused) {
-                                return;
-                            }
-
-                            if (isUpdating) {
-                                return;
-                            }
-
-                            const lastManualInput = getData(element, 'lastManualInput') || 0;
-                            if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
-                                return;
-                            }
-
-                            const globalInputs = getGlobalInputs();
-                            const indices = getRowIndices();
-                            const result = evaluateExpression(expr, globalInputs, indices);
-                            const changed = displayResult(element, result, cache, sourceElement);
-
-                            if (changed) {
-                                batchHasChanges = true;
-                                hasChanges = true;
-                            }
-                        } catch (error) {
-                            console.error('LiveCompute error:', error);
-                            if (attr(element, 'live-compute-skip') !== 'true') {
-                                displayResult(element, '', cache, sourceElement);
-                            }
-                        }
-                    });
-
-                    index += BATCH_SIZE;
-
-                    if (index < elements.length) {
-                        if ('requestIdleCallback' in window) {
-                            requestIdleCallback(processBatch, { timeout: 100 });
-                        } else {
-                            setTimeout(processBatch, 20);
-                        }
-                    } else {
-                        iterationCount++;
-
-                        if (hasChanges && iterationCount < MAX_ITERATIONS) {
-                            index = 0;
-                            hasChanges = false;
-                            setTimeout(processBatch, 10);
-                        } else {
-                            if (iterationCount >= MAX_ITERATIONS) {
-                                console.warn('Live compute reached max iterations');
-                            }
-
-                            setTimeout(() => {
-                                // Hanya reset circular detection jika bukan bidirectional update
-                                if (!sourceElement) {
-                                    setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-                                }
-                            }, 1000);
-
-                            processingPromise = null;
-                            bidirectionalUpdateInProgress = false;
-                            resolve();
-                        }
-                    }
-                }
-
-                processBatch();
-            }).finally(() => {
-                processingPromise = null;
-                bidirectionalUpdateInProgress = false;
-            });
-
-            return processingPromise;
-        }
-
         function scheduleProcess(delay = 0, sourceElement = null) {
             clearTimeout(immediateTimeout);
             clearTimeout(debounceTimer);
 
-            const timerId = setTimeout(() => {
-                process(sourceElement);
-            }, delay);
-
-            if (delay <= 30) {
-                immediateTimeout = timerId;
+            if (sourceElement) {
+                enqueueComputeUpdate(sourceElement, 'high');
+                if (delay <= 30) {
+                    immediateTimeout = setTimeout(processComputeQueue, delay);
+                } else {
+                    debounceTimer = setTimeout(processComputeQueue, delay);
+                }
             } else {
-                debounceTimer = timerId;
+                const timerId = setTimeout(() => {
+                    process(sourceElement).then(processComputeQueue);
+                }, delay);
+
+                if (delay <= 30) {
+                    immediateTimeout = timerId;
+                } else {
+                    debounceTimer = timerId;
+                }
             }
         }
 
         function processImmediate(sourceElement = null) {
-            scheduleProcess(30, sourceElement);
+            if (sourceElement) {
+                enqueueComputeUpdate(sourceElement, 'high');
+                processComputeQueue();
+            } else {
+                scheduleProcess(30, sourceElement);
+            }
         }
 
         function debounceProcess(sourceElement = null) {
             scheduleProcess(DEBOUNCE_DELAY, sourceElement);
-        }
-
-        function buildDependencyMap() {
-            const depMap = new Map();
-            find('[live-compute]').forEach(function (element) {
-                const expr = attr(element, 'live-compute')?.trim() || '';
-                depMap.set(element, extractVariables(expr));
-            });
-            setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
         }
 
         function getGlobalInputs() {
@@ -1404,8 +2857,6 @@
             return String(value) === criteria;
         }
 
-
-
         function getAggregateValues(arg, globalInputs, indices) {
             arg = arg.trim();
             const vals = [];
@@ -1431,7 +2882,6 @@
             }
         }
 
-        // PERBAIKAN: Display result dengan handling yang lebih baik untuk bidirectional elements
         // ✅ Normalisasi angka agar tidak ada 1.99998
         function normalizeNumber(num, decimals = 2) {
             if (num === null || num === undefined || isNaN(num)) return 0;
@@ -1439,7 +2889,7 @@
         }
 
         // ✅ Display result dengan rawValue vs displayValue
-        function displayResult(element, result, cache, sourceElement = null) {
+        function displayResult(element, result, cache, sourceElement = null, isBidirectional = false) {
             const format = attr(element, 'live-compute-format');
 
             // raw numeric value untuk kalkulasi
@@ -1451,10 +2901,10 @@
 
             // Skip circular detection untuk hubungan bidirectional
             const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-            const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
+            const isBidirectionalRelation = sourceElement && bidirectionalMap.has(element) &&
                 bidirectionalMap.get(element).has(sourceElement);
 
-            if (!isBidirectional && detectCircularDependency(element, rawValue, sourceElement)) {
+            if (!isBidirectionalRelation && detectCircularDependency(element, rawValue, sourceElement, isBidirectional)) {
                 return false;
             }
 
@@ -1502,6 +2952,10 @@
 
                 // ✅ Hanya tampilkan displayValue
                 val(element, displayValue);
+
+                // Trigger events untuk integrasi yang better
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                element.dispatchEvent(new Event('input', { bubbles: true }));
             } else {
                 html(element, displayValue);
             }
@@ -1510,7 +2964,6 @@
                 removeData(element, 'updating');
             }, 1);
         }
-
 
         function formatResult(result, format) {
             if (result === null || result === undefined) {
@@ -1674,6 +3127,23 @@
                 .replace(/[^a-zA-Z0-9_]/g, '_');
         }
 
+        function isValueConverged(oldValue, newValue) {
+            // bedakan "" dengan 0 supaya tetap update
+            if (oldValue === "" && newValue === 0) return false;
+
+            if (oldValue === newValue) return true;
+
+            const oldNum = parseFloat(oldValue);
+            const newNum = parseFloat(newValue);
+
+            if (!isNaN(oldNum) && !isNaN(newNum)) {
+                if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
+                if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
+            }
+
+            return false;
+        }
+
         function addEventListener(selector, event, handler, context = rootScope) {
             context.addEventListener(event, function (e) {
                 if (e.target.matches(selector)) {
@@ -1683,6 +3153,8 @@
         }
 
         function init() {
+            // Initialize all systems
+            initBidirectionalQueue();
             process();
 
             let lastInputTime = 0;
@@ -1694,12 +3166,10 @@
                 const expr = attr(element, 'live-compute') || '';
                 const vars = extractVariables(expr);
 
-                // Cari elemen yang saling bergantung
                 find('[live-compute]').forEach(function (otherElement) {
                     const otherExpr = attr(otherElement, 'live-compute') || '';
                     const otherVars = extractVariables(otherExpr);
 
-                    // Jika ada variabel yang saling bergantung, tandai sebagai bidirectional
                     if (vars.some(v => otherVars.includes(v)) && otherElement !== element) {
                         if (!bidirectionalElements.has(element)) {
                             bidirectionalElements.set(element, new Set());
@@ -1711,8 +3181,7 @@
                         }
                         bidirectionalElements.get(otherElement).add(element);
 
-                        // Simpan ke bidirectional tracking map
-                        const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
+                        const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
                         if (!bidirectionalMap.has(element)) {
                             bidirectionalMap.set(element, new Set());
                         }
@@ -1722,16 +3191,16 @@
                             bidirectionalMap.set(otherElement, new Set());
                         }
                         bidirectionalMap.get(otherElement).add(element);
+
+                        setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
                     }
                 });
             });
 
-            // Track manual input
             addEventListener('[live-compute-skip="true"]', 'input', function () {
                 if (getData(this, 'updating')) return;
                 setData(this, 'lastManualInput', Date.now());
 
-                // Jika ini adalah bidirectional element, trigger process dengan source
                 if (bidirectionalElements.has(this)) {
                     processImmediate(this);
                 } else {
@@ -1739,21 +3208,36 @@
                 }
             });
 
-            // Format handling untuk input biasa
-            addEventListener('input[live-compute-format]:not([live-compute-skip="true"])', 'input', function () {
+            addEventListener('input[name], select[name], textarea[name]', 'input', function () {
+                if (getData(this, 'updating')) return;
+                setData(this, 'lastManualInput', Date.now());
+                processImmediate();
+            });
+
+            // === PATCHED ===
+            addEventListener('input[live-compute-format]', 'input', function () {
                 if (getData(this, 'updating')) return;
 
                 const element = this;
                 const currentValue = val(this);
+
+                setData(element, 'lastManualInput', Date.now());
+
+                // 🚫 Jika ada live-compute-skip → jangan format realtime
+                if (element.hasAttribute('live-compute-skip')) {
+                    return; // biarkan user ngetik normal
+                }
 
                 if (formatTimeout.has(element)) {
                     clearTimeout(formatTimeout.get(element));
                 }
 
                 const now = Date.now();
-                if (now - lastInputTime > 10) {
-                    lastInputTime = now;
-                    processImmediate();
+                if (!element.hasAttribute('live-compute-skip')) {
+                    if (now - lastInputTime > 10) {
+                        lastInputTime = now;
+                        processImmediate();
+                    }
                 }
 
                 const timeout = setTimeout(() => {
@@ -1814,8 +3298,8 @@
 
                 formatTimeout.set(element, timeout);
             });
+            // === END PATCH ===
 
-            // Handle input events untuk elemen biasa
             addEventListener('input:not([live-compute-format]):not([live-compute-skip="true"]), select:not([live-compute-skip="true"]), textarea:not([live-compute-skip="true"])', 'input', function () {
                 if (getData(this, 'updating')) return;
 
@@ -1831,15 +3315,11 @@
                 debounceProcess();
             });
 
-            // Process ketika skip element kehilangan focus
             addEventListener('[live-compute-skip="true"]', 'blur', function () {
                 debounceProcess();
             });
 
-            // Format saat blur
             addEventListener('input[live-compute-format]', 'blur', function () {
-                if (getData(this, 'updating')) return;
-
                 const element = this;
 
                 if (formatTimeout.has(element)) {
@@ -1848,23 +3328,28 @@
                 }
 
                 const currentValue = val(this);
-                if (currentValue && currentValue.trim() !== '') {
-                    const formattedValue = formatInputValue(this, currentValue);
-                    if (val(this) !== formattedValue) {
-                        setData(this, 'updating', true);
-                        val(this, formattedValue);
-                        setData(this, 'lastFormattedValue', formattedValue);
 
-                        setTimeout(() => {
-                            removeData(this, 'updating');
-                        }, 50);
+                if (currentValue && currentValue.trim() !== '') {
+                    let formattedValue = formatInputValue(this, currentValue);
+
+                    // 🚀 PATCH: kalau hasil format kosong → paksa fallback ke number formatting
+                    if (!formattedValue || formattedValue.trim() === '') {
+                        const numValue = toNumber(currentValue);
+                        formattedValue = formatResult(numValue, attr(this, 'live-compute-format'));
                     }
+
+                    // 🚀 PATCH: walaupun ada live-compute-skip tetap paksa format saat blur
+                    val(this, formattedValue);
+                    setData(this, 'lastFormattedValue', formattedValue);
                 }
 
+                // Hapus flag updating biar siap dipakai lagi
+                removeData(this, 'updating');
+
+                // Tetap trigger proses compute lain
                 debounceProcess();
             });
 
-            // Format saat focus
             addEventListener('input[live-compute-format]', 'focus', function () {
                 const currentValue = val(this);
 
@@ -1883,7 +3368,6 @@
                 }
             });
 
-            // Custom event listener for DOM changes (equivalent to jQuery's live-dom:afterAppend)
             rootScope.addEventListener('live-dom:afterAppend', () => {
                 buildDependencyMap();
                 process();
@@ -1893,7 +3377,6 @@
                 process();
             });
 
-            // MutationObserver as fallback for DOM changes
             if (typeof MutationObserver !== 'undefined') {
                 const observer = new MutationObserver((mutations) => {
                     let shouldRebuild = false;
@@ -2565,11 +4048,17 @@
             handleLiveEvent($(this), 'input');
         });
 
-        $(document).on('input change', '[live-scope] input, [live-scope] select, [live-scope] textarea',
-            function () {
-                handleLiveComputeUnified();
-                handleLiveDirectives();
-            });
+        // event binding, pakai debounce
+        $(document).on(
+            'input change',
+            '[live-scope] input, [live-scope] select, [live-scope] textarea',
+            debounce(function () {
+                const scope = $(this).closest('[live-scope]');
+                handleLiveDirectives(scope);
+            }, 200) // delay 200ms
+        );
+
+
 
         $(document).on('click', '[live-spa-region] a[href]:not([href^="#"]):not([href=""])', function (e) {
             const url = $(this).attr('href');
@@ -2644,8 +4133,8 @@
         handleLiveBind();               // live-bind
         bindLiveDomEvents();            // event handler utama
         handlePollers();                // pollers (live-poll)
-        handleLiveComputeUnified();     // inisialisasi live-compute
-        handleLiveDirectives();
+        // handleLiveComputeUnified();     // inisialisasi live-compute
+        // handleLiveDirectives();
 
         // SPA state awal
         if (document.querySelector('[live-spa-region="main"]')) {
@@ -2660,6 +4149,7 @@
     // Event listener for general DOM updates
     document.addEventListener('live-dom:afterUpdate', function () {
         initLiveDom();
+        handleLiveDirectives();
     });
 
     // Event listener after SPA content loads
@@ -2680,5 +4170,7 @@
     // Initial setup when the DOM is ready
     $(document).ready(function () {
         initLiveDom();
+        handleLiveComputeUnified();
+        handleLiveDirectives();
     });
 })(jQuery);
