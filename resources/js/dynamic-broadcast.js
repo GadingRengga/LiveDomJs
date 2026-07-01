@@ -18,9 +18,6 @@ window.addEventListener("load", function () {
         channelsToSubscribe.push(`private-user.${userLists}`);
     }
 
-    // FIX: ganti satu flag global dengan per-key Set
-    // Mencegah duplicate fetch untuk controller+func yang sama dalam window waktu tertentu
-    // tapi tetap allow event berikutnya yang berbeda controller/func
     const fetchingKeys = new Set();
     const FETCH_DEBOUNCE_MS = 3000; // reset key setelah 3 detik
 
