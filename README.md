@@ -149,21 +149,26 @@ Turn any region into a Single Page Application area. Links and forms inside `liv
 **Requirements:** Laravel 9+, PHP 8.1+
 
 ```bash
-# 1. Install the package
 composer require gadingrengga/livedomjs
-
-# 2. Run the install command
-php artisan livedomjs:install
 ```
 
-Add to your Blade layout:
+That's it — genuinely. No `artisan install` step, no editing `routes/web.php`, no touching your Blade layout. As soon as the package is required:
 
-```html
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="{{ asset('vendor/livedomjs/livedom.js') }}"></script>
+- The `/ajax/{controller}/{action}` route is registered automatically.
+- `jquery` + `livedom.js` are automatically injected into every HTML response.
+- Assets are served directly from the package — no `vendor:publish` needed to get started.
+
+No webpack. No npm. No build step. No manual wiring.
+
+### Customizing (optional)
+
+If you want to change the route prefix, disable auto-injection, or edit `livedom.js` directly in your project:
+
+```bash
+php artisan livedomjs:install --publish
 ```
 
-That's it. No webpack. No npm. No build step.
+This publishes `config/livedomjs.php` and the JS assets to `public/vendor/livedomjs`. Once published, your local copy takes priority over the package's built-in fallback automatically.
 
 ---
 

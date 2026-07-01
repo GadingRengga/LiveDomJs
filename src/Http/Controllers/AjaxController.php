@@ -35,6 +35,36 @@ class AjaxController extends Controller
             $controllerInstance = app($controllerClass);
             $result = $controllerInstance->$action($request);
 
+            // === REALTIME MODE ===
+            // Jika request menandakan broadcast (bukan fetch ulang dari client lain),
+            // broadcast event ke semua client dengan live-scope yang cocok, alih-alih
+            // mengembalikan hasil render langsung ke pemanggil.
+            $isRealtime = $request->boolean('realtime')
+                || $request->header('X-Live-Reverb') === 'true';
+            $isFetch = $request->boolean('fetch', false);
+
+            if ($isRealtime && !$isFetch) {
+                $liveTarget  = $request->input('live_target', 'auto');
+                $channelType = $request->input('live_channel_type', 'public');
+                $recipients  = (array) $request->input('live_recipients', []);
+
+                reverbDynamic(
+                    $controller,
+                    $action,
+                    $liveTarget,
+                    [],
+                    $channelType,
+                    $recipients,
+                    'livedom-realtime'
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Broadcasted via ReverbDynamic (HTML)',
+                    'data'    => '[Reverb broadcasted]',
+                ]);
+            }
+
             return $this->handleSuccessResponse($result);
         } catch (Throwable $e) {
             Log::error('AjaxController Error', [

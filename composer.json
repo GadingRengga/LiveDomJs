@@ -28,10 +28,17 @@
         "php": "^8.0",
         "laravel/framework": "^9.0|^10.0"
     },
+    "suggest": {
+        "laravel/reverb": "Required if you want to use the live-realtime broadcasting feature.",
+        "pusher/pusher-php-server": "Alternative broadcast driver for the live-realtime feature."
+    },
     "autoload": {
         "psr-4": {
             "GadingRengga\\LiveDomJS\\": "src/"
-        }
+        },
+        "files": [
+            "src/Helpers/BroadcastHelper.php"
+        ]
     },
     "extra": {
         "laravel": {

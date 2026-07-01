@@ -4,9 +4,9 @@
     /*==============================
         AJAX DYNAMIC
     ==============================*/
-
     const ajaxDynamicControllers = {};
-
+    // Di bagian atas file / sebelum fungsi ajaxDynamic
+    const IS_DEBUG = document.querySelector('meta[name="app-debug"]')?.content === "true";
     /**
      * Performs an AJAX request with dynamic content loading capabilities.
      * Supports abortion of previous requests for the same target.
@@ -24,18 +24,20 @@
     // Simpan cache response sementara (single-use)
     const ajaxCache = new Map();
 
-    function ajaxDynamic(
-        method = 'POST',
+    function ajaxDynamicOld(
+        method = "POST",
         controller,
         action,
         data = {},
-        target = 'html',
-        targetId = '#',
+        target = "html",
+        targetId = "#",
         loading = true,
         callback = null,
-        useCache = false // ✅ opsi baru: default false (fresh data)
+        useCache = false, // ✅ opsi baru: default false (fresh data)
     ) {
-        const key = targetId || `${controller}_${action}_${method}_${JSON.stringify(data)}`;
+        const key =
+            targetId ||
+            `${controller}_${action}_${method}_${JSON.stringify(data)}`;
 
         // ✅ Jika ada request sebelumnya ke target yang sama → batalkan
         if (ajaxDynamicControllers[key]) {
@@ -47,7 +49,7 @@
             const response = ajaxCache.get(key);
             ajaxCache.delete(key); // auto clear setelah dipakai
 
-            if (typeof callback === 'function') {
+            if (typeof callback === "function") {
                 callback(response);
             } else {
                 callBackAjaxDynamic(target, targetId, response);
@@ -67,12 +69,27 @@
         $.ajax({
             url: `/ajax/${controller}/${action}`,
             method: method,
-            headers: method !== 'GET' ? {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            } : {},
+            headers:
+                method !== "GET"
+                    ? {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
+                            "content",
+                        ),
+                    }
+                    : {},
 
-            data: method === 'GET' ? data : (isFormData ? data : JSON.stringify(data)),
-            contentType: method === 'GET' ? undefined : (isFormData ? false : 'application/json'),
+            data:
+                method === "GET"
+                    ? data
+                    : isFormData
+                        ? data
+                        : JSON.stringify(data),
+            contentType:
+                method === "GET"
+                    ? undefined
+                    : isFormData
+                        ? false
+                        : "application/json",
             processData: isFormData ? false : true,
             cache: false,
             signal: abortController.signal,
@@ -89,7 +106,7 @@
                     ajaxCache.set(key, response);
                 }
 
-                if (typeof callback === 'function') {
+                if (typeof callback === "function") {
                     callback(response);
                 } else {
                     callBackAjaxDynamic(target, targetId, response);
@@ -98,20 +115,23 @@
 
             error: function (jqXHR, textStatus) {
                 if (loading) {
-                    targetId !== '#' ? hideTargetLoading(targetId) : $(".loading").hide();
+                    targetId !== "#"
+                        ? hideTargetLoading(targetId)
+                        : $(".loading").hide();
                 }
 
                 delete ajaxDynamicControllers[key];
 
-                if (textStatus === 'abort') {
+                if (textStatus === "abort") {
                     console.log(
-                        `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`
+                        `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`,
                     );
                     return;
                 }
 
-                const contentType = jqXHR.getResponseHeader('content-type') || '';
-                const isHtmlResponse = contentType.includes('text/html');
+                const contentType =
+                    jqXHR.getResponseHeader("content-type") || "";
+                const isHtmlResponse = contentType.includes("text/html");
 
                 if (isHtmlResponse) {
                     showErrorModal(jqXHR.responseText);
@@ -123,15 +143,165 @@
                     json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
                 } catch (e) {
                     json = {
-                        message: 'Unparsable response',
-                        raw: jqXHR.responseText
+                        message: "Unparsable response",
+                        raw: jqXHR.responseText,
                     };
                 }
                 showErrorModal(json);
-            }
+            },
         });
     }
 
+    function ajaxDynamic(
+        method = "POST",
+        controller,
+        action,
+        data = {},
+        target = "html",
+        targetId = "#",
+        loading = true,
+        callback = null,
+        useCache = false,
+    ) {
+        const key =
+            targetId ||
+            `${controller}_${action}_${method}_${JSON.stringify(data)}`;
+
+        // ✅ Batalkan request sebelumnya untuk target yang sama
+        if (ajaxDynamicControllers[key]) {
+            ajaxDynamicControllers[key].abort();
+        }
+
+        // ✅ Gunakan cache sekali pakai (optional)
+        if (useCache && ajaxCache.has(key)) {
+            const response = ajaxCache.get(key);
+            ajaxCache.delete(key);
+            if (typeof callback === "function") callback(response);
+            else callBackAjaxDynamic(target, targetId, response);
+            return;
+        }
+
+        const abortController = new AbortController();
+        ajaxDynamicControllers[key] = abortController;
+
+        if (loading) $(".loading").show();
+
+        const isFormData = data instanceof FormData;
+
+        // 🔥 Deteksi elemen pemicu LiveDOM
+        const $trigger = $(document.activeElement).closest(
+            "[live-click], [live-change]",
+        );
+        const isRealtime = $trigger.attr("live-realtime") === "true";
+        const liveTarget = $trigger.attr("live-target") || targetId || "auto";
+
+        // ✅ Tambahkan metadata ke data (untuk AjaxController)
+        if (!isFormData) {
+            data = {
+                ...data,
+                live_target: liveTarget,
+                realtime: isRealtime ? true : false,
+            };
+        } else if (isRealtime) {
+            data.append("realtime", true);
+            data.append("live_target", liveTarget);
+        }
+
+        console.log("🚀 Sending $.ajax to", `/ajax/${controller}/${action}`);
+
+        $.ajax({
+            url: `/ajax/${controller}/${action}`,
+            method: method,
+            headers: {
+                ...(method !== "GET" && {
+                    "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
+                        "content",
+                    ),
+                }),
+                ...(isRealtime && { "X-Live-Reverb": "true" }),
+            },
+            data:
+                method === "GET"
+                    ? data
+                    : isFormData
+                        ? data
+                        : JSON.stringify(data),
+            contentType:
+                method === "GET"
+                    ? undefined
+                    : isFormData
+                        ? false
+                        : "application/json",
+            processData: isFormData ? false : true,
+            cache: false,
+            signal: abortController.signal,
+
+            success: function (response) {
+                console.log("✅ SUCCESS fired", response);
+                if (loading) $(".loading").hide();
+                delete ajaxDynamicControllers[key];
+                if (useCache) ajaxCache.set(key, response);
+
+                // ⚡ Jika server sudah melakukan broadcast realtime → skip render lokal
+                if (
+                    response.message?.includes(
+                        "Broadcasted via ReverbDynamic",
+                    ) ||
+                    response.realtime === true
+                ) {
+                    console.log(
+                        "[ReverbDynamic] Broadcasted realtime — skip local DOM update.",
+                    );
+                    return;
+                }
+
+                if (typeof callback === "function") callback(response);
+                else callBackAjaxDynamic(target, targetId, response);
+            },
+
+            error: function (jqXHR, textStatus) {
+                try {
+                    if (loading)
+                        targetId !== "#"
+                            ? hideTargetLoading(targetId)
+                            : $(".loading").hide();
+                } catch (e) { }
+
+                delete ajaxDynamicControllers[key];
+
+                if (textStatus === "abort") { return; }
+
+                // ✅ Debug mode → langsung toast, skip modal detail
+                if (!IS_DEBUG) {
+                    const msg = jqXHR.responseJSON?.message || "Terjadi kesalahan.";
+                    showProductionErrorToast(msg);
+                    return;
+                }
+
+                // 🛠️ Development mode → tampilkan detail error
+                const contentType = jqXHR.getResponseHeader("content-type") || "";
+
+                if (contentType.includes("text/html")) {
+                    showErrorModal(jqXHR.responseText);
+                    return;
+                }
+
+                let json = {};
+                try {
+                    json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
+                } catch {
+                    json = { message: "Unparsable response", raw: jqXHR.responseText };
+                }
+
+                if (json.production_error) {
+                    showProductionErrorToast(json.message || "Terjadi kesalahan.");
+                    return;
+                }
+
+                showErrorModal(json);
+            },
+        });
+    }
 
     /**
      * Handles the callback logic for ajaxDynamic, updating the DOM or calling a global function.
@@ -141,7 +311,11 @@
      */
     function callBackAjaxDynamic(target, targetId, response) {
         if (response.success) {
-            if (typeof target === "string" && target !== "html" && window[target]) {
+            if (
+                typeof target === "string" &&
+                target !== "html" &&
+                window[target]
+            ) {
                 window[target](response.data, targetId);
             } else if (target === "html") {
                 $(`${targetId}`).html(response.data);
@@ -149,7 +323,14 @@
                 target(response.data, targetId);
             }
         } else {
-            console.error('AJAX Dynamic Error:', response.message);
+            // ✅ Tampilkan modal error, bukan hanya console.error
+            showErrorModal({
+                message: response.message || "Unknown error",
+                exception: response.exception || "",
+                file: response.file || "",
+                line: response.line || "",
+                trace: response.trace || {},
+            });
         }
     }
 
@@ -161,55 +342,57 @@
         const $target = $(targetId);
         if ($target.length === 0) return;
 
-        $target.find('.dynamic-loading-overlay').remove();
+        $target.find(".dynamic-loading-overlay").remove();
 
         const $overlay = $(`
-      <div class="dynamic-loading-overlay" style="
-        position: absolute;
-        inset: 0;
-        background: rgba(255, 255, 255, 0.75);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 50;
-        border-radius: inherit;
-        animation: fadeIn 0.3s ease-in-out;
-      ">
-        <div class="spinner-glow"></div>
-      </div>
-    `);
+      <div class="dynamic-loading-overlay" style="
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.75);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        border-radius: inherit;
+        animation: fadeIn 0.3s ease-in-out;
+      ">
+        <div class="spinner-glow"></div>
+      </div>
+    `);
 
         const spinnerStyle = `
-      @keyframes spinnerFade {
-        0%, 100% { opacity: 0.3; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
+      @keyframes spinnerFade {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
 
-      .spinner-glow {
-        width: 32px;
-        height: 32px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
-        animation: spinnerFade 1s infinite ease-in-out;
-        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
-      }
+      .spinner-glow {
+        width: 32px;
+        height: 32px;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        animation: spinnerFade 1s infinite ease-in-out;
+        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
+      }
 
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
 
-      .dynamic-loading-overlay {
-        transition: opacity 0.3s ease;
-      }
-    `;
+      .dynamic-loading-overlay {
+        transition: opacity 0.3s ease;
+      }
+    `;
 
-        if (!$('head').find('#spinner-style').length) {
-            $('head').append(`<style id="spinner-style">${spinnerStyle}</style>`);
+        if (!$("head").find("#spinner-style").length) {
+            $("head").append(
+                `<style id="spinner-style">${spinnerStyle}</style>`,
+            );
         }
 
-        if ($target.css('position') === 'static') {
-            $target.css('position', 'relative');
+        if ($target.css("position") === "static") {
+            $target.css("position", "relative");
         }
 
         $target.append($overlay);
@@ -221,7 +404,7 @@
      */
     function hideTargetLoading(targetId) {
         const $target = $(targetId);
-        $target.find('.dynamic-loading-overlay').fadeOut(300, function () {
+        $target.find(".dynamic-loading-overlay").fadeOut(300, function () {
             $(this).remove();
         });
     }
@@ -243,7 +426,16 @@
      * @param {boolean} loading - Whether to show a loading indicator.
      * @param {function} callback - Custom callback function.
      */
-    function debouncedAjaxDynamic(methodType, controller, method, data, target, targetId, loading, callback) {
+    function debouncedAjaxDynamic(
+        methodType,
+        controller,
+        method,
+        data,
+        target,
+        targetId,
+        loading,
+        callback,
+    ) {
         const key = `${controller}::${method}`;
 
         if (debounceMap.has(key)) {
@@ -251,7 +443,16 @@
         }
 
         const timer = setTimeout(() => {
-            ajaxDynamic(methodType, controller, method, data, target, targetId, loading, callback);
+            ajaxDynamic(
+                methodType,
+                controller,
+                method,
+                data,
+                target,
+                targetId,
+                loading,
+                callback,
+            );
             debounceMap.delete(key);
         }, 400);
 
@@ -264,7 +465,7 @@
      * @returns {string} The kebab-case string.
      */
     function camelToKebab(str) {
-        return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+        return str.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
     }
 
     /**
@@ -273,7 +474,7 @@
      * @returns {string} The snake_case string.
      */
     function camelToSnake(str) {
-        return str.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+        return str.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
     }
 
     /**
@@ -282,7 +483,7 @@
      * @returns {string} The sanitized JavaScript variable name.
      */
     function sanitizeInputNameToJSVariable(name) {
-        return name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
+        return name.replace(/\]\[|\[|\]/g, "_").replace(/_+$/, "");
     }
 
     /**
@@ -291,37 +492,44 @@
      * @param {object} data - The data object from the AJAX response.
      */
     function autoBindDomFromResponse(data) {
-        if (!data || typeof data !== 'object') return;
+        if (!data || typeof data !== "object") return;
 
         Object.entries(data).forEach(([key, value]) => {
             const selectors = [
-                `#${key}`, `.${key}`,
-                `#${camelToKebab(key)}`, `.${camelToKebab(key)}`,
-                `#${camelToSnake(key)}`, `.${camelToSnake(key)}`
+                `#${key}`,
+                `.${key}`,
+                `#${camelToKebab(key)}`,
+                `.${camelToKebab(key)}`,
+                `#${camelToSnake(key)}`,
+                `.${camelToSnake(key)}`,
             ];
 
             for (const selector of selectors) {
                 const $el = $(selector);
                 // if ($el.is('input, textarea, select')) {
-                //     $el.val(value);
-                //     $el.each(function () {
-                //         this.dispatchEvent(new Event('input', {
-                //             bubbles: true
-                //         }));
-                //         this.dispatchEvent(new Event('change', {
-                //             bubbles: true
-                //         }));
-                //     });
+                //     $el.val(value);
+                //     $el.each(function () {
+                //         this.dispatchEvent(new Event('input', {
+                //             bubbles: true
+                //         }));
+                //         this.dispatchEvent(new Event('change', {
+                //             bubbles: true
+                //         }));
+                //     });
                 // } else {
-                //     $el.html(value);
+                //     $el.html(value);
                 // }
 
-                if ($el.is('input, textarea, select')) {
+                if ($el.is("input, textarea, select")) {
                     if ($el.val() !== String(value)) {
                         $el.val(value);
                         $el.each(function () {
-                            this.dispatchEvent(new Event('input', { bubbles: true }));
-                            this.dispatchEvent(new Event('change', { bubbles: true }));
+                            this.dispatchEvent(
+                                new Event("input", { bubbles: true }),
+                            );
+                            this.dispatchEvent(
+                                new Event("change", { bubbles: true }),
+                            );
                         });
                     }
                 } else {
@@ -339,12 +547,14 @@
      * @returns {string} The resolved HTTP method.
      */
     function resolveMethodType($el, eventType, formSelector) {
-        let methodType = 'POST';
-        if (eventType === 'submit' && formSelector) {
-            methodType = ($(formSelector).attr('method') || 'POST').toUpperCase();
+        let methodType = "POST";
+        if (eventType === "submit" && formSelector) {
+            methodType = (
+                $(formSelector).attr("method") || "POST"
+            ).toUpperCase();
         }
-        if ($el.attr('live-method')) {
-            methodType = $el.attr('live-method').toUpperCase();
+        if ($el.attr("live-method")) {
+            methodType = $el.attr("live-method").toUpperCase();
         }
         return methodType;
     }
@@ -356,40 +566,132 @@
      * @returns {object|FormData} The extracted data.
      */
 
-    function extractData($el, $form) {
-        let formData = new FormData();
+    // function extractData($el, $form) {
+    //     let formData = new FormData();
 
-        // Kalau klik method ada (form) → ambil form terdekat aja
-        if ($form && $form.length) {
-            $form.find('input[name], select[name], textarea[name]').each(function () {
-                appendInputToFormData(formData, this);
-            });
-        } else {
-            const $scope = $el.closest('[live-scope]');
-            $scope.find('input[name], select[name], textarea[name]').each(function () {
-                appendInputToFormData(formData, this);
-            });
+    //     if ($form && $form.length) {
+    //         // Jika event berasal dari sebuah form → ambil form tersebut
+    //         $form.find('input[name], select[name], textarea[name]').each(function () {
+    //             appendInputToFormData(formData, this);
+    //         });
+
+    //     } else {
+    //         console.log('test');
+    //         // Jika TIDAK ADA form → ambil SEMUA form di dalam live-scope
+    //         const $scope = $el.closest('[live-scope]');
+    //         const $forms = $scope.find('form');
+
+    //         if ($forms.length > 0) {
+    //             // Loop semua form dalam scope
+    //             $forms.each(function () {
+    //                 $(this)
+    //                     .find('input[name], select[name], textarea[name]')
+    //                     .each(function () {
+    //                         appendInputToFormData(formData, this);
+    //                     });
+    //             });
+    //         } else {
+    //             // Jika scope memang tidak punya form sama sekali → fallback:
+    //             $scope.find('input[name], select[name], textarea[name]').each(function () {
+    //                 appendInputToFormData(formData, this);
+    //             });
+    //         }
+    //     }
+
+    //     return formData;
+    // }
+
+    // function extractData($el, $form) {
+    //     const formData = new FormData();
+    //     const $scope = $el.closest('[live-scope]');
+
+    //     if (!$scope.length) return formData;
+
+    //     const appended = new Set(); // cegah duplicate
+
+    //     const appendSafe = (el) => {
+    //         if (!el.name) return;
+    //         if (appended.has(el)) return;
+
+    //         appendInputToFormData(formData, el);
+    //         appended.add(el);
+    //     };
+
+    //     // 1️⃣ Jika event berasal dari FORM → ambil form tersebut dulu
+    //     if ($form && $form.length) {
+    //         $form
+    //             .find('input[name], select[name], textarea[name]')
+    //             .each(function () {
+    //                 appendSafe(this);
+    //             });
+    //     }
+
+    //     // 2️⃣ Ambil SEMUA input di scope (termasuk di form lain & luar form)
+    //     $scope
+    //         .find('input[name], select[name], textarea[name]')
+    //         .each(function () {
+    //             appendSafe(this);
+    //         });
+
+    //     return formData;
+    // }
+
+    function extractData($el, $form, selector = null) {
+        const formData = new FormData();
+        const appended = new Set();
+
+        const appendSafe = (el) => {
+            if (!el.name || appended.has(el)) return;
+            appendInputToFormData(formData, el);
+            appended.add(el);
+        };
+
+        let $root;
+
+        // SKENARIO A: Jika ada selector spesifik (misal: live-click="updateDimension('#tr-1')")
+        if (
+            selector &&
+            typeof selector === "string" &&
+            (selector.startsWith("#") || selector.startsWith("."))
+        ) {
+            $root = $(selector);
         }
+        // SKENARIO B: Tanpa parameter, ambil scope terdekat (Konsep Lama)
+        else {
+            $root = $el.closest("[live-scope]");
+        }
+
+        if (!$root || !$root.length) return formData;
+
+        // AMBIL DATA HANYA DARI ROOT YANG TERPILIH
+        // .find() akan mencari input di dalam elemen tersebut
+        // .addBack() memastikan jika $root itu sendiri adalah input, nilainya tetap terambil
+        $root
+            .find("input[name], select[name], textarea[name]")
+            .addBack("input[name], select[name], textarea[name]")
+            .each(function () {
+                appendSafe(this);
+            });
 
         return formData;
     }
 
     function appendInputToFormData(fd, el) {
         const $input = $(el);
-        const name = $input.attr('name');
+        const name = $input.attr("name");
         if (!name) return;
 
-        if ($input.is(':file')) {
+        if ($input.is(":file")) {
             const files = $input[0].files;
             for (let i = 0; i < files.length; i++) {
                 fd.append(name, files[i]);
             }
-        } else if ($input.is(':checkbox')) {
-            if ($input.is(':checked')) {
+        } else if ($input.is(":checkbox")) {
+            if ($input.is(":checked")) {
                 fd.append(name, $input.val());
             }
-        } else if ($input.is(':radio')) {
-            if ($input.is(':checked')) {
+        } else if ($input.is(":radio")) {
+            if ($input.is(":checked")) {
                 fd.append(name, $input.val());
             }
         } else {
@@ -401,38 +703,40 @@
      * Live conditionals: show, class, style, attr
      */
     function evaluateExpr(expr, $el) {
-        const $scope = $el.closest('[live-scope]');
+        const $scope = $el.closest("[live-scope]");
         const inputs = {};
 
-        $scope.find('input[name], select[name], textarea[name]').each(function () {
-            const name = $(this).attr('name');
-            if (!name) return;
-            let val;
-            if ($(this).is(':checkbox')) {
-                val = $(this).is(':checked') ? $(this).val() : null;
-            } else if ($(this).is(':radio')) {
-                if ($(this).is(':checked')) val = $(this).val();
-            } else {
-                val = $(this).val();
-            }
+        $scope
+            .find("input[name], select[name], textarea[name]")
+            .each(function () {
+                const name = $(this).attr("name");
+                if (!name) return;
+                let val;
+                if ($(this).is(":checkbox")) {
+                    val = $(this).is(":checked") ? $(this).val() : null;
+                } else if ($(this).is(":radio")) {
+                    if ($(this).is(":checked")) val = $(this).val();
+                } else {
+                    val = $(this).val();
+                }
 
-            const safeName = name.replace(/\]\[|\[|\]/g, '_').replace(/_+$/, '');
-            const numVal = parseFloat(String(val).replace(/[^\d.-]/g, ''));
-            inputs[safeName] = isNaN(numVal) ? val : numVal;
-
-        });
+                const safeName = name
+                    .replace(/\]\[|\[|\]/g, "_")
+                    .replace(/_+$/, "");
+                const numVal = parseFloat(String(val).replace(/[^\d.-]/g, ""));
+                inputs[safeName] = isNaN(numVal) ? val : numVal;
+            });
 
         // biar ekspresi kayak dpp_[1] tetap bisa dipakai
-        expr = expr.replace(/\[\s*(\w+)\s*\]/g, '_$1');
+        expr = expr.replace(/\[\s*(\w+)\s*\]/g, "_$1");
 
         try {
-            return Function('ctx', `with(ctx){ return (${expr}) }`)(inputs);
+            return Function("ctx", `with(ctx){ return (${expr}) }`)(inputs);
         } catch (e) {
-            console.warn('Eval error:', expr, e);
+            console.warn("Eval error:", expr, e);
             return null;
         }
     }
-
 
     // util debounce biar gak spam CPU
     function debounce(fn, delay) {
@@ -450,10 +754,10 @@
         if (liveAttrCache.has($el[0])) {
             return liveAttrCache.get($el[0]);
         }
-        const expr = $el.attr('live-attr');
+        const expr = $el.attr("live-attr");
         if (!expr) return [];
-        const parsed = expr.split(',').map(pair => {
-            const [attr, js] = pair.split(':');
+        const parsed = expr.split(",").map((pair) => {
+            const [attr, js] = pair.split(":");
             return { attr: attr.trim(), js: js.trim() };
         });
         liveAttrCache.set($el[0], parsed);
@@ -463,29 +767,32 @@
     function handleLiveDirectives(scope) {
         const $scope = scope ? $(scope) : $(document);
 
-        $scope.find('[live-show]').each(function () {
-            const expr = $(this).attr('live-show');
+        $scope.find("[live-show]").each(function () {
+            const expr = $(this).attr("live-show");
             const result = evaluateExpr(expr, $(this));
             $(this).toggle(!!result);
         });
 
-        $scope.find('[live-class]').each(function () {
-            const expr = $(this).attr('live-class');
+        $scope.find("[live-class]").each(function () {
+            const expr = $(this).attr("live-class");
             const result = evaluateExpr(expr, $(this));
-            if (typeof result === 'string') {
-                $(this).attr('class', ($(this).attr('class-base') || '') + ' ' + result);
+            if (typeof result === "string") {
+                $(this).attr(
+                    "class",
+                    ($(this).attr("class-base") || "") + " " + result,
+                );
             }
         });
 
-        $scope.find('[live-style]').each(function () {
-            const expr = $(this).attr('live-style');
+        $scope.find("[live-style]").each(function () {
+            const expr = $(this).attr("live-style");
             const result = evaluateExpr(expr, $(this));
-            if (typeof result === 'string') {
-                $(this).attr('style', result);
+            if (typeof result === "string") {
+                $(this).attr("style", result);
             }
         });
 
-        $scope.find('[live-attr]').each(function () {
+        $scope.find("[live-attr]").each(function () {
             const parsed = parseLiveAttr($(this));
             parsed.forEach(({ attr, js }) => {
                 const result = evaluateExpr(js, $(this));
@@ -498,14 +805,13 @@
         });
     }
 
-
     /**
      * Extracts content from an element (e.g., its value for inputs, or HTML content).
      * @param {jQuery} $el - The jQuery element.
      * @returns {string} The extracted content.
      */
     function extractElementContent($el) {
-        if ($el.is('input, textarea, select')) {
+        if ($el.is("input, textarea, select")) {
             return $el.val();
         }
         return $el.html();
@@ -519,7 +825,7 @@
      */
     function liveTarget($el, targetSelector) {
         const targets = [];
-        const selectors = targetSelector.split(',').map(s => s.trim());
+        const selectors = targetSelector.split(",").map((s) => s.trim());
 
         for (let sel of selectors) {
             let $target = null;
@@ -530,28 +836,28 @@
                 const param = match[3] ? match[3].trim() : null;
 
                 switch (method) {
-                    case 'closest':
+                    case "closest":
                         if (param) $target = $el.closest(param);
                         break;
-                    case 'find':
+                    case "find":
                         if (param) $target = $el.find(param);
                         break;
-                    case 'parent':
+                    case "parent":
                         $target = $el.parent();
                         break;
-                    case 'children':
+                    case "children":
                         $target = $el.children(param || undefined);
                         break;
-                    case 'next':
+                    case "next":
                         $target = param ? $el.next(param) : $el.next();
                         break;
-                    case 'prev':
+                    case "prev":
                         $target = param ? $el.prev(param) : $el.prev();
                         break;
-                    case 'siblings':
+                    case "siblings":
                         $target = param ? $el.siblings(param) : $el.siblings();
                         break;
-                    case 'self':
+                    case "self":
                         $target = $el;
                         break;
                     default:
@@ -576,173 +882,239 @@
      */
     function handleLiveEvent($el, eventType) {
         const rawMethods = $el.attr(`live-${eventType}`);
-        const rawTargets = $el.attr('live-target') || '';
-        const domAction = $el.attr('live-dom') || 'html';
-        const formSelector = $el.closest('form').length ? $el.closest('form') : null;
-        const controller = $el.closest('[live-scope]').attr('live-scope');
+        const rawTargets = $el.attr("live-target") || "";
+        const domAction = $el.attr("live-dom") || "auto";
+        const formSelector = $el.closest("form").length
+            ? $el.closest("form")
+            : null;
+        const controller = $el.closest("[live-scope]").attr("live-scope");
         if (!controller && rawMethods) {
             console.warn(
                 `[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`,
-                $el[0]);
+                $el[0],
+            );
             return;
         }
 
-        const loading = $el.attr('live-loading') === 'true';
-        const loadingIndicator = $el.attr('live-loading-indicator');
-        const dataArgs = $el.attr('live-data');
+        const loading = $el.attr("live-loading") === "true";
+        const loadingIndicator = $el.attr("live-loading-indicator");
+        const dataArgs = $el.attr("live-data");
 
-        const beforeCallback = $el.attr('live-callback-before');
+        const beforeCallback = $el.attr("live-callback-before");
         const execute = () => {
             const methodType = resolveMethodType($el, eventType, formSelector);
-            const fallbackData = dataArgs ? {
-                data: dataArgs
-            } : extractData($el, formSelector);
+
+            // Jangan jalankan extractData di sini!
+            // Kita pindahkan ke dalam loop agar lebih spesifik.
 
             if (loadingIndicator) $(loadingIndicator).show();
 
             if (!rawMethods) {
-                // Kalau tidak ada action, jalankan update lokal
                 return runLocalUpdate($el, domAction, rawTargets);
             }
 
-            const methods = rawMethods.split(',').map(m => m.trim()).filter(Boolean);
-
-            const parsedMethods = methods.map(m => {
+            // const methods = rawMethods.split(',').map(m => m.trim()).filter(Boolean);
+            const methods = [];
+            let depth = 0,
+                current = "";
+            for (const c of rawMethods) {
+                if (c === "(" || c === "{" || c === "[") depth++;
+                if (c === ")" || c === "}" || c === "]") depth--;
+                if (c === "," && depth === 0) {
+                    methods.push(current.trim());
+                    current = "";
+                } else {
+                    current += c;
+                }
+            }
+            if (current.trim()) methods.push(current.trim());
+            const parsedMethods = methods.map((m) => {
                 const match = m.match(/^(\w+)(\((.*)\))?$/);
-                if (!match) return {
-                    method: m,
-                    args: null
-                };
+                if (!match)
+                    return {
+                        method: m,
+                        args: null,
+                    };
 
                 const [, name, , argsStr] = match;
-                if (!argsStr) return {
-                    method: name,
-                    args: null
-                };
+                if (!argsStr)
+                    return {
+                        method: name,
+                        args: null,
+                    };
 
                 try {
                     let argsRaw = [];
 
                     try {
-                        const safeArgStr = argsStr.replace(/\bthis\b/g, '__el');
-                        argsRaw = Function('__el', `return [${safeArgStr}]`)($el[0]);
+                        const safeArgStr = argsStr.replace(/\bthis\b/g, "__el");
+                        // deteksi jika argumen berbentuk objek literal, bungkus dengan tanda kurung
+                        let fixedArgStr = safeArgStr.trim();
+                        if (/^{[\s\S]*}$/.test(fixedArgStr)) {
+                            fixedArgStr = `(${fixedArgStr})`;
+                        }
+                        argsRaw = Function(
+                            "__el",
+                            `return [${fixedArgStr}]`,
+                        )($el[0]);
 
                         // Jika hanya ada satu argumen dan itu array string (nested), coba parse manual
                         if (
                             argsRaw.length === 1 &&
-                            typeof argsRaw[0] === 'string' &&
-                            argsRaw[0].startsWith('[') &&
-                            argsRaw[0].endsWith(']')
+                            typeof argsRaw[0] === "string" &&
+                            argsRaw[0].startsWith("[") &&
+                            argsRaw[0].endsWith("]")
                         ) {
                             try {
-                                const parsed = JSON.parse(argsRaw[0].replace(/'/g,
-                                    '"')); // convert ' to " dulu
+                                const parsed = JSON.parse(
+                                    argsRaw[0].replace(/'/g, '"'),
+                                ); // convert ' to " dulu
                                 if (Array.isArray(parsed)) {
                                     argsRaw = [parsed]; // ganti isinya jadi array asli
                                 }
                             } catch (e) {
-                                console.warn('Failed to parse stringified array literal:', argsRaw[
-                                    0]);
+                                console.warn(
+                                    "Failed to parse stringified array literal:",
+                                    argsRaw[0],
+                                );
                             }
                         }
                     } catch (e) {
-                        console.warn(`[Live Event] Error parsing arguments: ${argsStr}`, e.message);
+                        console.warn(
+                            `[Live Event] Error parsing arguments: ${argsStr}`,
+                            e.message,
+                        );
                     }
 
-
                     // Sanitize nilai untuk serialisasi aman
-                    const argsSanitized = argsRaw.map(arg => {
+                    const argsSanitized = argsRaw.map((arg) => {
                         if (arg instanceof Element) {
-                            return $(arg).is('input, select, textarea') ? $(arg).val() : $(
-                                arg).text().trim();
+                            return $(arg).is("input, select, textarea")
+                                ? $(arg).val()
+                                : $(arg).text().trim();
                         }
 
                         // Hindari window atau objek global
-                        if (typeof arg === 'object' && arg === window) {
+                        if (typeof arg === "object" && arg === window) {
                             return null;
                         }
 
                         return arg;
                     });
 
-
                     return {
                         method: name,
-                        args: argsSanitized
+                        args: argsSanitized,
                     };
                 } catch (e) {
-                    console.warn(`[Live Event] Error parsing arguments for method "${name}":`, e
-                        .message);
+                    console.warn(
+                        `[Live Event] Error parsing arguments for method "${name}":`,
+                        e.message,
+                    );
                     return {
                         method: name,
-                        args: null
+                        args: null,
                     };
                 }
             });
 
-            const targets = rawTargets.split(',').map(t => t.trim());
-            const targetFor = (i) => (targets.length === 1 ? targets[0] : (targets[i] || ''));
+            // ... kode parsing methods di atas ...
 
-            parsedMethods.forEach(({
-                method,
-                args
-            }, i) => {
+            const targets = rawTargets.split(",").map((t) => t.trim());
+            const targetFor = (i) =>
+                targets.length === 1 ? targets[0] : targets[i] || "";
+
+            parsedMethods.forEach(({ method, args }, i) => {
                 const targetSel = targetFor(i);
                 const $targets = targetSel ? liveTarget($el, targetSel) : $el;
 
                 let postData;
-                if (args === null || args.length === 0) {
-                    postData = fallbackData;
-                } else {
-                    // Hati-hati: args = [['2']] akan menyebabkan nested array
+
+                // Ambil argumen pertama jika ada
+                const firstArg = args && args.length > 0 ? args[0] : null;
+
+                // Deteksi selector: harus string dan dimulai dengan # atau .
+                const isSelector =
+                    typeof firstArg === "string" &&
+                    (firstArg.startsWith("#") || firstArg.startsWith("."));
+
+                if (dataArgs) {
+                    postData = { data: dataArgs };
+                } else if (isSelector) {
+                    // PAKSA hanya ambil dari selector, jangan kirim formSelector agar tidak bocor
+                    postData = extractData($el, null, firstArg);
+                } else if (args && args.length > 0) {
                     const dataPayload = args.length === 1 ? args[0] : args;
-                    postData = {
-                        data: dataPayload
-                    };
+                    postData = { data: dataPayload };
+                } else {
+                    // Ambil semua (default)
+                    postData = extractData($el, formSelector);
                 }
 
-                runAjaxRequest(methodType, controller, method, postData, domAction, $targets,
-                    loading, $el);
+                runAjaxRequest(
+                    methodType,
+                    controller,
+                    method,
+                    postData,
+                    domAction,
+                    $targets,
+                    loading,
+                    $el,
+                );
             });
         };
 
         if (beforeCallback) {
             try {
                 let result;
-
-                if (beforeCallback.includes('(')) {
+                if (beforeCallback.includes("(")) {
                     // Kalau ada () => evaluasi sebagai function expression dengan __el sebagai elemen
-                    const safeCallback = beforeCallback.replace(/\bthis\b/g, '__el');
-                    result = Function('__el', `
-            try {
-              return (${safeCallback});
-            } catch (e) {
-              console.warn('[LiveDomJs] Error evaluating beforeCallback:', e);
-              return undefined;
-            }
-          `)($el[0]);
+                    const safeCallback = beforeCallback.replace(
+                        /\bthis\b/g,
+                        "__el",
+                    );
+                    result = Function(
+                        "__el",
+                        `
+            try {
+              return (${safeCallback});
+            } catch (e) {
+              console.warn('[LiveDomJs] Error evaluating beforeCallback:', e);
+              return undefined;
+            }
+          `,
+                    )($el[0]);
                 } else {
                     // Kalau hanya nama fungsi, panggil window[fnName]($el[0])
                     const fn = window[beforeCallback.trim()];
-                    if (typeof fn === 'function') {
+                    if (typeof fn === "function") {
                         result = fn($el[0]);
                     } else {
                         console.warn(
-                            `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`);
+                            `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`,
+                        );
                         result = undefined;
                     }
                 }
 
-                if (result instanceof Promise) {
-                    result.then(ok => {
-                        if (ok !== false) execute();
-                    }).catch(() => { });
-                } else if (result !== false) {
+                if (result && typeof result.then === "function") {
+                    result
+                        .then((ok) => {
+                            if (ok === true) execute();
+                        })
+                        .catch((err) => {
+                            console.warn("Before callback rejected:", err);
+                        });
+                } else if (result === true) {
                     execute();
                 }
             } catch (e) {
-                console.warn('[LiveDomJs] live-callback-before error:', beforeCallback, e);
-                execute(); // fallback tetap jalan
+                console.warn(
+                    "[LiveDomJs] live-callback-before error:",
+                    beforeCallback,
+                    e,
+                );
+                return;
             }
         } else {
             execute();
@@ -760,33 +1132,55 @@
      * @param {boolean} loading - Whether to show loading.
      * @param {jQuery} $el - The original triggering element.
      */
-    function runAjaxRequest(methodType, controller, method, data, domAction, $targets, loading, $el) {
+    function runAjaxRequest(
+        methodType,
+        controller,
+        method,
+        data,
+        domAction,
+        $targets,
+        loading,
+        $el = null,
+    ) {
         const callback = function (response) {
-            let responseData = response && typeof response === 'object' && 'data' in response ?
-                response.data :
-                response;
+            let responseData =
+                response && typeof response === "object" && "data" in response
+                    ? response.data
+                    : response;
 
-            if (typeof responseData === 'object') {
+            if (typeof responseData === "object") {
                 autoBindDomFromResponse(responseData);
             }
 
-            if (typeof responseData === 'string') {
+            if (typeof responseData === "string") {
                 $targets.each(function () {
                     applyDomAction($(this), domAction, responseData);
                 });
             }
 
-            const afterCallback = $el.attr('live-callback-after');
-            if (afterCallback && typeof window[afterCallback] === 'function') {
-                window[afterCallback]($el[0], response);
+            if ($el && $el.attr) {
+                const afterCallback = $el.attr("live-callback-after");
+                if (
+                    afterCallback &&
+                    typeof window[afterCallback] === "function"
+                ) {
+                    window[afterCallback]($el[0], response);
+                }
             }
 
-            document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
+            document.dispatchEvent(new CustomEvent("live-dom:afterUpdate"));
         };
-
-        debouncedAjaxDynamic(methodType, controller, method, data, '', '', loading, callback);
+        debouncedAjaxDynamic(
+            methodType,
+            controller,
+            method,
+            data,
+            "",
+            "",
+            loading,
+            callback,
+        );
     }
-
 
     /**
      * Performs a local DOM update without an AJAX request.
@@ -795,9 +1189,9 @@
      * @param {string} rawTargets - Raw target selector string.
      */
     function runLocalUpdate($el, domAction, rawTargets) {
-        const targetSel = rawTargets || '';
+        const targetSel = rawTargets || "";
         const $targets = targetSel ? liveTarget($el, targetSel) : $el;
-        if (domAction === 'remove') {
+        if (domAction === "remove") {
             $targets.remove();
             // initLiveDom();
             return;
@@ -820,63 +1214,99 @@
         $targets = $targets instanceof jQuery ? $targets : $($targets);
 
         // Split actions dan contents jika berupa string multiple
-        const actionList = typeof actions === 'string' ? actions.split(',') : [actions];
-        const contentList = typeof contents === 'object' && !Array.isArray(contents) ? [contents] :
-            (Array.isArray(contents) ? contents : [contents]);
+        const actionList =
+            typeof actions === "string" ? actions.split(",") : [actions];
+        const contentList =
+            typeof contents === "object" && !Array.isArray(contents)
+                ? [contents]
+                : Array.isArray(contents)
+                    ? contents
+                    : [contents];
 
         $targets.each(function (targetIndex) {
             const $currentTarget = $(this);
 
             actionList.forEach((action, actionIndex) => {
-                const content = contentList[actionIndex] || contentList[0] || '';
+                const content =
+                    contentList[actionIndex] || contentList[0] || "";
                 const trimmedAction = action.trim();
 
-                console.log(`Applying to target ${targetIndex}:`, {
-                    target: $currentTarget,
-                    action: trimmedAction,
-                    content: content
-                });
+                // console.log(`Applying to target ${targetIndex}:`, {
+                //     target: $currentTarget,
+                //     action: trimmedAction,
+                //     content: content
+                // });
 
                 switch (trimmedAction) {
-                    case 'append':
+                    case "append":
                         $currentTarget.append(content);
                         break;
-                    case 'prepend':
+                    case "prepend":
                         $currentTarget.prepend(content);
                         break;
-                    case 'before':
+                    case "before":
                         $currentTarget.before(content);
                         break;
-                    case 'after':
+                    case "after":
                         $currentTarget.after(content);
                         break;
-                    case 'value':
-                    case 'val':
-                        $currentTarget.val(content).trigger('change');
-                        $currentTarget.trigger('input');
-                        $currentTarget.trigger('change');
+                    case "value":
+                    case "val":
+                        $currentTarget.val(content).trigger("change");
+                        $currentTarget.trigger("input");
+                        $currentTarget.trigger("change");
                         break;
-                    case 'text':
+                    case "text":
                         $currentTarget.text(content);
                         break;
-                    case 'html':
+                    case "html":
                         $currentTarget.html(content);
                         break;
-                    case 'toggle':
+                    case "toggle":
                         $currentTarget.toggle(content);
                         break;
-                    case 'show':
+                    case "show":
                         $currentTarget.show();
                         break;
-                    case 'hide':
+                    case "hide":
                         $currentTarget.hide();
                         break;
-                    case 'remove':
+                    case "remove":
                         $currentTarget.remove();
                         break;
                     default:
-                        console.warn(`Unknown action: ${trimmedAction}`);
-                        $currentTarget.html(content);
+                        // console.warn(`Unknown action: ${trimmedAction}`);
+                        // $currentTarget.html(content);
+                        // ============================
+                        // AUTO MODE → jika tidak ada live-dom (actions = '' atau undefined)
+                        // ============================
+
+                        if (
+                            !actions ||
+                            actions.trim() === "" ||
+                            actions.trim() === "auto"
+                        ) {
+                            if ($currentTarget.is("input, textarea, select")) {
+                                $currentTarget
+                                    .val(content)
+                                    .trigger("input")
+                                    .trigger("change");
+                            } else {
+                                $currentTarget.html(content);
+                            }
+                            break;
+                        }
+
+                        // fallback: anggap text/html
+                        if ($currentTarget.is("input, textarea, select")) {
+                            $currentTarget
+                                .val(content)
+                                .trigger("input")
+                                .trigger("change");
+                        } else {
+                            $currentTarget.html(content);
+                        }
+                        break;
                 }
             });
         });
@@ -890,23 +1320,23 @@
      * Initializes polling for elements with 'live-poll' attribute.
      */
     function handlePollers() {
-        $('[live-poll]').each(function () {
+        $("[live-poll]").each(function () {
             const $el = $(this);
-            const interval = parseInt($el.attr('live-poll'), 10);
-            const controller = $el.attr('live-scope');
-            const method = $el.attr('live-click') || 'poll';
-            const target = '#' + $el.attr('id');
+            const interval = parseInt($el.attr("live-poll"), 10);
+            const controller = $el.attr("live-scope");
+            const method = $el.attr("live-click") || "poll";
+            const target = "#" + $el.attr("id");
 
             // Clear existing interval to prevent duplicates on re-init
-            if ($el.data('poll-interval')) {
-                clearInterval($el.data('poll-interval'));
+            if ($el.data("poll-interval")) {
+                clearInterval($el.data("poll-interval"));
             }
 
             const pollInterval = setInterval(() => {
-                ajaxDynamic('GET', controller, method, {}, 'html', target);
+                ajaxDynamic("GET", controller, method, {}, "html", target);
             }, interval);
 
-            $el.data('poll-interval', pollInterval); // Store interval ID
+            $el.data("poll-interval", pollInterval); // Store interval ID
         });
     }
 
@@ -914,1592 +1344,340 @@
       LIVE COMPUTE
     ==============================*/
 
-    // function handleLiveComputeUnified(scope) {
-    //     const rootScope = scope || document;
-    //     const COMPUTE_CACHE_KEY = 'liveComputeCache';
-    //     const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
-    //     const CIRCULAR_DETECTION_KEY = 'circularDetection';
-    //     const BIDIRECTIONAL_TRACKING_KEY = 'bidirectionalTracking';
-    //     const DEBOUNCE_DELAY = 100;
-    //     const BATCH_SIZE = 15;
-    //     const MAX_ITERATIONS = 3;
-    //     const PRECISION_TOLERANCE = 0.0001;
-
-    //     let processingPromise = null;
-    //     let debounceTimer;
-    //     let immediateTimeout;
-    //     let iterationCount = 0;
-    //     let bidirectionalUpdateInProgress = false;
-
-    //     // Data storage using WeakMap for element data and Map for scope data
-    //     const elementData = new WeakMap();
-    //     const scopeData = new Map();
-
-    //     // Helper functions to replace jQuery data functionality
-    //     function getData(element, key) {
-    //         if (element === rootScope) {
-    //             return scopeData.get(key);
-    //         }
-    //         const data = elementData.get(element) || {};
-    //         return data[key];
-    //     }
-
-    //     function setData(element, key, value) {
-    //         if (element === rootScope) {
-    //             scopeData.set(key, value);
-    //             return;
-    //         }
-    //         const data = elementData.get(element) || {};
-    //         data[key] = value;
-    //         elementData.set(element, data);
-    //     }
-
-    //     function removeData(element, key) {
-    //         if (element === rootScope) {
-    //             scopeData.delete(key);
-    //             return;
-    //         }
-    //         const data = elementData.get(element) || {};
-    //         delete data[key];
-    //         elementData.set(element, data);
-    //     }
-
-    //     // Helper functions to replace jQuery selectors and methods
-    //     function find(selector, context = rootScope) {
-    //         return Array.from(context.querySelectorAll(selector));
-    //     }
-
-    //     function filter(elements, callback) {
-    //         return elements.filter(callback);
-    //     }
-
-    //     function val(element, value) {
-    //         if (value !== undefined) {
-    //             element.value = value;
-    //             return element;
-    //         }
-    //         return element.value || '';
-    //     }
-
-    //     function attr(element, attribute) {
-    //         return element.getAttribute(attribute);
-    //     }
-
-    //     function html(element, content) {
-    //         if (content !== undefined) {
-    //             element.innerHTML = content;
-    //             return element;
-    //         }
-    //         return element.innerHTML;
-    //     }
-
-    //     function is(element, selector) {
-    //         if (selector === ':focus') {
-    //             return document.activeElement === element;
-    //         }
-    //         return element.matches(selector);
-    //     }
-
-    //     // Date calculation functions
-    //     const dateUtils = {
-    //         rangeDate: (start, end) => {
-    //             try {
-    //                 if (!start || !end) return 0;
-
-    //                 const [sY, sM, sD] = start.split('-').map(Number);
-    //                 const [eY, eM, eD] = end.split('-').map(Number);
-
-    //                 const startDate = new Date(sY, sM - 1, sD);
-    //                 const endDate = new Date(eY, eM - 1, eD);
-
-    //                 // hitung selisih berdasarkan tanggal saja
-    //                 const diffTime = endDate.getTime() - startDate.getTime();
-    //                 const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-    //                 return diffDays;
-    //             } catch (e) {
-    //                 console.error('rangeDate error:', e);
-    //                 return 0;
-    //             }
-    //         },
-
-    //         rangeMonth: (start, end) => {
-    //             try {
-    //                 if (!start || !end) return 0;
-    //                 const d1 = new Date(start);
-    //                 const d2 = new Date(end);
-    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-    //                 return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-    //             } catch (e) {
-    //                 console.error('rangeMonth error:', e);
-    //                 return 0;
-    //             }
-    //         },
-    //         rangeYear: (start, end) => {
-    //             try {
-    //                 if (!start || !end) return 0;
-    //                 const d1 = new Date(start);
-    //                 const d2 = new Date(end);
-    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-    //                 return d2.getFullYear() - d1.getFullYear();
-    //             } catch (e) {
-    //                 console.error('rangeYear error:', e);
-    //                 return 0;
-    //             }
-    //         },
-    //         rangeWeek: (start, end) => {
-    //             try {
-    //                 if (!start || !end) return 0;
-    //                 const d1 = new Date(start);
-    //                 const d2 = new Date(end);
-    //                 if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-    //                 return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24 * 7));
-    //             } catch (e) {
-    //                 console.error('rangeWeek error:', e);
-    //                 return 0;
-    //             }
-    //         }
-    //     };
-
-    //     if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
-    //         setData(rootScope, COMPUTE_CACHE_KEY, new Map());
-    //     }
-    //     if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
-    //         buildDependencyMap();
-    //     }
-    //     if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
-    //         setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-    //     }
-    //     if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
-    //         setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
-    //     }
-
-    //     function isValueConverged(oldValue, newValue) {
-    //         // bedakan "" dengan 0 supaya tetap update
-    //         if (oldValue === "" && newValue === 0) return false;
-
-    //         if (oldValue === newValue) return true;
-
-    //         const oldNum = parseFloat(oldValue);
-    //         const newNum = parseFloat(newValue);
-
-    //         if (!isNaN(oldNum) && !isNaN(newNum)) {
-    //             if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
-    //             if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
-    //         }
-
-    //         return false;
-    //     }
-
-
-    //     // PERBAIKAN: Deteksi circular dependency yang lebih baik
-    //     function detectCircularDependency(element, newValue, sourceElement = null) {
-    //         // Skip circular detection untuk elemen yang saling bergantung (bidirectional)
-    //         if (sourceElement) {
-    //             const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-    //             if (bidirectionalMap.has(element) && bidirectionalMap.get(element).has(sourceElement)) {
-    //                 return false;
-    //             }
-    //         }
-
-    //         const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
-    //         const key = element;
-
-    //         if (!circularMap.has(key)) {
-    //             circularMap.set(key, []);
-    //         }
-
-    //         const history = circularMap.get(key);
-
-    //         // Track source element untuk bidirectional
-    //         if (sourceElement) {
-    //             const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-    //             if (!bidirectionalMap.has(key)) {
-    //                 bidirectionalMap.set(key, new Set());
-    //             }
-    //             bidirectionalMap.get(key).add(sourceElement);
-    //         }
-
-    //         if (history.length > 0) {
-    //             const lastValue = history[history.length - 1];
-    //             if (isValueConverged(lastValue, newValue)) {
-    //                 return true;
-    //             }
-    //         }
-
-    //         history.push(newValue);
-
-    //         if (history.length > 10) {
-    //             history.shift();
-    //         }
-
-    //         if (history.length >= 4) {
-    //             const len = history.length;
-    //             const isOscillating =
-    //                 isValueConverged(history[len - 1], history[len - 3]) &&
-    //                 isValueConverged(history[len - 2], history[len - 4]);
-
-    //             if (isOscillating) {
-    //                 console.warn('Circular dependency detected, stabilizing value:', key);
-    //                 return true;
-    //             }
-    //         }
-
-    //         return false;
-    //     }
-
-    //     // PERBAIKAN: Process function dengan handling bidirectional yang lebih baik
-    //     function process(sourceElement = null) {
-    //         if (processingPromise) {
-    //             return processingPromise;
-    //         }
-
-    //         if (bidirectionalUpdateInProgress && sourceElement) {
-    //             return Promise.resolve();
-    //         }
-
-    //         iterationCount = 0;
-    //         bidirectionalUpdateInProgress = !!sourceElement;
-
-    //         processingPromise = new Promise((resolve) => {
-    //             const cache = getData(rootScope, COMPUTE_CACHE_KEY);
-
-    //             const elements = filter(find('[live-compute]'), function (element) {
-    //                 const expr = attr(element, 'live-compute')?.trim() || '';
-    //                 return expr.length > 0;
-    //             });
-
-    //             let index = 0;
-    //             let hasChanges = false;
-
-    //             function processBatch() {
-    //                 const batch = elements.slice(index, index + BATCH_SIZE);
-    //                 let batchHasChanges = false;
-
-    //                 batch.forEach(function (element) {
-    //                     // Skip jika ini adalah source element dari bidirectional update
-    //                     if (sourceElement && element === sourceElement) {
-    //                         return;
-    //                     }
-
-    //                     const expr = attr(element, 'live-compute')?.trim() || '';
-
-    //                     try {
-    //                         const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
-    //                         const isFocused = is(element, ':focus');
-    //                         const isUpdating = getData(element, 'updating') === true;
-
-    //                         if (hasSkipAttr && isFocused) {
-    //                             return;
-    //                         }
-
-    //                         if (isUpdating) {
-    //                             return;
-    //                         }
-
-    //                         const lastManualInput = getData(element, 'lastManualInput') || 0;
-    //                         if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
-    //                             return;
-    //                         }
-
-    //                         // ===== ADDED: support live-compute-trigger =====
-    //                         const triggerAttr = attr(element, 'live-compute-trigger') || '';
-    //                         if (triggerAttr.trim()) {
-    //                             const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
-    //                             let anyRecent = false;
-    //                             const now = Date.now();
-    //                             const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
-
-    //                             // cari input yang sesuai setiap trigger, cek lastManualInput-nya
-    //                             for (const t of triggers) {
-    //                                 // cari input/select/textarea dengan nama yang jika disanitize = t
-    //                                 const inputs = find('input[name], select[name], textarea[name]');
-    //                                 for (const inp of inputs) {
-    //                                     const nameAttr = attr(inp, 'name');
-    //                                     if (!nameAttr) continue;
-    //                                     const sanitized = sanitizeInputNameToJSVariable(nameAttr);
-    //                                     if (sanitized === t) {
-    //                                         const last = getData(inp, 'lastManualInput') || 0;
-    //                                         if (now - last < THRESHOLD_MS) {
-    //                                             anyRecent = true;
-    //                                             break;
-    //                                         }
-    //                                     }
-    //                                 }
-    //                                 if (anyRecent) break;
-    //                             }
-
-    //                             // kalau tidak ada trigger recent, skip element ini
-    //                             if (!anyRecent) {
-    //                                 return;
-    //                             }
-    //                         }
-    //                         // ===== END ADDED =====
-
-    //                         const globalInputs = getGlobalInputs();
-    //                         const indices = getRowIndices();
-    //                         const result = evaluateExpression(expr, globalInputs, indices);
-    //                         const changed = displayResult(element, result, cache, sourceElement);
-
-    //                         if (changed) {
-    //                             batchHasChanges = true;
-    //                             hasChanges = true;
-    //                         }
-    //                     } catch (error) {
-    //                         console.error('LiveCompute error:', error);
-    //                         if (attr(element, 'live-compute-skip') !== 'true') {
-    //                             displayResult(element, '', cache, sourceElement);
-    //                         }
-    //                     }
-    //                 });
-
-    //                 index += BATCH_SIZE;
-
-    //                 if (index < elements.length) {
-    //                     if ('requestIdleCallback' in window) {
-    //                         requestIdleCallback(processBatch, { timeout: 100 });
-    //                     } else {
-    //                         setTimeout(processBatch, 20);
-    //                     }
-    //                 } else {
-    //                     iterationCount++;
-
-    //                     if (hasChanges && iterationCount < MAX_ITERATIONS) {
-    //                         index = 0;
-    //                         hasChanges = false;
-    //                         setTimeout(processBatch, 10);
-    //                     } else {
-    //                         if (iterationCount >= MAX_ITERATIONS) {
-    //                             console.warn('Live compute reached max iterations');
-    //                         }
-
-    //                         setTimeout(() => {
-    //                             // Hanya reset circular detection jika bukan bidirectional update
-    //                             if (!sourceElement) {
-    //                                 setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-    //                             }
-    //                         }, 1000);
-
-    //                         processingPromise = null;
-    //                         bidirectionalUpdateInProgress = false;
-    //                         resolve();
-    //                     }
-    //                 }
-    //             }
-
-    //             processBatch();
-    //         }).finally(() => {
-    //             processingPromise = null;
-    //             bidirectionalUpdateInProgress = false;
-    //         });
-
-    //         return processingPromise;
-    //     }
-
-
-    //     function scheduleProcess(delay = 0, sourceElement = null) {
-    //         clearTimeout(immediateTimeout);
-    //         clearTimeout(debounceTimer);
-
-    //         const timerId = setTimeout(() => {
-    //             process(sourceElement);
-    //         }, delay);
-
-    //         if (delay <= 30) {
-    //             immediateTimeout = timerId;
-    //         } else {
-    //             debounceTimer = timerId;
-    //         }
-    //     }
-
-    //     function processImmediate(sourceElement = null) {
-    //         scheduleProcess(30, sourceElement);
-    //     }
-
-    //     function debounceProcess(sourceElement = null) {
-    //         scheduleProcess(DEBOUNCE_DELAY, sourceElement);
-    //     }
-
-    //     function buildDependencyMap() {
-    //         const depMap = new Map();
-    //         find('[live-compute]').forEach(function (element) {
-    //             const expr = attr(element, 'live-compute')?.trim() || '';
-    //             depMap.set(element, extractVariables(expr));
-
-    //             // parse live-compute-trigger dan simpan pada element (untuk akses cepat)
-    //             const triggerAttr = attr(element, 'live-compute-trigger') || '';
-    //             if (triggerAttr.trim()) {
-    //                 const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
-    //                 setData(element, 'liveComputeTriggers', triggers);
-    //             } else {
-    //                 removeData(element, 'liveComputeTriggers');
-    //             }
-    //         });
-    //         setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
-
-    //         // build trigger map: varName -> Set(elements)
-    //         const triggerMap = new Map();
-    //         find('[live-compute-trigger]').forEach(function (element) {
-    //             const triggers = getData(element, 'liveComputeTriggers') || [];
-    //             triggers.forEach(t => {
-    //                 const setFor = triggerMap.get(t) || new Set();
-    //                 setFor.add(element);
-    //                 triggerMap.set(t, setFor);
-    //             });
-    //         });
-    //         setData(rootScope, 'liveComputeTriggerMap', triggerMap);
-    //     }
-
-
-    //     function getGlobalInputs() {
-    //         const inputs = {};
-    //         find('input[name], select[name], textarea[name]').forEach(function (element) {
-    //             const name = attr(element, 'name');
-    //             if (name) {
-    //                 inputs[sanitizeInputNameToJSVariable(name)] = val(element)?.toString().trim();
-    //             }
-    //         });
-    //         return inputs;
-    //     }
-
-    //     function getRowIndices() {
-    //         const indices = new Set();
-    //         find('input[name], select[name], textarea[name]').forEach(function (element) {
-    //             const nameAttr = attr(element, 'name');
-    //             if (!nameAttr) return;
-    //             const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
-    //             if (matches.length) {
-    //                 matches.forEach(match => {
-    //                     const num = parseInt(match[1], 10);
-    //                     if (!isNaN(num)) indices.add(num);
-    //                 });
-    //             }
-    //         });
-    //         return indices;
-    //     }
-
-    //     function evaluateExpression(expr, globalInputs, indices) {
-    //         const dateFnMatch = expr.match(/(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/);
-    //         if (dateFnMatch) {
-    //             return handleDateFunction(dateFnMatch[1], dateFnMatch[2], globalInputs);
-    //         }
-
-    //         expr = processAggregateFunctions(expr, globalInputs, indices);
-
-    //         const vars = extractVariables(expr);
-    //         const vals = vars.map(v => toNumber(getValue(v, globalInputs)));
-
-    //         try {
-    //             return safeFunctionEvaluation(vars, vals, expr);
-    //         } catch (e) {
-    //             console.error('Evaluation error:', expr, e);
-    //             return 0;
-    //         }
-    //     }
-
-    //     function handleDateFunction(fnName, argsStr, globalInputs) {
-    //         const args = argsStr.split(',').map(arg => {
-    //             const varName = arg.trim();
-    //             return getValue(varName, globalInputs);
-    //         });
-
-    //         if (args.length !== 2 || !args[0] || !args[1]) return 0;
-
-    //         try {
-    //             return dateUtils[fnName](args[0], args[1]);
-    //         } catch (e) {
-    //             console.error(`${fnName} execution error:`, e);
-    //             return 0;
-    //         }
-    //     }
-
-    //     const exprFuncCache = new Map();
-
-    //     function safeFunctionEvaluation(vars, vals, expr) {
-    //         if (!exprFuncCache.has(expr)) {
-    //             const context = { ...dateUtils, parseFloat };
-    //             const argNames = [...vars, ...Object.keys(context)];
-    //             const func = new Function(...argNames, `return ${expr}`);
-    //             exprFuncCache.set(expr, { func, context });
-    //         }
-    //         const { func, context } = exprFuncCache.get(expr);
-    //         const argValues = [...vals, ...Object.values(context)];
-    //         return func(...argValues);
-    //     }
-
-    //     function processAggregateFunctions(expr, globalInputs, indices) {
-    //         // SUMIF
-    //         expr = expr.replace(/sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/g,
-    //             (_, criteriaRange, criteria, sumRange) => {
-    //                 const vals = getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices);
-    //                 return calculateAggregate('sum', vals);
-    //             }
-    //         );
-
-    //         // SUM, AVG, MIN, MAX, COUNT
-    //         return expr.replace(/(sum|avg|min|max|count)\(([^()]+)\)/g,
-    //             (_, fn, arg) => {
-    //                 const vals = getAggregateValues(arg, globalInputs, indices);
-    //                 return calculateAggregate(fn, vals);
-    //             }
-    //         );
-    //     }
-
-    //     function getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices) {
-    //         const vals = [];
-
-    //         // Kalau pakai wildcard ? → iterasi semua index
-    //         if (criteriaRange.includes('?') || sumRange.includes('?')) {
-    //             indices.forEach(i => {
-    //                 const critVal = getValue(criteriaRange.replace(/\?/g, i), globalInputs);
-    //                 const sumVal = toNumber(getValue(sumRange.replace(/\?/g, i), globalInputs));
-
-    //                 if (matchCriteria(critVal, criteria)) {
-    //                     vals.push(sumVal);
-    //                 }
-    //             });
-    //         } else {
-    //             const critVal = getValue(criteriaRange, globalInputs);
-    //             const sumVal = toNumber(getValue(sumRange, globalInputs));
-    //             if (matchCriteria(critVal, criteria)) {
-    //                 vals.push(sumVal);
-    //             }
-    //         }
-
-    //         return vals;
-    //     }
-
-    //     function matchCriteria(value, criteria) {
-    //         criteria = criteria.trim();
-
-    //         // Jika numeric langsung bandingkan
-    //         if (!isNaN(criteria)) {
-    //             return Number(value) === Number(criteria);
-    //         }
-
-    //         // Excel style operator
-    //         const opMatch = criteria.match(/^(>=|<=|==|!=|<>|>|<)\s*(.+)$/);
-    //         if (opMatch) {
-    //             let [, op, critVal] = opMatch;
-    //             if (op === '<>') op = '!='; // konversi Excel <> jadi != JS
-
-    //             const numCrit = Number(critVal);
-    //             const numVal = Number(value);
-
-    //             switch (op) {
-    //                 case '>': return numVal > numCrit;
-    //                 case '<': return numVal < numCrit;
-    //                 case '>=': return numVal >= numCrit;
-    //                 case '<=': return numVal <= numCrit;
-    //                 case '==': return numVal == numCrit;
-    //                 case '!=': return numVal != numCrit;
-    //             }
-    //         }
-
-    //         // Jika string, langsung bandingkan
-    //         return String(value) === criteria;
-    //     }
-
-
-
-    //     function getAggregateValues(arg, globalInputs, indices) {
-    //         arg = arg.trim();
-    //         const vals = [];
-
-    //         if (arg.includes('?')) {
-    //             indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs))));
-    //         } else {
-    //             vals.push(toNumber(getValue(arg, globalInputs)));
-    //         }
-
-    //         return vals;
-    //     }
-
-    //     function calculateAggregate(fn, vals) {
-    //         vals = vals.filter(v => !isNaN(v));
-    //         switch (fn) {
-    //             case 'sum': return vals.reduce((a, b) => a + b, 0);
-    //             case 'avg': return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    //             case 'min': return vals.length ? Math.min(...vals) : 0;
-    //             case 'max': return vals.length ? Math.max(...vals) : 0;
-    //             case 'count': return vals.length;
-    //             default: return 0;
-    //         }
-    //     }
-
-    //     // PERBAIKAN: Display result dengan handling yang lebih baik untuk bidirectional elements
-    //     // ✅ Normalisasi angka agar tidak ada 1.99998
-    //     function normalizeNumber(num, decimals = 2) {
-    //         if (num === null || num === undefined || isNaN(num)) return 0;
-    //         return parseFloat(num.toFixed(decimals));
-    //     }
-
-    //     // ✅ Display result dengan rawValue vs displayValue
-    //     function displayResult(element, result, cache, sourceElement = null) {
-    //         const format = attr(element, 'live-compute-format');
-
-    //         // raw numeric value untuk kalkulasi
-    //         let rawValue = toNumber(result);
-    //         rawValue = normalizeNumber(rawValue);
-
-    //         // display value untuk UI
-    //         let displayValue = format ? formatResult(rawValue, format) : rawValue.toString();
-
-    //         // Skip circular detection untuk hubungan bidirectional
-    //         const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-    //         const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
-    //             bidirectionalMap.get(element).has(sourceElement);
-
-    //         if (!isBidirectional && detectCircularDependency(element, rawValue, sourceElement)) {
-    //             return false;
-    //         }
-
-    //         const cachedValue = cache.get(element);
-
-    //         // Bandingkan numeric, bukan string
-    //         if (!isValueConverged(cachedValue, rawValue)) {
-    //             cache.set(element, rawValue);
-
-    //             // ✅ Update element dengan raw + display
-    //             updateElementValue(element, rawValue, displayValue, sourceElement);
-    //             return true;
-    //         }
-
-    //         return false;
-    //     }
-
-    //     // ✅ Update element tanpa overwrite kalau sedang fokus
-    //     function updateElementValue(element, rawValue, displayValue, sourceElement = null) {
-    //         if (sourceElement && element === sourceElement) return;
-
-    //         // 🚀 Tambahkan pengecekan live-compute-auto
-    //         const autoAttr = attr(element, 'live-compute-auto');
-    //         const isAuto = (autoAttr === null || autoAttr === '' || autoAttr === 'true');
-    //         if (!isAuto) {
-    //             return; // skip update kalau auto = false
-    //         }
-
-    //         // Jangan overwrite kalau user sedang mengetik di input
-    //         if (document.activeElement === element) {
-    //             return;
-    //         }
-
-    //         // Token untuk mencegah update usang
-    //         const currentToken = Date.now();
-    //         const lastToken = getData(element, 'lastToken') || 0;
-    //         if (currentToken <= lastToken) return;
-
-    //         setData(element, 'lastToken', currentToken);
-    //         setData(element, 'updating', true);
-
-    //         if (element.matches('input, textarea, select')) {
-    //             // ✅ Simpan rawValue tersembunyi untuk kalkulasi
-    //             element.dataset.rawValue = rawValue;
-
-    //             // ✅ Hanya tampilkan displayValue
-    //             val(element, displayValue);
-    //         } else {
-    //             html(element, displayValue);
-    //         }
-
-    //         setTimeout(() => {
-    //             removeData(element, 'updating');
-    //         }, 1);
-    //     }
-
-
-    //     function formatResult(result, format) {
-    //         if (result === null || result === undefined) {
-    //             return '';
-    //         }
-
-    //         if (typeof result === 'string') {
-    //             result = toNumber(result);
-    //         }
-
-    //         if (typeof result === 'number' && isNaN(result)) {
-    //             return '';
-    //         }
-
-    //         if (typeof result === 'number') {
-    //             result = Math.round(result * 100000) / 100000;
-    //         }
-
-    //         switch (format?.toLowerCase()) {
-    //             case 'idr':
-    //                 try {
-    //                     return new Intl.NumberFormat('id-ID', {
-    //                         minimumFractionDigits: 0,
-    //                         maximumFractionDigits: 0
-    //                     }).format(Math.floor(result));
-    //                 } catch (e) {
-    //                     return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    //                 }
-
-    //             case 'currency':
-    //             case 'dollar':
-    //                 try {
-    //                     return new Intl.NumberFormat('en-US', {
-    //                         minimumFractionDigits: 0,
-    //                         maximumFractionDigits: 0
-    //                     }).format(Math.floor(result));
-    //                 } catch (e) {
-    //                     return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    //                 }
-
-    //             case 'decimal':
-    //                 if (typeof result === 'number') {
-    //                     return result.toFixed(2);
-    //                 }
-    //                 return parseFloat(result).toFixed(2);
-
-    //             case 'percent':
-    //                 if (typeof result === 'number') {
-    //                     return (result * 100).toFixed(2) + '%';
-    //                 }
-    //                 return (parseFloat(result) * 100).toFixed(2) + '%';
-
-    //             case 'number':
-    //                 try {
-    //                     return new Intl.NumberFormat('id-ID').format(result);
-    //                 } catch (e) {
-    //                     return result.toString();
-    //                 }
-
-    //             case 'days':
-    //                 return Math.floor(result) + ' days';
-
-    //             case 'months':
-    //                 return Math.floor(result) + ' months';
-
-    //             case 'years':
-    //                 return Math.floor(result) + ' years';
-
-    //             case 'weeks':
-    //                 return Math.floor(result) + ' weeks';
-
-    //             default:
-    //                 return result.toString();
-    //         }
-    //     }
-
-    //     function formatInputValue(element, value) {
-    //         const format = attr(element, 'live-compute-format');
-    //         if (!format || getData(element, 'updating')) return value;
-
-    //         if (!value || value.trim() === '') return value;
-
-    //         const numValue = toNumber(value);
-
-    //         if (numValue === 0 && value !== '0' && value.trim() !== '0') {
-    //             if (value.match(/[\d.,]/)) {
-    //                 return value;
-    //             }
-    //             return '';
-    //         }
-
-    //         try {
-    //             return formatResult(numValue, format);
-    //         } catch (e) {
-    //             console.error('Format error:', e);
-    //             return value;
-    //         }
-    //     }
-
-    //     function getValue(varName, globalInputs) {
-    //         const rowMatch = varName.match(/^rows_(\d+)_(.+)$/);
-    //         if (rowMatch) {
-    //             const [_, index, field] = rowMatch;
-    //             const selector = `[name="rows[${index}][${field}]"]`;
-    //             const element = rootScope.querySelector(selector);
-    //             return element ? val(element).toString().trim() : '';
-    //         }
-    //         return globalInputs[varName] || '';
-    //     }
-
-    //     function toNumber(val) {
-    //         if (val == null || val === '') return 0;
-
-    //         val = val.toString().trim();
-    //         if (val === '' || val === '-') return 0;
-
-    //         const isPercentage = val.includes('%');
-    //         val = val.replace(/%/g, '');
-
-    //         const isNegative = /^-/.test(val);
-    //         val = val.replace(/^-/, '');
-
-    //         val = val.replace(/[^\d.,]/g, '');
-
-    //         if (val === '') return 0;
-
-    //         let result = 0;
-
-    //         if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
-    //             result = parseFloat(val.replace(/\./g, '').replace(',', '.'));
-    //         }
-    //         else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
-    //             result = parseFloat(val.replace(/,/g, ''));
-    //         }
-    //         else if (/^\d+([.,]\d+)?$/.test(val)) {
-    //             if (val.includes(',')) {
-    //                 result = parseFloat(val.replace(',', '.'));
-    //             } else {
-    //                 result = parseFloat(val);
-    //             }
-    //         }
-    //         else {
-    //             result = parseFloat(val.replace(/[.,]/g, ''));
-    //         }
-
-    //         if (isNaN(result)) result = 0;
-    //         if (isNegative) result = -result;
-    //         if (isPercentage) result = result / 100;
-
-    //         return result;
-    //     }
-
-    //     function extractVariables(expr) {
-    //         const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
-    //         return [...new Set(vars.filter(v => !/^\d+$/.test(v) && !dateUtils[v]))];
-    //     }
-
-    //     function sanitizeInputNameToJSVariable(name) {
-    //         return name.replace(/\]\[/g, '_')
-    //             .replace(/[\[\]]/g, '')
-    //             .replace(/[^a-zA-Z0-9_]/g, '_');
-    //     }
-
-    //     function addEventListener(selector, event, handler, context = rootScope) {
-    //         context.addEventListener(event, function (e) {
-    //             if (e.target.matches(selector)) {
-    //                 handler.call(e.target, e);
-    //             }
-    //         });
-    //     }
-
-    //     function init() {
-    //         process();
-
-    //         let lastInputTime = 0;
-    //         let formatTimeout = new Map();
-    //         let bidirectionalElements = new Map();
-
-    //         // Identifikasi elemen bidirectional dengan lebih akurat
-    //         find('[live-compute-skip="true"]').forEach(function (element) {
-    //             const expr = attr(element, 'live-compute') || '';
-    //             const vars = extractVariables(expr);
-
-    //             find('[live-compute]').forEach(function (otherElement) {
-    //                 const otherExpr = attr(otherElement, 'live-compute') || '';
-    //                 const otherVars = extractVariables(otherExpr);
-
-    //                 if (vars.some(v => otherVars.includes(v)) && otherElement !== element) {
-    //                     if (!bidirectionalElements.has(element)) {
-    //                         bidirectionalElements.set(element, new Set());
-    //                     }
-    //                     bidirectionalElements.get(element).add(otherElement);
-
-    //                     if (!bidirectionalElements.has(otherElement)) {
-    //                         bidirectionalElements.set(otherElement, new Set());
-    //                     }
-    //                     bidirectionalElements.get(otherElement).add(element);
-
-    //                     const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
-    //                     if (!bidirectionalMap.has(element)) {
-    //                         bidirectionalMap.set(element, new Set());
-    //                     }
-    //                     bidirectionalMap.get(element).add(otherElement);
-
-    //                     if (!bidirectionalMap.has(otherElement)) {
-    //                         bidirectionalMap.set(otherElement, new Set());
-    //                     }
-    //                     bidirectionalMap.get(otherElement).add(element);
-
-    //                     setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
-    //                 }
-    //             });
-    //         });
-
-    //         addEventListener('[live-compute-skip="true"]', 'input', function () {
-    //             if (getData(this, 'updating')) return;
-    //             setData(this, 'lastManualInput', Date.now());
-
-    //             if (bidirectionalElements.has(this)) {
-    //                 processImmediate(this);
-    //             } else {
-    //                 processImmediate();
-    //             }
-    //         });
-
-    //         addEventListener('input[name], select[name], textarea[name]', 'input', function () {
-    //             if (getData(this, 'updating')) return;
-    //             setData(this, 'lastManualInput', Date.now());
-    //             processImmediate();
-    //         });
-
-    //         // === PATCHED ===
-    //         addEventListener('input[live-compute-format]', 'input', function () {
-    //             if (getData(this, 'updating')) return;
-
-    //             const element = this;
-    //             const currentValue = val(this);
-
-    //             setData(element, 'lastManualInput', Date.now());
-
-    //             // 🚫 Jika ada live-compute-skip → jangan format realtime
-    //             if (element.hasAttribute('live-compute-skip')) {
-    //                 return; // biarkan user ngetik normal
-    //             }
-
-    //             if (formatTimeout.has(element)) {
-    //                 clearTimeout(formatTimeout.get(element));
-    //             }
-
-    //             const now = Date.now();
-    //             if (!element.hasAttribute('live-compute-skip')) {
-    //                 if (now - lastInputTime > 10) {
-    //                     lastInputTime = now;
-    //                     processImmediate();
-    //                 }
-    //             }
-
-    //             const timeout = setTimeout(() => {
-    //                 if (getData(element, 'updating')) return;
-
-    //                 const cursorPos = element.selectionStart;
-    //                 const oldValue = val(element);
-
-    //                 const lastFormattedValue = getData(element, 'lastFormattedValue') || '';
-    //                 if (oldValue === lastFormattedValue) {
-    //                     formatTimeout.delete(element);
-    //                     return;
-    //                 }
-
-    //                 const newValue = formatInputValue(element, oldValue);
-
-    //                 if (oldValue !== newValue && newValue !== '') {
-    //                     setData(element, 'updating', true);
-    //                     val(element, newValue);
-    //                     setData(element, 'lastFormattedValue', newValue);
-
-    //                     let newCursorPos = cursorPos;
-    //                     const lengthDiff = newValue.length - oldValue.length;
-
-    //                     if (lengthDiff !== 0) {
-    //                         const beforeCursor = oldValue.substring(0, cursorPos);
-    //                         const numericBeforeCursor = beforeCursor.replace(/[^\d]/g, '');
-
-    //                         let targetPos = 0;
-    //                         let numericCount = 0;
-
-    //                         for (let i = 0; i < newValue.length; i++) {
-    //                             if (/\d/.test(newValue[i])) {
-    //                                 numericCount++;
-    //                             }
-    //                             if (numericCount >= numericBeforeCursor.length) {
-    //                                 targetPos = i + 1;
-    //                                 break;
-    //                             }
-    //                         }
-
-    //                         newCursorPos = Math.min(targetPos, newValue.length);
-    //                     }
-
-    //                     newCursorPos = Math.max(0, Math.min(newCursorPos, newValue.length));
-
-    //                     try {
-    //                         element.setSelectionRange(newCursorPos, newCursorPos);
-    //                     } catch (e) { }
-
-    //                     setTimeout(() => {
-    //                         removeData(element, 'updating');
-    //                     }, 50);
-    //                 }
-
-    //                 formatTimeout.delete(element);
-    //             }, 200);
-
-    //             formatTimeout.set(element, timeout);
-    //         });
-    //         // === END PATCH ===
-
-    //         addEventListener('input:not([live-compute-format]):not([live-compute-skip="true"]), select:not([live-compute-skip="true"]), textarea:not([live-compute-skip="true"])', 'input', function () {
-    //             if (getData(this, 'updating')) return;
-
-    //             const now = Date.now();
-    //             if (now - lastInputTime > 10) {
-    //                 lastInputTime = now;
-    //                 processImmediate();
-    //             }
-    //         });
-
-    //         addEventListener('input, select, textarea', 'change', function () {
-    //             if (getData(this, 'updating')) return;
-    //             debounceProcess();
-    //         });
-
-    //         addEventListener('[live-compute-skip="true"]', 'blur', function () {
-    //             debounceProcess();
-    //         });
-
-    //         addEventListener('input[live-compute-format]', 'blur', function () {
-    //             const element = this;
-
-    //             if (formatTimeout.has(element)) {
-    //                 clearTimeout(formatTimeout.get(element));
-    //                 formatTimeout.delete(element);
-    //             }
-
-    //             const currentValue = val(this);
-
-    //             if (currentValue && currentValue.trim() !== '') {
-    //                 let formattedValue = formatInputValue(this, currentValue);
-
-    //                 // 🚀 PATCH: kalau hasil format kosong → paksa fallback ke number formatting
-    //                 if (!formattedValue || formattedValue.trim() === '') {
-    //                     const numValue = toNumber(currentValue);
-    //                     formattedValue = formatResult(numValue, attr(this, 'live-compute-format'));
-    //                 }
-
-    //                 // 🚀 PATCH: walaupun ada live-compute-skip tetap paksa format saat blur
-    //                 val(this, formattedValue);
-    //                 setData(this, 'lastFormattedValue', formattedValue);
-    //             }
-
-    //             // Hapus flag updating biar siap dipakai lagi
-    //             removeData(this, 'updating');
-
-    //             // Tetap trigger proses compute lain
-    //             debounceProcess();
-    //         });
-
-
-
-    //         addEventListener('input[live-compute-format]', 'focus', function () {
-    //             const currentValue = val(this);
-
-    //             const lastFormattedValue = getData(this, 'lastFormattedValue') || '';
-    //             if (currentValue && currentValue.trim() !== '' && currentValue !== lastFormattedValue) {
-    //                 const formattedValue = formatInputValue(this, currentValue);
-    //                 if (currentValue !== formattedValue) {
-    //                     setData(this, 'updating', true);
-    //                     val(this, formattedValue);
-    //                     setData(this, 'lastFormattedValue', formattedValue);
-
-    //                     setTimeout(() => {
-    //                         removeData(this, 'updating');
-    //                     }, 50);
-    //                 }
-    //             }
-    //         });
-
-    //         rootScope.addEventListener('live-dom:afterAppend', () => {
-    //             buildDependencyMap();
-    //             process();
-    //         });
-    //         rootScope.addEventListener('live-dom:afterUpdate', () => {
-    //             buildDependencyMap();
-    //             process();
-    //         });
-
-    //         if (typeof MutationObserver !== 'undefined') {
-    //             const observer = new MutationObserver((mutations) => {
-    //                 let shouldRebuild = false;
-    //                 mutations.forEach((mutation) => {
-    //                     if (mutation.type === 'childList') {
-    //                         mutation.addedNodes.forEach((node) => {
-    //                             if (node.nodeType === Node.ELEMENT_NODE) {
-    //                                 if (node.hasAttribute && node.hasAttribute('live-compute')) {
-    //                                     shouldRebuild = true;
-    //                                 } else if (node.querySelector && node.querySelector('[live-compute]')) {
-    //                                     shouldRebuild = true;
-    //                                 }
-    //                             }
-    //                         });
-    //                     }
-    //                 });
-
-    //                 if (shouldRebuild) {
-    //                     buildDependencyMap();
-    //                     process();
-    //                 }
-    //             });
-
-    //             observer.observe(rootScope, {
-    //                 childList: true,
-    //                 subtree: true
-    //             });
-    //         }
-    //     }
-
-    //     init();
-    // }
-
-
-    /*==============================
-      LIVE COMPUTE
-    ==============================*/
-
     function handleLiveComputeUnified(scope) {
         const rootScope = scope || document;
-        const COMPUTE_CACHE_KEY = 'liveComputeCache';
-        const DEPENDENCY_MAP_KEY = 'liveComputeDeps';
-        const CIRCULAR_DETECTION_KEY = 'circularDetection';
-        const BIDIRECTIONAL_TRACKING_KEY = 'bidirectionalTracking';
-        const UPDATE_QUEUE_KEY = 'computeUpdateQueue';
-        const DEBOUNCE_DELAY = 100;
-        const BATCH_SIZE = 15;
-        const MAX_ITERATIONS = 3;
-        const PRECISION_TOLERANCE = 0.0001;
 
+        // 🔥 OPTIMIZED FOR 1000++ INPUTS
+        const TIME_BUDGET_MS = 16;
+        const INPUT_DEBOUNCE = 200;
+        const DEBUG_MODE = false;
+        const MAX_ITERATIONS = 10; // Increased from 5 to 10 for better convergence
+        const BATCH_SIZE = 50;
+        const PRECISION_TOLERANCE = 0.0001;
+        const STABILITY_THRESHOLD = 0.001; // 0.1% change considered stable
+
+        // --- STATE MANAGEMENT ---
+        const elementData = new WeakMap();
+        let cachedComputeElements = [];
+        let cachedInputElements = [];
+        let inputValueCache = new Map();
+        let rowIndicesCache = null;
+        let isCacheDirty = true;
         let processingPromise = null;
         let debounceTimer;
-        let immediateTimeout;
-        let iterationCount = 0;
-        let bidirectionalUpdateInProgress = false;
+        let isInternalUpdate = false;
+        let aggregateFunctionCache = new Map();
 
-        // Data storage using WeakMap for element data and Map for scope data
-        const elementData = new WeakMap();
-        const scopeData = new Map();
-
-        // Helper functions to replace jQuery data functionality
-        function getData(element, key) {
-            if (element === rootScope) {
-                return scopeData.get(key);
-            }
-            const data = elementData.get(element) || {};
-            return data[key];
+        // --- HELPER DATA ---
+        function getData(el, key) {
+            return (elementData.get(el) || {})[key];
+        }
+        function setData(el, key, val) {
+            const d = elementData.get(el) || {};
+            d[key] = val;
+            elementData.set(el, d);
         }
 
-        function setData(element, key, value) {
-            if (element === rootScope) {
-                scopeData.set(key, value);
-                return;
-            }
-            const data = elementData.get(element) || {};
-            data[key] = value;
-            elementData.set(element, data);
+        // --- DOM HELPER ---
+        const attr = (el, a) => el.getAttribute(a);
+        const val = (el, v) =>
+            v !== undefined ? (el.value = v) : el.value || "";
+
+        function sanitizeName(name) {
+            if (!name) return "";
+            return name
+                .replace(/\[/g, "")
+                .replace(/\]/g, "")
+                .replace(/_+/g, "_")
+                .replace(/_$/g, "");
         }
 
-        function removeData(element, key) {
-            if (element === rootScope) {
-                scopeData.delete(key);
-                return;
-            }
-            const data = elementData.get(element) || {};
-            delete data[key];
-            elementData.set(element, data);
-        }
+        // --- 1. ENHANCED NUMBER PARSER (from version 2) ---
+        function toNumber(val, currency = "idr") {
+            if (val == null || val === "" || val === undefined) return 0;
 
-        // Helper functions to replace jQuery selectors and methods
-        function find(selector, context = rootScope) {
-            return Array.from(context.querySelectorAll(selector));
-        }
+            val = String(val).trim();
+            if (val === "" || val === "-") return 0;
 
-        function filter(elements, callback) {
-            return elements.filter(callback);
-        }
+            // Detect percentage
+            const isPercentage = val.includes("%");
+            val = val.replace(/%/g, "");
 
-        function val(element, value) {
-            if (value !== undefined) {
-                element.value = value;
-                return element;
-            }
-            return element.value || '';
-        }
+            // Detect negative
+            const isNegative = /^-/.test(val);
+            val = val.replace(/^-/, "");
 
-        function attr(element, attribute) {
-            return element.getAttribute(attribute);
-        }
+            // Remove all non-numeric characters except dots and commas
+            val = val.replace(/[^\d.,]/g, "");
 
-        function html(element, content) {
-            if (content !== undefined) {
-                element.innerHTML = content;
-                return element;
-            }
-            return element.innerHTML;
-        }
+            if (val === "") return 0;
 
-        function is(element, selector) {
-            if (selector === ':focus') {
-                return document.activeElement === element;
-            }
-            return element.matches(selector);
-        }
+            let result = 0;
 
-        // Date calculation functions
-        const dateUtils = {
-            rangeDate: (start, end) => {
-                try {
-                    if (!start || !end) return 0;
+            const normalizedCurrency = String(currency || "idr").toLowerCase();
 
-                    const [sY, sM, sD] = start.split('-').map(Number);
-                    const [eY, eM, eD] = end.split('-').map(Number);
-
-                    const startDate = new Date(sY, sM - 1, sD);
-                    const endDate = new Date(eY, eM - 1, eD);
-
-                    // hitung selisih berdasarkan tanggal saja
-                    const diffTime = endDate.getTime() - startDate.getTime();
-                    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-                    return diffDays;
-                } catch (e) {
-                    console.error('rangeDate error:', e);
-                    return 0;
-                }
-            },
-
-            rangeMonth: (start, end) => {
-                try {
-                    if (!start || !end) return 0;
-                    const d1 = new Date(start);
-                    const d2 = new Date(end);
-                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-                    return (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
-                } catch (e) {
-                    console.error('rangeMonth error:', e);
-                    return 0;
-                }
-            },
-            rangeYear: (start, end) => {
-                try {
-                    if (!start || !end) return 0;
-                    const d1 = new Date(start);
-                    const d2 = new Date(end);
-                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-                    return d2.getFullYear() - d1.getFullYear();
-                } catch (e) {
-                    console.error('rangeYear error:', e);
-                    return 0;
-                }
-            },
-            rangeWeek: (start, end) => {
-                try {
-                    if (!start || !end) return 0;
-                    const d1 = new Date(start);
-                    const d2 = new Date(end);
-                    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
-                    return Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24 * 7));
-                } catch (e) {
-                    console.error('rangeWeek error:', e);
-                    return 0;
-                }
-            }
-        };
-
-        // ========== BIDIRECTIONAL QUEUE SYSTEM ==========
-
-        function initBidirectionalQueue() {
-            if (!getData(rootScope, BIDIRECTIONAL_TRACKING_KEY)) {
-                setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, new Map());
-            }
-            if (!getData(rootScope, UPDATE_QUEUE_KEY)) {
-                setData(rootScope, UPDATE_QUEUE_KEY, {
-                    queue: [],
-                    processing: false,
-                    priorities: new Map()
-                });
-            }
-            if (!getData(rootScope, COMPUTE_CACHE_KEY)) {
-                setData(rootScope, COMPUTE_CACHE_KEY, new Map());
-            }
-            if (!getData(rootScope, DEPENDENCY_MAP_KEY)) {
-                buildDependencyMap();
-            }
-            if (!getData(rootScope, CIRCULAR_DETECTION_KEY)) {
-                setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-            }
-        }
-
-        function enqueueComputeUpdate(element, priority = 'normal', sourceElement = null) {
-            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
-            const existingIndex = queueData.queue.findIndex(item =>
-                item.element === element && item.priority === priority
-            );
-
-            if (existingIndex >= 0) {
-                queueData.queue.splice(existingIndex, 1);
-            }
-
-            queueData.queue.push({
-                element,
-                priority,
-                sourceElement,
-                timestamp: Date.now()
-            });
-
-            // Sort by priority: high > normal > low
-            queueData.queue.sort((a, b) => {
-                const priorityOrder = { high: 3, normal: 2, low: 1 };
-                return priorityOrder[b.priority] - priorityOrder[a.priority] ||
-                    a.timestamp - b.timestamp;
-            });
-
-            // Limit queue size to prevent memory leaks
-            if (queueData.queue.length > 100) {
-                queueData.queue = queueData.queue.slice(-80);
-            }
-        }
-
-        function processComputeQueue() {
-            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
-            if (queueData.processing || queueData.queue.length === 0) {
-                return;
-            }
-
-            queueData.processing = true;
-            const batch = queueData.queue.splice(0, BATCH_SIZE);
-
-            processBatchWithQueue(batch).finally(() => {
-                queueData.processing = false;
-                if (queueData.queue.length > 0) {
-                    setTimeout(processComputeQueue, 10);
-                }
-            });
-        }
-
-        async function processBatchWithQueue(batch) {
-            const cache = getData(rootScope, COMPUTE_CACHE_KEY);
-            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-
-            for (const { element, sourceElement } of batch) {
-                if (!element.isConnected) continue;
-
-                const expr = attr(element, 'live-compute')?.trim() || '';
-                if (!expr) continue;
-
-                try {
-                    // Skip if this is source element in bidirectional update
-                    if (sourceElement && element === sourceElement) {
-                        continue;
-                    }
-
-                    const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
-                    const isFocused = is(element, ':focus');
-                    const isUpdating = getData(element, 'updating') === true;
-
-                    if (hasSkipAttr && isFocused) {
-                        continue;
-                    }
-
-                    if (isUpdating) {
-                        continue;
-                    }
-
-                    const lastManualInput = getData(element, 'lastManualInput') || 0;
-                    if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
-                        continue;
-                    }
-
-                    // ===== ADDED: support live-compute-trigger =====
-                    const triggerAttr = attr(element, 'live-compute-trigger') || '';
-                    if (triggerAttr.trim()) {
-                        const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
-                        let anyRecent = false;
-                        const now = Date.now();
-                        const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
-
-                        // cari input yang sesuai setiap trigger, cek lastManualInput-nya
-                        for (const t of triggers) {
-                            // cari input/select/textarea dengan nama yang jika disanitize = t
-                            const inputs = find('input[name], select[name], textarea[name]');
-                            for (const inp of inputs) {
-                                const nameAttr = attr(inp, 'name');
-                                if (!nameAttr) continue;
-                                const sanitized = sanitizeInputNameToJSVariable(nameAttr);
-                                if (sanitized === t) {
-                                    const last = getData(inp, 'lastManualInput') || 0;
-                                    if (now - last < THRESHOLD_MS) {
-                                        anyRecent = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (anyRecent) break;
-                        }
-
-                        // kalau tidak ada trigger recent, skip element ini
-                        if (!anyRecent) {
-                            continue;
-                        }
-                    }
-                    // ===== END ADDED =====
-
-                    const globalInputs = getGlobalInputs();
-                    const indices = getRowIndices();
-                    const result = evaluateExpression(expr, globalInputs, indices);
-
-                    // Enhanced circular detection for bidirectional
-                    const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
-                        bidirectionalMap.get(element).has(sourceElement);
-
-                    const changed = displayResult(element, result, cache, sourceElement, isBidirectional);
-
-                    if (changed && !isBidirectional) {
-                        // If this element changed and has bidirectional relationships, queue them
-                        if (bidirectionalMap.has(element)) {
-                            bidirectionalMap.get(element).forEach(bidirectionalEl => {
-                                if (bidirectionalEl !== sourceElement && bidirectionalEl.isConnected) {
-                                    enqueueComputeUpdate(bidirectionalEl, 'high', element);
-                                }
-                            });
-                        }
-                    }
-
-                } catch (error) {
-                    console.error('LiveCompute error:', error);
-                    if (attr(element, 'live-compute-skip') !== 'true') {
-                        displayResult(element, '', cache, sourceElement, false);
-                    }
-                }
-            }
-
-            // Process next batch if queue has more items
-            const queueData = getData(rootScope, UPDATE_QUEUE_KEY);
-            if (queueData.queue.length > 0) {
-                setTimeout(processComputeQueue, 5);
-            }
-        }
-
-        // ========== ENHANCED DEPENDENCY MAPPING ==========
-
-        function buildDependencyMap() {
-            const depMap = new Map();
-            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
-            bidirectionalMap.clear();
-
-            find('[live-compute]').forEach(function (element) {
-                const expr = attr(element, 'live-compute')?.trim() || '';
-                depMap.set(element, extractVariables(expr));
-
-                // Enhanced bidirectional detection
-                const dependencies = extractVariables(expr);
-                dependencies.forEach(dep => {
-                    find('[live-compute]').forEach(otherElement => {
-                        if (otherElement === element) return;
-
-                        const otherExpr = attr(otherElement, 'live-compute')?.trim() || '';
-                        const otherDeps = extractVariables(otherExpr);
-
-                        if (otherDeps.includes(dep)) {
-                            if (!bidirectionalMap.has(element)) {
-                                bidirectionalMap.set(element, new Set());
-                            }
-                            bidirectionalMap.get(element).add(otherElement);
-                        }
-                    });
-                });
-
-                // parse live-compute-trigger dan simpan pada element (untuk akses cepat)
-                const triggerAttr = attr(element, 'live-compute-trigger') || '';
-                if (triggerAttr.trim()) {
-                    const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
-                    setData(element, 'liveComputeTriggers', triggers);
+            if (normalizedCurrency === "idr") {
+                // Indonesian format: 5.000.000 or 5.000.000,25
+                if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(/\./g, "").replace(",", "."));
+                } else if (/^\d+(,\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(",", "."));
+                } else if (/^\d+(\.\d+)?$/.test(val)) {
+                    result = parseFloat(val);
                 } else {
-                    removeData(element, 'liveComputeTriggers');
+                    result = parseFloat(val.replace(/[^\d]/g, ""));
                 }
-            });
-            setData(rootScope, DEPENDENCY_MAP_KEY, depMap);
-            setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
+            } else if (normalizedCurrency === "usd") {
+                // US format: 5,000,000 or 5,000,000.25
+                if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(/,/g, ""));
+                } else if (/^\d+(\.\d+)?$/.test(val)) {
+                    result = parseFloat(val);
+                } else if (/^\d+(,\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(/,/g, ""));
+                } else {
+                    result = parseFloat(val.replace(/[^\d]/g, ""));
+                }
+            } else {
+                // Auto-detect fallback
+                if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(/\./g, "").replace(",", "."));
+                } else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
+                    result = parseFloat(val.replace(/,/g, ""));
+                } else if (/^\d+([.,]\d+)?$/.test(val)) {
+                    result = val.includes(",")
+                        ? parseFloat(val.replace(",", "."))
+                        : parseFloat(val);
+                } else {
+                    result = parseFloat(val.replace(/[^\d]/g, ""));
+                }
+            }
 
-            // build trigger map: varName -> Set(elements)
-            const triggerMap = new Map();
-            find('[live-compute-trigger]').forEach(function (element) {
-                const triggers = getData(element, 'liveComputeTriggers') || [];
-                triggers.forEach(t => {
-                    const setFor = triggerMap.get(t) || new Set();
-                    setFor.add(element);
-                    triggerMap.set(t, setFor);
-                });
-            });
-            setData(rootScope, 'liveComputeTriggerMap', triggerMap);
+            if (isNaN(result)) result = 0;
+            if (isNegative) result = -result;
+            if (isPercentage) result = result / 100;
+
+            // Use parseFloat with precision to avoid floating point errors
+            return parseFloat(result.toFixed(10));
         }
 
-        // ========== OPTIMIZED PROCESS FUNCTION ==========
+        // --- 2. NUMBER NORMALIZATION (from version 2) ---
+        function normalizeNumber(num, precision = 0) {
+            if (num === null || num === undefined || isNaN(num)) return 0;
+            if (!isFinite(num)) return 0;
+            if (isNaN(precision)) precision = 0;
 
-        function process(sourceElement = null) {
-            if (processingPromise) {
-                return processingPromise.then(() => {
-                    // After current process, enqueue new one
-                    if (sourceElement) {
-                        enqueueComputeUpdate(sourceElement, 'high');
-                    } else {
-                        // Process all compute elements with normal priority
-                        const computeElements = find('[live-compute]');
-                        computeElements.forEach(el => {
-                            if (el.isConnected) {
-                                enqueueComputeUpdate(el, 'normal', sourceElement);
-                            }
-                        });
-                    }
-                    processComputeQueue();
-                });
+            const magnitude = Math.floor(Math.log10(Math.abs(num || 1)));
+            if (magnitude >= 15) return Math.round(num);
+
+            const safePrecision = Math.max(6, magnitude + 6);
+            const rounded = parseFloat(num.toPrecision(safePrecision));
+
+            // Rounding logic
+            const multiplier = Math.pow(10, precision);
+            const final = Math.round(rounded * multiplier) / multiplier;
+
+            return isFinite(final) ? final : 0;
+        }
+
+        // --- 3. VALUE CONVERGENCE CHECK (from version 2) ---
+        function isValueConverged(oldValue, newValue, currency = "idr") {
+            if (oldValue == null && newValue == null) return true;
+            if (oldValue == null || newValue == null) return false;
+            if (oldValue === newValue) return true;
+
+            const oldNum = toNumber(oldValue, currency);
+            const newNum = toNumber(newValue, currency);
+
+            if (isNaN(oldNum) || isNaN(newNum)) {
+                return String(oldValue).trim() === String(newValue).trim();
             }
+
+            const absoluteDiff = Math.abs(newNum - oldNum);
+
+            // Tolerance for large numbers (> 1,000,000)
+            if (Math.abs(oldNum) > 1000000 || Math.abs(newNum) > 1000000) {
+                return absoluteDiff < 1.5;
+            }
+
+            // Tolerance for medium numbers (1,000 - 1,000,000)
+            if (Math.abs(oldNum) > 1000 || Math.abs(newNum) > 1000) {
+                return absoluteDiff < 0.01;
+            }
+
+            // Tolerance for small numbers
+            return absoluteDiff < PRECISION_TOLERANCE;
+        }
+
+        // --- SAFE MATH OPERATIONS ---
+        function safeAdd(a, b) {
+            const numA = toNumber(a);
+            const numB = toNumber(b);
+            const result = numA + numB;
+            return isFinite(result) ? result : 0;
+        }
+
+        function safeDivide(a, b) {
+            const numA = toNumber(a);
+            const numB = toNumber(b);
+            if (numB === 0) {
+                if (DEBUG_MODE) console.warn("[SafeDivide] Division by zero");
+                return 0;
+            }
+            const result = numA / numB;
+            return isFinite(result) ? result : 0;
+        }
+
+        // --- 4. OPTIMIZED CACHE BUILDER ---
+        function rebuildDomCache() {
+            if (!isCacheDirty) return;
+
+            const startTime = performance.now();
+
+            const rawElements = Array.from(
+                rootScope.querySelectorAll("[live-compute]"),
+            );
+            cachedComputeElements = rawElements.filter((el) => {
+                if (!el.isConnected) return false;
+
+                const initAttr = attr(el, "live-compute-init");
+                if (initAttr === "false") return false;
+
+                return true;
+            });
+
+            cachedComputeElements.sort((a, b) => {
+                return a.compareDocumentPosition(b) &
+                    Node.DOCUMENT_POSITION_FOLLOWING
+                    ? 1
+                    : -1;
+            });
+
+            cachedInputElements = Array.from(
+                rootScope.querySelectorAll(
+                    "input[name], select[name], textarea[name]",
+                ),
+            );
+            inputValueCache.clear();
+            rowIndicesCache = new Set();
+
+            const regex = /\[(\d+)\]$/;
+            const regexAlt = /_(\d+)$/;
+
+            for (let i = 0; i < cachedInputElements.length; i++) {
+                const el = cachedInputElements[i];
+                const name = el.name;
+                if (name) {
+                    const sanitized = sanitizeName(name);
+                    // ✅ Checkbox support: store el.value when checked, 0 when unchecked
+                    const isCheckbox = el.type === "checkbox";
+                    inputValueCache.set(sanitized, isCheckbox ? (el.checked ? el.value : 0) : el.value);
+
+                    let match = name.match(regex) || name.match(regexAlt);
+                    if (match) rowIndicesCache.add(parseInt(match[1], 10));
+                }
+            }
+
+            isCacheDirty = false;
+
+            if (DEBUG_MODE) {
+                console.log(
+                    `[Cache] Rebuilt in ${(performance.now() - startTime).toFixed(2)}ms - ${cachedComputeElements.length} compute, ${cachedInputElements.length} inputs`,
+                );
+            }
+        }
+
+        // --- 5. FAST INPUT READER ---
+        function getGlobalInputs() {
+            return inputValueCache;
+        }
+
+        function updateInputCache(name, value) {
+            if (name) {
+                inputValueCache.set(sanitizeName(name), value);
+            }
+        }
+
+        function getRowIndices() {
+            return rowIndicesCache || new Set();
+        }
+
+        // --- 6. OPTIMIZED MAIN PROCESSOR ---
+        function process(sourceElement = null) {
+            if (processingPromise) return processingPromise;
 
             processingPromise = new Promise((resolve) => {
-                const cache = getData(rootScope, COMPUTE_CACHE_KEY);
-                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-                iterationCount = 0;
-                bidirectionalUpdateInProgress = !!sourceElement;
+                if (isCacheDirty) rebuildDomCache();
 
-                const elements = filter(find('[live-compute]'), function (element) {
-                    const expr = attr(element, 'live-compute')?.trim() || '';
-                    return expr.length > 0 && element.isConnected;
-                });
+                let globalInputs = getGlobalInputs();
+                const indices = getRowIndices();
+                const formulaCache = new Map();
+                aggregateFunctionCache.clear();
 
                 let index = 0;
                 let hasChanges = false;
+                let iterationCount = 0;
+                let consecutiveStableCount = 0;
+                const MAX_STABLE_CYCLES = 3;
+                const totalElements = cachedComputeElements.length;
 
-                function processBatch() {
-                    const batch = elements.slice(index, index + BATCH_SIZE);
+                function processChunk() {
+                    const startTime = performance.now();
+                    let processed = 0;
                     let batchHasChanges = false;
 
-                    batch.forEach(function (element) {
-                        // Skip jika ini adalah source element dari bidirectional update
-                        if (sourceElement && element === sourceElement) {
-                            return;
-                        }
+                    while (
+                        index < totalElements &&
+                        processed < BATCH_SIZE &&
+                        performance.now() - startTime < TIME_BUDGET_MS
+                    ) {
+                        const element = cachedComputeElements[index];
+                        index++;
+                        processed++;
 
-                        const expr = attr(element, 'live-compute')?.trim() || '';
+                        if (!element.isConnected) continue;
+
+                        const expr =
+                            attr(element, "live-compute")?.trim() || "";
+                        if (!expr) continue;
+
+                        const format =
+                            attr(element, "live-compute-format") || "idr";
+                        const formulaCacheKey = `${expr}::${format}`;
 
                         try {
-                            const hasSkipAttr = attr(element, 'live-compute-skip') === 'true';
-                            const isFocused = is(element, ':focus');
-                            const isUpdating = getData(element, 'updating') === true;
+                            if (
+                                attr(element, "live-compute-skip") === "true" &&
+                                document.activeElement === element
+                            )
+                                continue;
+                            if (getData(element, "updating") === true) continue;
 
-                            if (hasSkipAttr && isFocused) {
-                                return;
-                            }
-
-                            if (isUpdating) {
-                                return;
-                            }
-
-                            const lastManualInput = getData(element, 'lastManualInput') || 0;
-                            if (hasSkipAttr && Date.now() - lastManualInput < 1000) {
-                                return;
-                            }
-
-                            // ===== ADDED: support live-compute-trigger =====
-                            const triggerAttr = attr(element, 'live-compute-trigger') || '';
+                            // Check trigger conditions
+                            const triggerAttr =
+                                attr(element, "live-compute-trigger") || "";
                             if (triggerAttr.trim()) {
-                                const triggers = triggerAttr.split(',').map(s => s.trim()).filter(Boolean);
+                                const triggers = triggerAttr
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean);
                                 let anyRecent = false;
                                 const now = Date.now();
-                                const THRESHOLD_MS = 1500; // window: 1.5s (sesuaikan kalau perlu)
+                                const THRESHOLD_MS = 1500;
 
-                                // cari input yang sesuai setiap trigger, cek lastManualInput-nya
                                 for (const t of triggers) {
-                                    // cari input/select/textarea dengan nama yang jika disanitize = t
-                                    const inputs = find('input[name], select[name], textarea[name]');
+                                    const inputs = cachedInputElements;
                                     for (const inp of inputs) {
-                                        const nameAttr = attr(inp, 'name');
+                                        const nameAttr = attr(inp, "name");
                                         if (!nameAttr) continue;
-                                        const sanitized = sanitizeInputNameToJSVariable(nameAttr);
+                                        const sanitized =
+                                            sanitizeName(nameAttr);
                                         if (sanitized === t) {
-                                            const last = getData(inp, 'lastManualInput') || 0;
+                                            const last =
+                                                getData(
+                                                    inp,
+                                                    "lastManualInput",
+                                                ) || 0;
                                             if (now - last < THRESHOLD_MS) {
                                                 anyRecent = true;
                                                 break;
@@ -2509,907 +1687,659 @@
                                     if (anyRecent) break;
                                 }
 
-                                // kalau tidak ada trigger recent, skip element ini
-                                if (!anyRecent) {
-                                    return;
-                                }
+                                if (!anyRecent) continue;
                             }
-                            // ===== END ADDED =====
 
-                            const globalInputs = getGlobalInputs();
-                            const indices = getRowIndices();
-                            const result = evaluateExpression(expr, globalInputs, indices);
+                            let result;
 
-                            // Check if this is a bidirectional relationship
-                            const isBidirectional = sourceElement && bidirectionalMap.has(element) &&
-                                bidirectionalMap.get(element).has(sourceElement);
+                            if (
+                                iterationCount === 0 &&
+                                formulaCache.has(formulaCacheKey)
+                            ) {
+                                result = formulaCache.get(formulaCacheKey);
+                            } else {
+                                result = evaluateExpression(
+                                    expr,
+                                    globalInputs,
+                                    indices,
+                                    format,
+                                );
 
-                            const changed = displayResult(element, result, cache, sourceElement, isBidirectional);
+                                if (isNaN(result) || !isFinite(result)) {
+                                    if (DEBUG_MODE)
+                                        console.warn(
+                                            `[Process] Invalid result for "${expr}": ${result}`,
+                                        );
+                                    result = 0;
+                                }
 
+                                if (iterationCount === 0)
+                                    formulaCache.set(formulaCacheKey, result);
+                            }
+
+                            const changed = displayResult(element, result);
                             if (changed) {
                                 batchHasChanges = true;
                                 hasChanges = true;
-
-                                // If this element changed and has bidirectional relationships, queue them
-                                if (!isBidirectional && bidirectionalMap.has(element)) {
-                                    bidirectionalMap.get(element).forEach(bidirectionalEl => {
-                                        if (bidirectionalEl !== sourceElement && bidirectionalEl.isConnected) {
-                                            enqueueComputeUpdate(bidirectionalEl, 'high', element);
-                                        }
-                                    });
+                                consecutiveStableCount = 0;
+                                if (element.name) {
+                                    updateInputCache(element.name, result);
                                 }
                             }
-                        } catch (error) {
-                            console.error('LiveCompute error:', error);
-                            if (attr(element, 'live-compute-skip') !== 'true') {
-                                displayResult(element, '', cache, sourceElement, false);
-                            }
+                        } catch (e) {
+                            if (DEBUG_MODE)
+                                console.warn(`[Process] Error: "${expr}"`, e);
+                            displayResult(element, 0);
                         }
-                    });
+                    }
 
-                    index += BATCH_SIZE;
-
-                    if (index < elements.length) {
-                        if ('requestIdleCallback' in window) {
-                            requestIdleCallback(processBatch, { timeout: 100 });
-                        } else {
-                            setTimeout(processBatch, 20);
-                        }
+                    if (index < totalElements) {
+                        requestAnimationFrame(processChunk);
                     } else {
-                        iterationCount++;
+                        if (!batchHasChanges) {
+                            consecutiveStableCount++;
+                        }
+
+                        if (consecutiveStableCount >= MAX_STABLE_CYCLES) {
+                            if (DEBUG_MODE)
+                                console.log(
+                                    `🛑 Live compute stable after ${iterationCount} iterations`,
+                                );
+                            finishProcessing();
+                            resolve();
+                            return;
+                        }
 
                         if (hasChanges && iterationCount < MAX_ITERATIONS) {
+                            iterationCount++;
+                            if (DEBUG_MODE)
+                                console.log(
+                                    `[LiveCompute] Pass ${iterationCount}/${MAX_ITERATIONS}`,
+                                );
+
                             index = 0;
                             hasChanges = false;
-                            setTimeout(processBatch, 10);
-                        } else {
-                            if (iterationCount >= MAX_ITERATIONS) {
-                                console.warn('Live compute reached max iterations');
+                            formulaCache.clear();
+                            aggregateFunctionCache.clear();
+
+                            for (
+                                let i = 0;
+                                i < cachedInputElements.length;
+                                i++
+                            ) {
+                                const el = cachedInputElements[i];
+                                if (el.name) {
+                                    const isCheckbox = el.type === "checkbox";
+                                    const cachedValue = isCheckbox ? (el.checked ? el.value : 0) : el.value;
+                                    updateInputCache(el.name, cachedValue);
+                                }
                             }
 
-                            setTimeout(() => {
-                                // Hanya reset circular detection jika bukan bidirectional update
-                                if (!sourceElement) {
-                                    setData(rootScope, CIRCULAR_DETECTION_KEY, new Map());
-                                }
-                            }, 1000);
-
-                            processingPromise = null;
-                            bidirectionalUpdateInProgress = false;
+                            requestAnimationFrame(processChunk);
+                        } else {
+                            if (DEBUG_MODE && iterationCount > 0) {
+                                console.log(
+                                    `[LiveCompute] ✓ Converged in ${iterationCount} passes`,
+                                );
+                            }
+                            finishProcessing();
                             resolve();
                         }
                     }
                 }
 
-                processBatch();
-            }).finally(() => {
-                processingPromise = null;
-                bidirectionalUpdateInProgress = false;
+                function finishProcessing() {
+                    processingPromise = null;
+                }
+
+                requestAnimationFrame(processChunk);
             });
 
             return processingPromise;
         }
 
-        // ========== ENHANCED CIRCULAR DEPENDENCY DETECTION ==========
+        // --- 7. ENHANCED DOM UPDATER (with normalization) ---
+        function displayResult(element, result) {
 
-        function detectCircularDependency(element, newValue, sourceElement = null, isBidirectional = false) {
-            // Skip circular detection untuk elemen yang saling bergantung (bidirectional)
-            if (sourceElement) {
-                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-                if (bidirectionalMap.has(element) && bidirectionalMap.get(element).has(sourceElement)) {
-                    // For bidirectional, use more lenient detection
-                    if (isBidirectional) {
-                        const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
-                        const key = element;
+            if (getData(element, 'userOwned') === true) return false;
 
-                        if (!circularMap.has(key)) {
-                            circularMap.set(key, []);
-                        }
+            const lastValue = getData(element, "lastValue");
+            const format = attr(element, "live-compute-format");
+            let rawValue = toNumber(result, format || "idr");
 
-                        const history = circularMap.get(key);
+            if (isNaN(rawValue) || !isFinite(rawValue)) {
+                if (DEBUG_MODE)
+                    console.warn(
+                        "[Display] Invalid value, defaulting to 0:",
+                        rawValue,
+                    );
+                rawValue = 0;
+            }
 
-                        if (history.length > 0) {
-                            const lastValue = history[history.length - 1];
-                            if (isValueConverged(lastValue, newValue)) {
-                                return true;
-                            }
-                        }
+            // Read live-decimal-max attribute
+            const decimalAttr = attr(element, "live-decimal-max");
+            let maxDecimals =
+                decimalAttr === null || decimalAttr === ""
+                    ? 0
+                    : parseInt(decimalAttr, 10);
 
-                        history.push(newValue);
-                        if (history.length > 8) {
-                            history.shift();
-                        }
-                        return false;
+            if (isNaN(maxDecimals) || maxDecimals < 0) maxDecimals = 0;
+            if (maxDecimals > 20) maxDecimals = 20;
+
+            // Normalize the number with proper precision
+            rawValue = normalizeNumber(rawValue, maxDecimals);
+
+            if (isNaN(rawValue) || !isFinite(rawValue)) {
+                rawValue = 0;
+            }
+
+            // Check for live-compute-init="false"
+            if (
+                lastValue === undefined &&
+                attr(element, "live-compute-init") === "false"
+            ) {
+                setData(element, "lastValue", rawValue);
+
+                // Get server value and format it
+                let serverValue = element.matches("input, textarea, select")
+                    ? val(element)
+                    : element.innerHTML;
+                let formattedServerValue = format
+                    ? formatResult(serverValue, format, maxDecimals)
+                    : serverValue;
+
+                // Update display only if not formatted yet
+                if (serverValue !== formattedServerValue) {
+                    if (element.matches("input, textarea, select")) {
+                        val(element, formattedServerValue);
+                    } else {
+                        element.innerHTML = formattedServerValue;
                     }
-                    return false;
                 }
-            }
 
-            const circularMap = getData(rootScope, CIRCULAR_DETECTION_KEY);
-            const key = element;
-
-            if (!circularMap.has(key)) {
-                circularMap.set(key, []);
-            }
-
-            const history = circularMap.get(key);
-
-            // Track source element untuk bidirectional
-            if (sourceElement) {
-                const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-                if (!bidirectionalMap.has(key)) {
-                    bidirectionalMap.set(key, new Set());
-                }
-                bidirectionalMap.get(key).add(sourceElement);
-            }
-
-            if (history.length > 0) {
-                const lastValue = history[history.length - 1];
-                if (isValueConverged(lastValue, newValue)) {
-                    return true;
-                }
-            }
-
-            history.push(newValue);
-
-            if (history.length > 10) {
-                history.shift();
-            }
-
-            if (history.length >= 4) {
-                const len = history.length;
-                const isOscillating =
-                    isValueConverged(history[len - 1], history[len - 3]) &&
-                    isValueConverged(history[len - 2], history[len - 4]);
-
-                if (isOscillating) {
-                    console.warn('Circular dependency detected, stabilizing value:', key);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        function scheduleProcess(delay = 0, sourceElement = null) {
-            clearTimeout(immediateTimeout);
-            clearTimeout(debounceTimer);
-
-            if (sourceElement) {
-                enqueueComputeUpdate(sourceElement, 'high');
-                if (delay <= 30) {
-                    immediateTimeout = setTimeout(processComputeQueue, delay);
-                } else {
-                    debounceTimer = setTimeout(processComputeQueue, delay);
-                }
-            } else {
-                const timerId = setTimeout(() => {
-                    process(sourceElement).then(processComputeQueue);
-                }, delay);
-
-                if (delay <= 30) {
-                    immediateTimeout = timerId;
-                } else {
-                    debounceTimer = timerId;
-                }
-            }
-        }
-
-        function processImmediate(sourceElement = null) {
-            if (sourceElement) {
-                enqueueComputeUpdate(sourceElement, 'high');
-                processComputeQueue();
-            } else {
-                scheduleProcess(30, sourceElement);
-            }
-        }
-
-        function debounceProcess(sourceElement = null) {
-            scheduleProcess(DEBOUNCE_DELAY, sourceElement);
-        }
-
-        function getGlobalInputs() {
-            const inputs = {};
-            find('input[name], select[name], textarea[name]').forEach(function (element) {
-                const name = attr(element, 'name');
-                if (name) {
-                    inputs[sanitizeInputNameToJSVariable(name)] = val(element)?.toString().trim();
-                }
-            });
-            return inputs;
-        }
-
-        function getRowIndices() {
-            const indices = new Set();
-            find('input[name], select[name], textarea[name]').forEach(function (element) {
-                const nameAttr = attr(element, 'name');
-                if (!nameAttr) return;
-                const matches = [...nameAttr.matchAll(/\[(\d+)\]/g)];
-                if (matches.length) {
-                    matches.forEach(match => {
-                        const num = parseInt(match[1], 10);
-                        if (!isNaN(num)) indices.add(num);
-                    });
-                }
-            });
-            return indices;
-        }
-
-        function evaluateExpression(expr, globalInputs, indices) {
-            const dateFnMatch = expr.match(/(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/);
-            if (dateFnMatch) {
-                return handleDateFunction(dateFnMatch[1], dateFnMatch[2], globalInputs);
-            }
-
-            expr = processAggregateFunctions(expr, globalInputs, indices);
-
-            const vars = extractVariables(expr);
-            const vals = vars.map(v => toNumber(getValue(v, globalInputs)));
-
-            try {
-                return safeFunctionEvaluation(vars, vals, expr);
-            } catch (e) {
-                console.error('Evaluation error:', expr, e);
-                return 0;
-            }
-        }
-
-        function handleDateFunction(fnName, argsStr, globalInputs) {
-            const args = argsStr.split(',').map(arg => {
-                const varName = arg.trim();
-                return getValue(varName, globalInputs);
-            });
-
-            if (args.length !== 2 || !args[0] || !args[1]) return 0;
-
-            try {
-                return dateUtils[fnName](args[0], args[1]);
-            } catch (e) {
-                console.error(`${fnName} execution error:`, e);
-                return 0;
-            }
-        }
-
-        const exprFuncCache = new Map();
-
-        function safeFunctionEvaluation(vars, vals, expr) {
-            if (!exprFuncCache.has(expr)) {
-                const context = { ...dateUtils, parseFloat };
-                const argNames = [...vars, ...Object.keys(context)];
-                const func = new Function(...argNames, `return ${expr}`);
-                exprFuncCache.set(expr, { func, context });
-            }
-            const { func, context } = exprFuncCache.get(expr);
-            const argValues = [...vals, ...Object.values(context)];
-            return func(...argValues);
-        }
-
-        function processAggregateFunctions(expr, globalInputs, indices) {
-            // SUMIF
-            expr = expr.replace(/sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/g,
-                (_, criteriaRange, criteria, sumRange) => {
-                    const vals = getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices);
-                    return calculateAggregate('sum', vals);
-                }
-            );
-
-            // SUM, AVG, MIN, MAX, COUNT
-            return expr.replace(/(sum|avg|min|max|count)\(([^()]+)\)/g,
-                (_, fn, arg) => {
-                    const vals = getAggregateValues(arg, globalInputs, indices);
-                    return calculateAggregate(fn, vals);
-                }
-            );
-        }
-
-        function getSumIfValues(criteriaRange, criteria, sumRange, globalInputs, indices) {
-            const vals = [];
-
-            // Kalau pakai wildcard ? → iterasi semua index
-            if (criteriaRange.includes('?') || sumRange.includes('?')) {
-                indices.forEach(i => {
-                    const critVal = getValue(criteriaRange.replace(/\?/g, i), globalInputs);
-                    const sumVal = toNumber(getValue(sumRange.replace(/\?/g, i), globalInputs));
-
-                    if (matchCriteria(critVal, criteria)) {
-                        vals.push(sumVal);
-                    }
-                });
-            } else {
-                const critVal = getValue(criteriaRange, globalInputs);
-                const sumVal = toNumber(getValue(sumRange, globalInputs));
-                if (matchCriteria(critVal, criteria)) {
-                    vals.push(sumVal);
-                }
-            }
-
-            return vals;
-        }
-
-        function matchCriteria(value, criteria) {
-            criteria = criteria.trim();
-
-            // Jika numeric langsung bandingkan
-            if (!isNaN(criteria)) {
-                return Number(value) === Number(criteria);
-            }
-
-            // Excel style operator
-            const opMatch = criteria.match(/^(>=|<=|==|!=|<>|>|<)\s*(.+)$/);
-            if (opMatch) {
-                let [, op, critVal] = opMatch;
-                if (op === '<>') op = '!='; // konversi Excel <> jadi != JS
-
-                const numCrit = Number(critVal);
-                const numVal = Number(value);
-
-                switch (op) {
-                    case '>': return numVal > numCrit;
-                    case '<': return numVal < numCrit;
-                    case '>=': return numVal >= numCrit;
-                    case '<=': return numVal <= numCrit;
-                    case '==': return numVal == numCrit;
-                    case '!=': return numVal != numCrit;
-                }
-            }
-
-            // Jika string, langsung bandingkan
-            return String(value) === criteria;
-        }
-
-        function getAggregateValues(arg, globalInputs, indices) {
-            arg = arg.trim();
-            const vals = [];
-
-            if (arg.includes('?')) {
-                indices.forEach(i => vals.push(toNumber(getValue(arg.replace(/\?/g, i), globalInputs))));
-            } else {
-                vals.push(toNumber(getValue(arg, globalInputs)));
-            }
-
-            return vals;
-        }
-
-        function calculateAggregate(fn, vals) {
-            vals = vals.filter(v => !isNaN(v));
-            switch (fn) {
-                case 'sum': return vals.reduce((a, b) => a + b, 0);
-                case 'avg': return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-                case 'min': return vals.length ? Math.min(...vals) : 0;
-                case 'max': return vals.length ? Math.max(...vals) : 0;
-                case 'count': return vals.length;
-                default: return 0;
-            }
-        }
-
-        // ✅ Normalisasi angka agar tidak ada 1.99998
-        function normalizeNumber(num, decimals = 2) {
-            if (num === null || num === undefined || isNaN(num)) return 0;
-            return parseFloat(num.toFixed(decimals));
-        }
-
-        // ✅ Display result dengan rawValue vs displayValue
-        function displayResult(element, result, cache, sourceElement = null, isBidirectional = false) {
-            const format = attr(element, 'live-compute-format');
-
-            // raw numeric value untuk kalkulasi
-            let rawValue = toNumber(result);
-            rawValue = normalizeNumber(rawValue);
-
-            // display value untuk UI
-            let displayValue = format ? formatResult(rawValue, format) : rawValue.toString();
-
-            // Skip circular detection untuk hubungan bidirectional
-            const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY);
-            const isBidirectionalRelation = sourceElement && bidirectionalMap.has(element) &&
-                bidirectionalMap.get(element).has(sourceElement);
-
-            if (!isBidirectionalRelation && detectCircularDependency(element, rawValue, sourceElement, isBidirectional)) {
                 return false;
             }
 
-            const cachedValue = cache.get(element);
+            // Use enhanced convergence check
+            if (!isValueConverged(lastValue, rawValue, format || "idr")) {
+                setData(element, "lastValue", rawValue);
+                let displayValue = format
+                    ? formatResult(rawValue, format, maxDecimals)
+                    : rawValue.toString();
 
-            // Bandingkan numeric, bukan string
-            if (!isValueConverged(cachedValue, rawValue)) {
-                cache.set(element, rawValue);
-
-                // ✅ Update element dengan raw + display
-                updateElementValue(element, rawValue, displayValue, sourceElement);
+                updateElementValue(element, displayValue);
                 return true;
             }
 
             return false;
         }
 
-        // ✅ Update element tanpa overwrite kalau sedang fokus
-        function updateElementValue(element, rawValue, displayValue, sourceElement = null) {
-            if (sourceElement && element === sourceElement) return;
+        function updateElementValue(element, displayValue) {
+            setData(element, "updating", true);
+            isInternalUpdate = true;
 
-            // 🚀 Tambahkan pengecekan live-compute-auto
-            const autoAttr = attr(element, 'live-compute-auto');
-            const isAuto = (autoAttr === null || autoAttr === '' || autoAttr === 'true');
-            if (!isAuto) {
-                return; // skip update kalau auto = false
-            }
-
-            // Jangan overwrite kalau user sedang mengetik di input
-            if (document.activeElement === element) {
-                return;
-            }
-
-            // Token untuk mencegah update usang
-            const currentToken = Date.now();
-            const lastToken = getData(element, 'lastToken') || 0;
-            if (currentToken <= lastToken) return;
-
-            setData(element, 'lastToken', currentToken);
-            setData(element, 'updating', true);
-
-            if (element.matches('input, textarea, select')) {
-                // ✅ Simpan rawValue tersembunyi untuk kalkulasi
-                element.dataset.rawValue = rawValue;
-
-                // ✅ Hanya tampilkan displayValue
-                val(element, displayValue);
-
-                // Trigger events untuk integrasi yang better
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-            } else {
-                html(element, displayValue);
-            }
-
-            setTimeout(() => {
-                removeData(element, 'updating');
-            }, 1);
-        }
-
-        function formatResult(result, format) {
-            if (result === null || result === undefined) {
-                return '';
-            }
-
-            if (typeof result === 'string') {
-                result = toNumber(result);
-            }
-
-            if (typeof result === 'number' && isNaN(result)) {
-                return '';
-            }
-
-            if (typeof result === 'number') {
-                result = Math.round(result * 100000) / 100000;
-            }
-
-            switch (format?.toLowerCase()) {
-                case 'idr':
-                    try {
-                        return new Intl.NumberFormat('id-ID', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                        }).format(Math.floor(result));
-                    } catch (e) {
-                        return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                    }
-
-                case 'currency':
-                case 'dollar':
-                    try {
-                        return new Intl.NumberFormat('en-US', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                        }).format(Math.floor(result));
-                    } catch (e) {
-                        return Math.floor(result).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                    }
-
-                case 'decimal':
-                    if (typeof result === 'number') {
-                        return result.toFixed(2);
-                    }
-                    return parseFloat(result).toFixed(2);
-
-                case 'percent':
-                    if (typeof result === 'number') {
-                        return (result * 100).toFixed(2) + '%';
-                    }
-                    return (parseFloat(result) * 100).toFixed(2) + '%';
-
-                case 'number':
-                    try {
-                        return new Intl.NumberFormat('id-ID').format(result);
-                    } catch (e) {
-                        return result.toString();
-                    }
-
-                case 'days':
-                    return Math.floor(result) + ' days';
-
-                case 'months':
-                    return Math.floor(result) + ' months';
-
-                case 'years':
-                    return Math.floor(result) + ' years';
-
-                case 'weeks':
-                    return Math.floor(result) + ' weeks';
-
-                default:
-                    return result.toString();
-            }
-        }
-
-        function formatInputValue(element, value) {
-            const format = attr(element, 'live-compute-format');
-            if (!format || getData(element, 'updating')) return value;
-
-            if (!value || value.trim() === '') return value;
-
-            const numValue = toNumber(value);
-
-            if (numValue === 0 && value !== '0' && value.trim() !== '0') {
-                if (value.match(/[\d.,]/)) {
-                    return value;
+            if (element.matches("input, textarea, select")) {
+                if (val(element) !== displayValue) {
+                    val(element, displayValue);
+                    element.dispatchEvent(
+                        new Event("input", { bubbles: true }),
+                    );
+                    element.dispatchEvent(
+                        new Event("change", { bubbles: true }),
+                    );
                 }
-                return '';
+            } else {
+                if (element.innerHTML !== displayValue)
+                    element.innerHTML = displayValue;
             }
+
+            isInternalUpdate = false;
+            setData(element, "updating", false);
+        }
+
+        // --- 8. SAFE MATH ENGINE ---
+        function evaluateExpression(expr, globalInputs, indices, currency = "idr") {
+            if (expr.includes("range")) {
+                const m = expr.match(
+                    /(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/,
+                );
+                if (m) return 0;
+            }
+
+            if (expr.match(/(sum|avg|min|max|count|sumif)\(/)) {
+                expr = processAggregateFunctions(
+                    expr,
+                    globalInputs,
+                    indices,
+                    currency,
+                );
+            }
+
+            const vars = extractVariables(expr);
+            const vals = vars.map((v) =>
+                toNumber(globalInputs.get(v) || 0, currency),
+            );
 
             try {
-                return formatResult(numValue, format);
+                const result = safeFunctionEvaluation(vars, vals, expr);
+
+                if (isNaN(result) || !isFinite(result)) {
+                    if (DEBUG_MODE)
+                        console.warn(
+                            `[Eval] Invalid result for "${expr}": ${result}`,
+                        );
+                    return 0;
+                }
+
+                return result;
             } catch (e) {
-                console.error('Format error:', e);
-                return value;
+                if (DEBUG_MODE) console.error("[Eval] Error:", expr, e);
+                return 0;
             }
         }
 
-        function getValue(varName, globalInputs) {
-            const rowMatch = varName.match(/^rows_(\d+)_(.+)$/);
-            if (rowMatch) {
-                const [_, index, field] = rowMatch;
-                const selector = `[name="rows[${index}][${field}]"]`;
-                const element = rootScope.querySelector(selector);
-                return element ? val(element).toString().trim() : '';
-            }
-            return globalInputs[varName] || '';
+        // --- 9. ENHANCED AGGREGATE FUNCTIONS (with normalization) ---
+        function processAggregateFunctions(
+            expr,
+            globalInputs,
+            indices,
+            currency = "idr",
+        ) {
+            expr = expr.replace(
+                /sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi,
+                (match, r1, c, r2) => {
+                    const cacheKey = `sumif:${r1}:${c}:${r2}:${currency}`;
+
+                    if (aggregateFunctionCache.has(cacheKey)) {
+                        return aggregateFunctionCache.get(cacheKey);
+                    }
+
+                    const vals = getSumIfValues(
+                        r1,
+                        c,
+                        r2,
+                        globalInputs,
+                        indices,
+                    );
+                    const result = safeAggregate("sum", vals, currency);
+
+                    aggregateFunctionCache.set(cacheKey, result);
+                    return result;
+                },
+            );
+
+            return expr.replace(
+                /(sum|avg|min|max|count)\(([^()]+)\)/gi,
+                (match, fn, arg) => {
+                    const cacheKey = `${fn}:${arg}:${currency}`;
+
+                    if (aggregateFunctionCache.has(cacheKey)) {
+                        return aggregateFunctionCache.get(cacheKey);
+                    }
+
+                    const vals = getAggregateValues(arg, globalInputs, indices);
+                    const result = safeAggregate(
+                        fn.toLowerCase(),
+                        vals,
+                        currency,
+                    );
+
+                    aggregateFunctionCache.set(cacheKey, result);
+                    return result;
+                },
+            );
         }
 
-        function toNumber(val) {
-            if (val == null || val === '') return 0;
+        function safeAggregate(fn, vals, currency = "idr") {
+            if (!vals || vals.length === 0) return 0;
 
-            val = val.toString().trim();
-            if (val === '' || val === '-') return 0;
+            const validVals = vals
+                .filter((v) => {
+                    const num = toNumber(v, currency);
+                    return isFinite(num) && !isNaN(num);
+                })
+                .map((v) => toNumber(v, currency));
 
-            const isPercentage = val.includes('%');
-            val = val.replace(/%/g, '');
-
-            const isNegative = /^-/.test(val);
-            val = val.replace(/^-/, '');
-
-            val = val.replace(/[^\d.,]/g, '');
-
-            if (val === '') return 0;
+            if (validVals.length === 0) return 0;
 
             let result = 0;
 
-            if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
-                result = parseFloat(val.replace(/\./g, '').replace(',', '.'));
-            }
-            else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
-                result = parseFloat(val.replace(/,/g, ''));
-            }
-            else if (/^\d+([.,]\d+)?$/.test(val)) {
-                if (val.includes(',')) {
-                    result = parseFloat(val.replace(',', '.'));
-                } else {
-                    result = parseFloat(val);
+            try {
+                if (fn === "sum") {
+                    // Use reduce with proper accumulation to avoid floating point errors
+                    result = validVals.reduce((acc, val) => {
+                        const sum = acc + val;
+                        return isFinite(sum) ? sum : acc;
+                    }, 0);
+                    // Normalize the sum to avoid floating point errors
+                    result = normalizeNumber(result, 10);
+                } else if (fn === "count") {
+                    result = validVals.length;
+                } else if (fn === "avg") {
+                    const sum = validVals.reduce((acc, val) => {
+                        const s = acc + val;
+                        return isFinite(s) ? s : acc;
+                    }, 0);
+                    result = safeDivide(sum, validVals.length);
+                    result = normalizeNumber(result, 10);
+                } else if (fn === "min") {
+                    result = Math.min(...validVals);
+                } else if (fn === "max") {
+                    result = Math.max(...validVals);
                 }
-            }
-            else {
-                result = parseFloat(val.replace(/[.,]/g, ''));
-            }
 
-            if (isNaN(result)) result = 0;
-            if (isNegative) result = -result;
-            if (isPercentage) result = result / 100;
+                if (isNaN(result) || !isFinite(result)) {
+                    if (DEBUG_MODE)
+                        console.warn(
+                            `[Aggregate] Invalid ${fn} result:`,
+                            result,
+                        );
+                    return 0;
+                }
 
-            return result;
+                return result;
+            } catch (e) {
+                if (DEBUG_MODE) console.error(`[Aggregate] Error in ${fn}:`, e);
+                return 0;
+            }
         }
+
+        function getAggregateValues(arg, globalInputs, indices) {
+            arg = arg.trim();
+            const vals = [];
+
+            if (arg.includes("?")) {
+                const parts = arg.split("?");
+                indices.forEach((i) => {
+                    const key = sanitizeName(parts.join(i));
+                    const val = globalInputs.get(key);
+                    if (val !== undefined) vals.push(val);
+                });
+            } else {
+                const key = sanitizeName(arg);
+                const val = globalInputs.get(key);
+                if (val !== undefined) vals.push(val);
+            }
+
+            return vals;
+        }
+
+        function getSumIfValues(
+            critRange,
+            crit,
+            sumRange,
+            globalInputs,
+            indices,
+        ) {
+            const vals = [];
+            crit = crit.replace(/['"]/g, "").trim();
+            const isWildcard =
+                critRange.includes("?") || sumRange.includes("?");
+
+            if (isWildcard) {
+                indices.forEach((i) => {
+                    const kC = sanitizeName(critRange.replace(/\?/g, i));
+                    const valC = globalInputs.get(kC);
+
+                    if (String(valC) == String(crit)) {
+                        const kS = sanitizeName(sumRange.replace(/\?/g, i));
+                        const valS = globalInputs.get(kS);
+                        if (valS !== undefined) vals.push(valS);
+                    }
+                });
+            }
+
+            return vals;
+        }
+
+        // --- 10. SAFE UTILITIES ---
+        const MAX_EXPR_CACHE = 200;
+        const exprFuncCache = new Map();
+
+        function safeFunctionEvaluation(vars, vals, expr) {
+            if (!exprFuncCache.has(expr)) {
+
+                // FIX: Batasi ukuran cache agar tidak tumbuh tak terbatas
+                // Map di JS menjaga insertion order, jadi .keys().next().value
+                // selalu mengembalikan entry paling lama
+                if (exprFuncCache.size >= MAX_EXPR_CACHE) {
+                    const oldestKey = exprFuncCache.keys().next().value;
+                    exprFuncCache.delete(oldestKey);
+                }
+
+                const funcBody = `
+                    const safeDivide = (a, b) => {
+                        const numB = typeof b === 'number' ? b : parseFloat(b) || 0;
+                        if (numB === 0) return 0;
+                        const result = (typeof a === 'number' ? a : parseFloat(a) || 0) / numB;
+                        return isFinite(result) ? result : 0;
+                    };
+                    const safeAdd = (a, b) => {
+                        const result = (typeof a === 'number' ? a : parseFloat(a) || 0) +
+                                    (typeof b === 'number' ? b : parseFloat(b) || 0);
+                        return isFinite(result) ? result : 0;
+                    };
+                    const round = (num, digits=0) => {
+                        const f = Math.pow(10, digits);
+                        const result = Math.round(num * f) / f;
+                        return isFinite(result) ? result : 0;
+                    };
+                    try {
+                        const result = ${expr};
+                        return (isNaN(result) || !isFinite(result)) ? 0 : result;
+                    } catch(e) {
+                        return 0;
+                    }
+                `;
+
+                const func = new Function(...vars, "Math", funcBody);
+                exprFuncCache.set(expr, func);
+            }
+
+            try {
+                const result = exprFuncCache.get(expr)(...vals, Math);
+                return isNaN(result) || !isFinite(result) ? 0 : result;
+            } catch (e) {
+                if (DEBUG_MODE) console.error("[SafeEval] Error:", e);
+                return 0;
+            }
+        }
+        //         const exprFuncCache = new Map();
+        //         function safeFunctionEvaluation(vars, vals, expr) {
+        //             if (!exprFuncCache.has(expr)) {
+        //                 const funcBody = `
+        //                 const safeDivide = (a, b) => {
+        //                     const numB = typeof b === 'number' ? b : parseFloat(b) || 0;
+        //                     if (numB === 0) return 0;
+        //                     const result = (typeof a === 'number' ? a : parseFloat(a) || 0) / numB;
+        //                     return isFinite(result) ? result : 0;
+        //                 };
+        //                 const safeAdd = (a, b) => {
+        //                     const result = (typeof a === 'number' ? a : parseFloat(a) || 0) + 
+        //                                    (typeof b === 'number' ? b : parseFloat(b) || 0);
+        //                     return isFinite(result) ? result : 0;
+        //                 };
+        //                 const round = (num, digits=0) => { 
+        //                     const f = Math.pow(10, digits); 
+        //                     const result = Math.round(num * f) / f;
+        //                     return isFinite(result) ? result : 0;
+        //                 };
+        //                 try {
+        //                     const result = ${expr};
+        //                     return (isNaN(result) || !isFinite(result)) ? 0 : result;
+        //                 } catch(e) {
+        //                     return 0;
+        //                 }
+        //             `;
+
+        //                 const func = new Function(...vars, "Math", funcBody);
+        //                 exprFuncCache.set(expr, func);
+        //             }
+
+        //             try {
+        //                 const result = exprFuncCache.get(expr)(...vals, Math);
+        //                 return isNaN(result) || !isFinite(result) ? 0 : result;
+        //             } catch (e) {
+        //                 if (DEBUG_MODE) console.error("[SafeEval] Error:", e);
+        //                 return 0;
+        //             }
+        //         }
 
         function extractVariables(expr) {
             const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
-            return [...new Set(vars.filter(v => !/^\d+$/.test(v) && !dateUtils[v]))];
+            const reserved = [
+                "sum",
+                "avg",
+                "min",
+                "max",
+                "count",
+                "sumif",
+                "round",
+                "Math",
+                "safeDivide",
+                "safeAdd",
+            ];
+            return [...new Set(vars.filter((v) => !reserved.includes(v)))];
         }
 
-        function sanitizeInputNameToJSVariable(name) {
-            return name.replace(/\]\[/g, '_')
-                .replace(/[\[\]]/g, '')
-                .replace(/[^a-zA-Z0-9_]/g, '_');
-        }
+        function formatResult(result, format, maxDecimals = 0) {
+            const num = parseFloat(result);
 
-        function isValueConverged(oldValue, newValue) {
-            // bedakan "" dengan 0 supaya tetap update
-            if (oldValue === "" && newValue === 0) return false;
+            if (isNaN(num) || !isFinite(num)) return "0";
 
-            if (oldValue === newValue) return true;
+            // Ensure maxDecimals is valid
+            maxDecimals = isNaN(parseInt(maxDecimals))
+                ? 0
+                : parseInt(maxDecimals);
 
-            const oldNum = parseFloat(oldValue);
-            const newNum = parseFloat(newValue);
-
-            if (!isNaN(oldNum) && !isNaN(newNum)) {
-                if (Math.abs(oldNum - newNum) < PRECISION_TOLERANCE) return true;
-                if (oldNum !== 0 && Math.abs((newNum - oldNum) / oldNum) < PRECISION_TOLERANCE) return true;
+            if (format.toLowerCase() === "idr") {
+                try {
+                    return new Intl.NumberFormat("id-ID", {
+                        minimumFractionDigits: maxDecimals,
+                        maximumFractionDigits: maxDecimals,
+                    }).format(num);
+                } catch (e) {
+                    return num.toFixed(maxDecimals);
+                }
+            } else if (format.toLowerCase() === "usd") {
+                try {
+                    return new Intl.NumberFormat("en-US", {
+                        minimumFractionDigits: maxDecimals,
+                        maximumFractionDigits: maxDecimals,
+                    }).format(num);
+                } catch (e) {
+                    return num.toFixed(maxDecimals);
+                }
             }
 
-            return false;
+            const formatted = num.toFixed(maxDecimals);
+            return isFinite(parseFloat(formatted)) ? formatted : "0";
         }
 
-        function addEventListener(selector, event, handler, context = rootScope) {
-            context.addEventListener(event, function (e) {
-                if (e.target.matches(selector)) {
-                    handler.call(e.target, e);
-                }
-            });
+        // --- 11. OPTIMIZED SCHEDULER & INIT ---
+        function scheduleProcess(delay = 0, sourceElement = null) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => process(sourceElement), delay);
         }
 
         function init() {
-            // Initialize all systems
-            initBidirectionalQueue();
-            process();
+            const observer = new MutationObserver((mutations) => {
+                if (isInternalUpdate) return;
 
-            let lastInputTime = 0;
-            let formatTimeout = new Map();
-            let bidirectionalElements = new Map();
-
-            // Identifikasi elemen bidirectional dengan lebih akurat
-            find('[live-compute-skip="true"]').forEach(function (element) {
-                const expr = attr(element, 'live-compute') || '';
-                const vars = extractVariables(expr);
-
-                find('[live-compute]').forEach(function (otherElement) {
-                    const otherExpr = attr(otherElement, 'live-compute') || '';
-                    const otherVars = extractVariables(otherExpr);
-
-                    if (vars.some(v => otherVars.includes(v)) && otherElement !== element) {
-                        if (!bidirectionalElements.has(element)) {
-                            bidirectionalElements.set(element, new Set());
-                        }
-                        bidirectionalElements.get(element).add(otherElement);
-
-                        if (!bidirectionalElements.has(otherElement)) {
-                            bidirectionalElements.set(otherElement, new Set());
-                        }
-                        bidirectionalElements.get(otherElement).add(element);
-
-                        const bidirectionalMap = getData(rootScope, BIDIRECTIONAL_TRACKING_KEY) || new Map();
-                        if (!bidirectionalMap.has(element)) {
-                            bidirectionalMap.set(element, new Set());
-                        }
-                        bidirectionalMap.get(element).add(otherElement);
-
-                        if (!bidirectionalMap.has(otherElement)) {
-                            bidirectionalMap.set(otherElement, new Set());
-                        }
-                        bidirectionalMap.get(otherElement).add(element);
-
-                        setData(rootScope, BIDIRECTIONAL_TRACKING_KEY, bidirectionalMap);
-                    }
-                });
-            });
-
-            addEventListener('[live-compute-skip="true"]', 'input', function () {
-                if (getData(this, 'updating')) return;
-                setData(this, 'lastManualInput', Date.now());
-
-                if (bidirectionalElements.has(this)) {
-                    processImmediate(this);
-                } else {
-                    processImmediate();
-                }
-            });
-
-            addEventListener('input[name], select[name], textarea[name]', 'input', function () {
-                if (getData(this, 'updating')) return;
-                setData(this, 'lastManualInput', Date.now());
-                processImmediate();
-            });
-
-            // === PATCHED ===
-            addEventListener('input[live-compute-format]', 'input', function () {
-                if (getData(this, 'updating')) return;
-
-                const element = this;
-                const currentValue = val(this);
-
-                setData(element, 'lastManualInput', Date.now());
-
-                // 🚫 Jika ada live-compute-skip → jangan format realtime
-                if (element.hasAttribute('live-compute-skip')) {
-                    return; // biarkan user ngetik normal
-                }
-
-                if (formatTimeout.has(element)) {
-                    clearTimeout(formatTimeout.get(element));
-                }
-
-                const now = Date.now();
-                if (!element.hasAttribute('live-compute-skip')) {
-                    if (now - lastInputTime > 10) {
-                        lastInputTime = now;
-                        processImmediate();
+                let shouldRebuild = false;
+                for (const m of mutations) {
+                    if (
+                        m.target &&
+                        m.target.hasAttribute &&
+                        m.target.hasAttribute("live-compute")
+                    )
+                        continue;
+                    if (m.type === "childList") {
+                        shouldRebuild = true;
+                        break;
                     }
                 }
 
-                const timeout = setTimeout(() => {
-                    if (getData(element, 'updating')) return;
-
-                    const cursorPos = element.selectionStart;
-                    const oldValue = val(element);
-
-                    const lastFormattedValue = getData(element, 'lastFormattedValue') || '';
-                    if (oldValue === lastFormattedValue) {
-                        formatTimeout.delete(element);
-                        return;
-                    }
-
-                    const newValue = formatInputValue(element, oldValue);
-
-                    if (oldValue !== newValue && newValue !== '') {
-                        setData(element, 'updating', true);
-                        val(element, newValue);
-                        setData(element, 'lastFormattedValue', newValue);
-
-                        let newCursorPos = cursorPos;
-                        const lengthDiff = newValue.length - oldValue.length;
-
-                        if (lengthDiff !== 0) {
-                            const beforeCursor = oldValue.substring(0, cursorPos);
-                            const numericBeforeCursor = beforeCursor.replace(/[^\d]/g, '');
-
-                            let targetPos = 0;
-                            let numericCount = 0;
-
-                            for (let i = 0; i < newValue.length; i++) {
-                                if (/\d/.test(newValue[i])) {
-                                    numericCount++;
-                                }
-                                if (numericCount >= numericBeforeCursor.length) {
-                                    targetPos = i + 1;
-                                    break;
-                                }
-                            }
-
-                            newCursorPos = Math.min(targetPos, newValue.length);
-                        }
-
-                        newCursorPos = Math.max(0, Math.min(newCursorPos, newValue.length));
-
-                        try {
-                            element.setSelectionRange(newCursorPos, newCursorPos);
-                        } catch (e) { }
-
-                        setTimeout(() => {
-                            removeData(element, 'updating');
-                        }, 50);
-                    }
-
-                    formatTimeout.delete(element);
-                }, 200);
-
-                formatTimeout.set(element, timeout);
-            });
-            // === END PATCH ===
-
-            addEventListener('input:not([live-compute-format]):not([live-compute-skip="true"]), select:not([live-compute-skip="true"]), textarea:not([live-compute-skip="true"])', 'input', function () {
-                if (getData(this, 'updating')) return;
-
-                const now = Date.now();
-                if (now - lastInputTime > 10) {
-                    lastInputTime = now;
-                    processImmediate();
+                if (shouldRebuild) {
+                    isCacheDirty = true;
+                    scheduleProcess(300);
                 }
             });
 
-            addEventListener('input, select, textarea', 'change', function () {
-                if (getData(this, 'updating')) return;
-                debounceProcess();
+            observer.observe(rootScope, {
+                childList: true,
+                subtree: true,
+                attributes: false,
             });
 
-            addEventListener('[live-compute-skip="true"]', 'blur', function () {
-                debounceProcess();
-            });
+            rootScope.addEventListener(
+                "input",
+                (e) => {
+                    if (isInternalUpdate) return;
 
-            addEventListener('input[live-compute-format]', 'blur', function () {
-                const element = this;
-
-                if (formatTimeout.has(element)) {
-                    clearTimeout(formatTimeout.get(element));
-                    formatTimeout.delete(element);
-                }
-
-                const currentValue = val(this);
-
-                if (currentValue && currentValue.trim() !== '') {
-                    let formattedValue = formatInputValue(this, currentValue);
-
-                    // 🚀 PATCH: kalau hasil format kosong → paksa fallback ke number formatting
-                    if (!formattedValue || formattedValue.trim() === '') {
-                        const numValue = toNumber(currentValue);
-                        formattedValue = formatResult(numValue, attr(this, 'live-compute-format'));
-                    }
-
-                    // 🚀 PATCH: walaupun ada live-compute-skip tetap paksa format saat blur
-                    val(this, formattedValue);
-                    setData(this, 'lastFormattedValue', formattedValue);
-                }
-
-                // Hapus flag updating biar siap dipakai lagi
-                removeData(this, 'updating');
-
-                // Tetap trigger proses compute lain
-                debounceProcess();
-            });
-
-            addEventListener('input[live-compute-format]', 'focus', function () {
-                const currentValue = val(this);
-
-                const lastFormattedValue = getData(this, 'lastFormattedValue') || '';
-                if (currentValue && currentValue.trim() !== '' && currentValue !== lastFormattedValue) {
-                    const formattedValue = formatInputValue(this, currentValue);
-                    if (currentValue !== formattedValue) {
-                        setData(this, 'updating', true);
-                        val(this, formattedValue);
-                        setData(this, 'lastFormattedValue', formattedValue);
-
-                        setTimeout(() => {
-                            removeData(this, 'updating');
-                        }, 50);
-                    }
-                }
-            });
-
-            rootScope.addEventListener('live-dom:afterAppend', () => {
-                buildDependencyMap();
-                process();
-            });
-            rootScope.addEventListener('live-dom:afterUpdate', () => {
-                buildDependencyMap();
-                process();
-            });
-
-            if (typeof MutationObserver !== 'undefined') {
-                const observer = new MutationObserver((mutations) => {
-                    let shouldRebuild = false;
-                    mutations.forEach((mutation) => {
-                        if (mutation.type === 'childList') {
-                            mutation.addedNodes.forEach((node) => {
-                                if (node.nodeType === Node.ELEMENT_NODE) {
-                                    if (node.hasAttribute && node.hasAttribute('live-compute')) {
-                                        shouldRebuild = true;
-                                    } else if (node.querySelector && node.querySelector('[live-compute]')) {
-                                        shouldRebuild = true;
-                                    }
-                                }
+                    if (
+                        e.target &&
+                        e.target.matches &&
+                        e.target.matches("input, select, textarea")
+                    ) {
+                        if (e.target.name) {
+                            const isCheckbox = e.target.type === "checkbox";
+                            // ✅ Checkbox: store el.value when checked, 0 when unchecked
+                            const cachedValue = isCheckbox ? (e.target.checked ? e.target.value : 0) : e.target.value;
+                            updateInputCache(e.target.name, cachedValue);
+                            setData(e.target, "lastManualInput", Date.now());
+                            cachedComputeElements.forEach((el) => {
+                                setData(el, "userOwned", el === e.target);
                             });
                         }
-                    });
 
-                    if (shouldRebuild) {
-                        buildDependencyMap();
-                        process();
+                        // Unlock init attribute on manual input
+                        if (e.target.hasAttribute("live-compute-init")) {
+                            e.target.removeAttribute("live-compute-init");
+                        }
+
+                        scheduleProcess(INPUT_DEBOUNCE, e.target);
                     }
-                });
+                },
+                { passive: true },
+            );
 
-                observer.observe(rootScope, {
-                    childList: true,
-                    subtree: true
-                });
-            }
+            // ✅ Checkbox fires "change", not "input" — handle separately
+            rootScope.addEventListener(
+                "change",
+                (e) => {
+                    if (isInternalUpdate) return;
+
+                    if (
+                        e.target &&
+                        e.target.matches &&
+                        e.target.type === "checkbox" &&
+                        e.target.name
+                    ) {
+                        // ✅ Store el.value when checked, 0 when unchecked
+                        const checkboxValue = e.target.checked ? e.target.value : 0;
+                        updateInputCache(e.target.name, checkboxValue, false);
+                        setData(e.target, "lastManualInput", Date.now());
+                        cachedComputeElements.forEach((el) => {
+                            setData(el, "userOwned", el === e.target);
+                        });
+
+                        if (e.target.hasAttribute("live-compute-init")) {
+                            e.target.removeAttribute("live-compute-init");
+                        }
+
+                        scheduleProcess(INPUT_DEBOUNCE, e.target);
+                    }
+                },
+                { passive: true },
+            );
+
+            rebuildDomCache();
+            process();
         }
 
         init();
     }
-
 
     /*==============================
       SPA ROUTER INTEGRATION
@@ -3436,8 +2366,8 @@
         showLoadingBar();
 
         const headers = {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
         };
 
         const fetchOptions = {
@@ -3446,25 +2376,28 @@
             signal,
         };
 
-        if (method !== 'GET' && data) {
-            fetchOptions.body = data instanceof FormData ? data : new URLSearchParams(data);
+        if (method !== "GET" && data) {
+            fetchOptions.body =
+                data instanceof FormData ? data : new URLSearchParams(data);
         }
 
         fetch(url, fetchOptions)
-            .then(async response => {
+            .then(async (response) => {
                 const html = await response.text();
                 if (!response.ok) {
                     showErrorModal(html);
-                    throw new Error(`[${response.status}] ${response.statusText}`);
+                    throw new Error(
+                        `[${response.status}] ${response.statusText}`,
+                    );
                 }
                 callback?.(html);
             })
-            .catch(error => {
-                if (error.name === 'AbortError') {
-                    console.log('[SPA] Request dibatalkan:', url);
+            .catch((error) => {
+                if (error.name === "AbortError") {
+                    console.log("[SPA] Request dibatalkan:", url);
                     return;
                 }
-                console.error('ajaxSpa error:', error);
+                console.error("ajaxSpa error:", error);
                 errorCallback?.(error);
             })
             .finally(() => {
@@ -3479,11 +2412,13 @@
      */
     function updateSpaRegions(responseHtml) {
         const parser = new DOMParser();
-        const doc = parser.parseFromString(responseHtml, 'text/html');
-        const regions = document.querySelectorAll('[live-spa-region]');
-        regions.forEach(region => {
-            const regionName = region.getAttribute('live-spa-region');
-            const newRegion = doc.querySelector(`[live-spa-region="${regionName}"]`);
+        const doc = parser.parseFromString(responseHtml, "text/html");
+        const regions = document.querySelectorAll("[live-spa-region]");
+        regions.forEach((region) => {
+            const regionName = region.getAttribute("live-spa-region");
+            const newRegion = doc.querySelector(
+                `[live-spa-region="${regionName}"]`,
+            );
             if (newRegion) {
                 region.innerHTML = newRegion.innerHTML;
                 executeScripts(region);
@@ -3499,27 +2434,41 @@
     function loadSpaContent(url, pushState = true) {
         const mainRegion = document.querySelector('[live-spa-region="main"]');
         if (mainRegion) {
-            mainRegion.innerHTML = '<div class="text-center p-4 text-gray-400">Loading...</div>';
+            mainRegion.innerHTML =
+                '<div class="text-center p-4 text-gray-400">Loading...</div>';
         }
 
-        ajaxSpa('GET', url, null, res => {
-            updateSpaRegions(res);
-            document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-            document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-                detail: {
-                    url
+        ajaxSpa(
+            "GET",
+            url,
+            null,
+            (res) => {
+                updateSpaRegions(res);
+                document.dispatchEvent(new CustomEvent("live-dom:afterUpdate"));
+                document.dispatchEvent(
+                    new CustomEvent("live-dom:afterSpa", {
+                        detail: {
+                            url,
+                        },
+                    }),
+                );
+                if (pushState)
+                    history.pushState(
+                        {
+                            spa: true,
+                            url,
+                        },
+                        "",
+                        url,
+                    );
+            },
+            () => {
+                if (mainRegion) {
+                    mainRegion.innerHTML =
+                        '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
                 }
-            }));
-            if (pushState) history.pushState({
-                spa: true,
-                url
-            }, '', url);
-        }, () => {
-            if (mainRegion) {
-                mainRegion.innerHTML =
-                    '<div class="text-red-500 p-4">Failed to load content (network error)</div>';
-            }
-        });
+            },
+        );
     }
 
     /**
@@ -3530,24 +2479,31 @@
      */
     function ajaxSpaFormSubmit(form, callbackSuccess, callbackError) {
         const url = form.action;
-        const method = form.method.toUpperCase() || 'POST';
+        const method = form.method.toUpperCase() || "POST";
         const formData = new FormData(form);
-        const beforeCallbackName = form.getAttribute('live-callback-before');
-        const afterCallbackName = form.getAttribute('live-callback-after');
+        const beforeCallbackName = form.getAttribute("live-callback-before");
+        const afterCallbackName = form.getAttribute("live-callback-after");
 
         const safeEvalCallbackExpression = (expr, el) => {
             try {
-                const replaced = expr.replace(/\bthis\b/g, '__el');
-                return Function('__el', `
-          try {
-            return (${replaced});
-          } catch (e) {
-            console.warn('[LiveDomJs] Error in callback expression:', e);
-            return undefined;
-          }
-        `)(el);
+                const replaced = expr.replace(/\bthis\b/g, "__el");
+                return Function(
+                    "__el",
+                    `
+          try {
+            return (${replaced});
+          } catch (e) {
+            console.warn('[LiveDomJs] Error in callback expression:', e);
+            return undefined;
+          }
+        `,
+                )(el);
             } catch (e) {
-                console.warn('[LiveDomJs] Failed to evaluate callback expression:', expr, e);
+                console.warn(
+                    "[LiveDomJs] Failed to evaluate callback expression:",
+                    expr,
+                    e,
+                );
                 return undefined;
             }
         };
@@ -3555,39 +2511,55 @@
         const runBeforeCallback = () => {
             if (!beforeCallbackName) return Promise.resolve(true);
 
-            if (beforeCallbackName.includes('(')) {
-                const result = safeEvalCallbackExpression(beforeCallbackName, form);
+            if (beforeCallbackName.includes("(")) {
+                const result = safeEvalCallbackExpression(
+                    beforeCallbackName,
+                    form,
+                );
                 return Promise.resolve(result);
             }
 
             const fn = window[beforeCallbackName.trim()];
-            if (typeof fn === 'function') {
+            if (typeof fn === "function") {
                 try {
                     return Promise.resolve(fn(form));
                 } catch (e) {
-                    console.warn('[LiveDomJs] Error in live-callback-before:', e);
+                    console.warn(
+                        "[LiveDomJs] Error in live-callback-before:",
+                        e,
+                    );
                     return Promise.resolve(true);
                 }
             } else {
-                console.warn(`[LiveDomJs] Function "${beforeCallbackName}" not found.`);
+                console.warn(
+                    `[LiveDomJs] Function "${beforeCallbackName}" not found.`,
+                );
                 return Promise.resolve(true);
             }
         };
 
         const runAfterCallback = (response, isError = false) => {
-            if (afterCallbackName && typeof window[afterCallbackName] === 'function') {
+            if (
+                afterCallbackName &&
+                typeof window[afterCallbackName] === "function"
+            ) {
                 try {
                     window[afterCallbackName](response, form, isError);
                 } catch (e) {
-                    console.warn('[LiveDomJs] Error in live-callback-after:', e);
+                    console.warn(
+                        "[LiveDomJs] Error in live-callback-after:",
+                        e,
+                    );
                 }
             }
         };
 
         runBeforeCallback()
-            .then(result => {
+            .then((result) => {
                 if (result === false) {
-                    console.log('Form submit cancelled by live-callback-before.');
+                    console.log(
+                        "Form submit cancelled by live-callback-before.",
+                    );
                     return;
                 }
 
@@ -3598,42 +2570,53 @@
                     processData: false,
                     contentType: false,
                     headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                        "X-Requested-With": "XMLHttpRequest",
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
+                            "content",
+                        ),
                     },
                     beforeSend: function () {
                         showLoadingBar();
                         clearFormErrors(form);
                     },
-                    success: response => {
+                    success: (response) => {
                         const redirectUrl = response?.redirect;
 
                         if (redirectUrl) {
                             fetch(redirectUrl, {
                                 headers: {
-                                    'X-Requested-With': 'XMLHttpRequest'
+                                    "X-Requested-With": "XMLHttpRequest",
                                 },
                             })
-                                .then(res => res.text())
-                                .then(html => {
+                                .then((res) => res.text())
+                                .then((html) => {
                                     updateSpaRegions(html);
-                                    document.dispatchEvent(new CustomEvent(
-                                        'live-dom:afterUpdate'));
-                                    document.dispatchEvent(new CustomEvent(
-                                        'live-dom:afterSpa', {
-                                        detail: {
-                                            url: redirectUrl
-                                        }
-                                    }));
-                                    history.pushState({
-                                        spa: true,
-                                        url: redirectUrl
-                                    }, '', redirectUrl);
+                                    document.dispatchEvent(
+                                        new CustomEvent("live-dom:afterUpdate"),
+                                    );
+                                    document.dispatchEvent(
+                                        new CustomEvent("live-dom:afterSpa", {
+                                            detail: {
+                                                url: redirectUrl,
+                                            },
+                                        }),
+                                    );
+                                    history.pushState(
+                                        {
+                                            spa: true,
+                                            url: redirectUrl,
+                                        },
+                                        "",
+                                        redirectUrl,
+                                    );
                                     runAfterCallback(response, false);
                                     callbackSuccess?.(response);
                                 })
-                                .catch(err => {
-                                    console.error('SPA redirect fetch error:', err);
+                                .catch((err) => {
+                                    console.error(
+                                        "SPA redirect fetch error:",
+                                        err,
+                                    );
                                     runAfterCallback(response, true);
                                     callbackError?.(err);
                                 });
@@ -3642,12 +2625,12 @@
                             callbackSuccess?.(response);
                         }
                     },
-                    error: xhr => {
+                    error: (xhr) => {
                         if (xhr.status === 422) {
                             const errors = xhr.responseJSON?.errors || {};
                             showFormErrors(form, errors);
                         } else {
-                            console.error('Form submit error:', xhr);
+                            console.error("Form submit error:", xhr);
                             const content = xhr.responseText;
                             try {
                                 const json = JSON.parse(content);
@@ -3662,20 +2645,18 @@
                     complete: hideLoadingBar,
                 });
             })
-            .catch(error => {
-                console.error('Error in before callback chain:', error);
+            .catch((error) => {
+                console.error("Error in before callback chain:", error);
             });
     }
-
-
 
     /**
      * Clears form validation errors.
      * @param {HTMLFormElement} form - The form element.
      */
     function clearFormErrors(form) {
-        $(form).find('.is-invalid').removeClass('is-invalid');
-        $(form).find('.invalid-feedback').remove();
+        $(form).find(".is-invalid").removeClass("is-invalid");
+        $(form).find(".invalid-feedback").remove();
     }
 
     /**
@@ -3687,10 +2668,9 @@
         for (const [field, messages] of Object.entries(errors)) {
             const input = $(form).find(`[name="${field}"]`);
             if (input.length) {
-                input.addClass('is-invalid');
-                const errorHtml =
-                    `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join('<br>')}</div>`;
-                if (input.next('.invalid-feedback').length === 0) {
+                input.addClass("is-invalid");
+                const errorHtml = `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join("<br>")}</div>`;
+                if (input.next(".invalid-feedback").length === 0) {
                     input.after(errorHtml);
                 }
             }
@@ -3705,12 +2685,19 @@
     function isSpaExcluded(url) {
         try {
             const path = new URL(url, window.location.origin).pathname;
-            const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
-            return excludes.some(prefix => path.startsWith(prefix));
+            const excludes = (
+                window.liveDomConfig?.spaExcludePrefixes || []
+            ).filter(Boolean);
+            return excludes.some((prefix) => path.startsWith(prefix));
         } catch (e) {
-            console.warn('Error parsing URL for SPA exclusion, falling back:', e);
-            const excludes = (window.liveDomConfig?.spaExcludePrefixes || []).filter(Boolean);
-            return excludes.some(prefix => url.startsWith(prefix));
+            console.warn(
+                "Error parsing URL for SPA exclusion, falling back:",
+                e,
+            );
+            const excludes = (
+                window.liveDomConfig?.spaExcludePrefixes || []
+            ).filter(Boolean);
+            return excludes.some((prefix) => url.startsWith(prefix));
         }
     }
 
@@ -3720,217 +2707,692 @@
 
     /** Initializes the global loading bar element. */
     function initLoadingBar() {
-        if ($('#loading-bar').length === 0) {
+        if ($("#loading-bar").length === 0) {
             const $loadingBar = $('<div id="loading-bar"></div>').css({
-                position: 'fixed',
+                position: "fixed",
                 top: 0,
                 left: 0,
-                height: '3px',
-                width: '0%',
-                backgroundColor: '#2563eb',
+                height: "3px",
+                width: "0%",
+                backgroundColor: "#2563eb",
                 zIndex: 99999,
-                transition: 'width 0.3s ease',
-                willChange: 'width',
-                display: 'none'
+                transition: "width 0.3s ease",
+                willChange: "width",
+                display: "none",
             });
-            $('body').append($loadingBar);
+            $("body").append($loadingBar);
         }
     }
 
     /** Shows the loading bar animation. */
     function showLoadingBar() {
-        $('#loading-bar').stop(true).css({
-            width: '0%',
-            display: 'block'
-        }).animate({
-            width: '80%'
-        }, 800);
+        $("#loading-bar")
+            .stop(true)
+            .css({
+                width: "0%",
+                display: "block",
+            })
+            .animate(
+                {
+                    width: "80%",
+                },
+                800,
+            );
     }
 
     /** Hides the loading bar animation. */
     function hideLoadingBar() {
-        $('#loading-bar').stop(true).animate({
-            width: '100%'
-        }, 300, function () {
-            $(this).fadeOut(200, function () {
-                $(this).css({
-                    width: '0%'
-                });
-            });
-        });
+        $("#loading-bar")
+            .stop(true)
+            .animate(
+                {
+                    width: "100%",
+                },
+                300,
+                function () {
+                    $(this).fadeOut(200, function () {
+                        $(this).css({
+                            width: "0%",
+                        });
+                    });
+                },
+            );
     }
 
-    /*==============================
-    LIVE DOM ERROR HANDLE
-    ==============================*/
+    // ============================================================
+    //  showErrorModal — redesigned UI, GPT only
+    //  Support: Laravel HTML (dd/Ignition), JSON exception, plain text
+    // ============================================================
 
-    /**
-     * Displays an error modal with raw HTML or a formatted JSON error.
-     * @param {string|object} rawHtmlOrJson - The error content, either raw HTML or a JSON object.
-     */
-    function showErrorModal(rawHtmlOrJson) {
-        // Hapus modal sebelumnya jika ada
-        const existing = document.getElementById('spa-error-modal');
+    function showProductionErrorToast(message, title = "Oops! Something went wrong") {
+        const existing = document.getElementById("spa-prod-modal");
         if (existing) existing.remove();
 
-        // Modal container
-        const modal = document.createElement('div');
-        modal.id = 'spa-error-modal';
-
-        modal.innerHTML = `
+        const wrapper = document.createElement("div");
+        wrapper.id = "spa-prod-modal";
+        wrapper.setAttribute("role", "alertdialog");
+        wrapper.setAttribute("aria-modal", "true");
+        wrapper.innerHTML = `
         <style>
-            /* ... CSS sama seperti sebelumnya ... */
-            #spa-error-modal {
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 99999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: system-ui, sans-serif;
-        }
-        #spa-error-box {
-            position: relative;
-            background: #fff;
-            border-radius: 12px;
-            width: 95%;
-            max-width: 1000px;
-            height: 90%;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-            border: 1px solid #e5e7eb;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        #spa-error-header {
-            background-color: #fef2f2;
-            padding: 12px 20px;
-            border-bottom: 1px solid #fca5a5;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        #spa-error-header h3 {
-            margin: 0;
-            font-size: 16px;
-            color: #b91c1c;
-        }
-        #spa-error-close {
-            font-size: 22px;
-            font-weight: bold;
-            color: #b91c1c;
-            cursor: pointer;
-            background: transparent;
-            border: none;
-            line-height: 1;
-            padding: 0;
-            user-select: none;
-        }
-        #spa-error-content {
-            padding: 20px;
-            overflow: auto;
-            flex: 1;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            color: #222;
-            background: #fff;
-            border-top: 1px solid #eee;
-        }
-        @media (max-width: 640px) {
-            #spa-error-box {
-                width: 98%;
-                height: 95%;
+            #spa-prod-modal {
+                position: fixed;
+                inset: 0;
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 16px;
+                background: rgba(0, 0, 0, 0.45);
+                backdrop-filter: blur(2px);
+                animation: _spm-backdrop-in 0.2s ease forwards;
             }
-        }
+            @keyframes _spm-backdrop-in {
+                from { opacity: 0; }
+                to   { opacity: 1; }
+            }
+            #_spm-box {
+                background: #fff;
+                border-radius: 16px;
+                padding: 40px 32px 32px;
+                max-width: 420px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+                animation: _spm-box-in 0.25s cubic-bezier(.22,.68,0,1.2) forwards;
+            }
+            @keyframes _spm-box-in {
+                from { opacity: 0; transform: scale(0.88) translateY(12px); }
+                to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            #_spm-icon-wrap {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 20px;
+                border-radius: 50%;
+                background: #fee2e2;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: _spm-icon-pop 0.35s 0.1s cubic-bezier(.22,.68,0,1.4) both;
+            }
+            @keyframes _spm-icon-pop {
+                from { transform: scale(0.5); opacity: 0; }
+                to   { transform: scale(1);   opacity: 1; }
+            }
+            #_spm-title {
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                font-size: 22px;
+                font-weight: 700;
+                color: #111827;
+                margin: 0 0 10px;
+                line-height: 1.3;
+            }
+            #_spm-msg {
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                font-size: 15px;
+                color: #6b7280;
+                line-height: 1.6;
+                margin: 0 0 28px;
+            }
+            #_spm-btn {
+                display: inline-block;
+                background: #fc4b4b;
+                color: #fff;
+                border: none;
+                border-radius: 10px;
+                padding: 12px 40px;
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.15s, transform 0.1s;
+                min-width: 140px;
+            }
+            #_spm-btn:hover  { background: #b91c1c; }
+            #_spm-btn:active { transform: scale(0.97); }
         </style>
 
-        <div id="spa-error-box" role="dialog" aria-modal="true" aria-labelledby="spa-error-title">
-            <div id="spa-error-header">
-                <h3 id="spa-error-title">⚠️ Laravel Error Occurred</h3>
-                <button id="spa-error-close" aria-label="Close modal">&times;</button>
+        <div id="_spm-box">
+            <div id="_spm-icon-wrap">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                     stroke="#fc4b4b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <circle cx="12" cy="16" r="0.5" fill="#fc4b4b"/>
+                </svg>
             </div>
-            <div id="spa-error-content"></div>
+            <h2 id="_spm-title">${title}</h2>
+            <p id="_spm-msg">${message}</p>
+            <button id="_spm-btn">OK</button>
         </div>
-        `;
+    `;
 
-        document.body.appendChild(modal);
+        document.body.appendChild(wrapper);
 
-        const contentDiv = modal.querySelector('#spa-error-content');
+        const close = () => {
+            wrapper.style.transition = "opacity 0.2s";
+            wrapper.style.opacity = "0";
+            setTimeout(() => wrapper.remove(), 200);
+        };
 
-        // Coba parse json, kalau gagal berarti rawHtml lengkap (HTML)
+        wrapper.querySelector("#_spm-btn").onclick = close;
+
+        // Klik di luar box untuk menutup
+        wrapper.addEventListener("click", (e) => {
+            if (e.target === wrapper) close();
+        });
+
+        // Tekan Escape untuk menutup
+        const onKey = (e) => {
+            if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); }
+        };
+        document.addEventListener("keydown", onKey);
+
+        // Auto-dismiss setelah 8 detik
+        setTimeout(close, 8000);
+    }
+
+    const _errorHistory = [];
+
+    function showErrorModal(rawHtmlOrJson) {
+        _errorHistory.push({
+            time: new Date().toLocaleTimeString("id-ID"),
+            raw: rawHtmlOrJson,
+        });
+
+        const existing = document.getElementById("spa-error-modal");
+        if (existing) existing.remove();
+
         let parsedJson = null;
         try {
-            parsedJson = typeof rawHtmlOrJson === 'string' ? JSON.parse(rawHtmlOrJson) : rawHtmlOrJson;
+            parsedJson =
+                typeof rawHtmlOrJson === "string"
+                    ? JSON.parse(rawHtmlOrJson)
+                    : rawHtmlOrJson;
         } catch {
             parsedJson = null;
         }
 
-        if (parsedJson && typeof parsedJson === 'object' && parsedJson.message) {
-            // Jika json error, render pakai fungsi formatLaravelError agar rapi
-            contentDiv.innerHTML = formatLaravelError(parsedJson);
-        } else {
-            // Kalau bukan json, asumsi itu HTML langsung masukkan ke dalam div (atau iframe kalau mau)
-            // Untuk HTML lengkap dengan dump, lebih baik iframe, tapi disini pakai div:
-            contentDiv.innerHTML = rawHtmlOrJson;
+        const isJson =
+            parsedJson && typeof parsedJson === "object" && parsedJson.message;
+
+        // Breadcrumb: extract short label for header
+        function buildBreadcrumb() {
+            if (!isJson) return "Laravel Error";
+            const file = parsedJson.file || "";
+            const line = parsedJson.line || "";
+            const short = file.split("/").pop() || file;
+            return `${short}${line ? " — line " + line : ""}`;
         }
 
-        modal.querySelector('#spa-error-close').onclick = () => modal.remove();
-
-        modal.onclick = (e) => {
-            if (e.target === modal) modal.remove();
-        };
-
-        contentDiv.querySelectorAll('script').forEach(oldScript => {
-            const newScript = document.createElement('script');
-            if (oldScript.src) {
-                newScript.src = oldScript.src;
-            } else {
-                newScript.textContent = oldScript.textContent;
+        function buildAiPrompt() {
+            if (isJson) {
+                return (
+                    `Tolong jelaskan error Laravel berikut dan berikan solusinya:\n\n` +
+                    `Message: ${parsedJson.message}\n` +
+                    `Exception: ${parsedJson.exception || "-"}\n` +
+                    `File: ${parsedJson.file || "-"} : line ${parsedJson.line || "-"}\n\n` +
+                    `Stack Trace (5 frames teratas):\n` +
+                    Object.values(parsedJson.trace || {})
+                        .slice(0, 5)
+                        .map(
+                            (f, i) =>
+                                `#${i} ${f.class || ""}${f.type || ""}${f.function || ""}() — ${f.file || ""}:${f.line || ""}`,
+                        )
+                        .join("\n")
+                );
             }
-            document.head.appendChild(newScript); // atau gunakan contentDiv.appendChild
-        });
+            const tmp = document.createElement("div");
+            tmp.innerHTML = typeof rawHtmlOrJson === "string" ? rawHtmlOrJson : "";
+            return (
+                `Tolong jelaskan error Laravel berikut dan berikan solusinya:\n\n` +
+                (tmp.textContent || tmp.innerText || "").slice(0, 2000)
+            );
+        }
+
+        async function copyToClipboard(btn) {
+            const orig = btn.innerHTML;
+            try {
+                await navigator.clipboard.writeText(buildAiPrompt());
+                btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+                btn.style.cssText += ";background:#EAF3DE;border-color:#97C459;color:#3B6D11";
+                showToast("Error disalin ke clipboard — paste di ChatGPT (Ctrl+V)");
+                setTimeout(() => {
+                    btn.innerHTML = orig;
+                    btn.style.background = btn.style.borderColor = btn.style.color = "";
+                }, 2000);
+            } catch {
+                btn.textContent = "Gagal";
+                setTimeout(() => (btn.innerHTML = orig), 2000);
+            }
+        }
+
+        async function openGPT(btn) {
+            const prompt = buildAiPrompt();
+            const orig = btn.innerHTML;
+            try { await navigator.clipboard.writeText(prompt); } catch { }
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied! Opening…`;
+            btn.disabled = true;
+            showToast("Membuka ChatGPT… error sudah tersalin, tinggal Ctrl+V");
+            setTimeout(() => {
+                window.open(`https://chatgpt.com/?q=${encodeURIComponent(prompt)}`, "_blank");
+                btn.innerHTML = orig;
+                btn.disabled = false;
+            }, 700);
+        }
+
+        // ── Build modal ───────────────────────────────────────────
+        const modal = document.createElement("div");
+        modal.id = "spa-error-modal";
+        modal.setAttribute("role", "dialog");
+        modal.setAttribute("aria-modal", "true");
+        modal.setAttribute("aria-label", "Laravel error details");
+
+        const historyCount = _errorHistory.length;
+        const historyBadge = historyCount > 1
+            ? `<span style="
+            background:#F09595;color:#501313;
+            border-radius:99px;font-size:10px;padding:1px 7px;
+            font-weight:600;margin-left:6px;vertical-align:middle">
+            ${historyCount}
+          </span>`
+            : "";
+
+        modal.innerHTML = `
+    <style>
+        #spa-error-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            animation: _sem-in 0.15s ease;
+        }
+        @keyframes _sem-in {
+            from { opacity:0; }
+            to   { opacity:1; }
+        }
+        #_sem-box {
+            background: var(--color-background-primary, #fff);
+            color: var(--color-text-primary, #111);
+            border-radius: 12px;
+            width: 95%;
+            max-width: 860px;
+            max-height: 88vh;
+            border: 0.5px solid var(--color-border-secondary, #e5e7eb);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: _sem-rise 0.18s cubic-bezier(.22,.68,0,1.18);
+        }
+        @keyframes _sem-rise {
+            from { transform: translateY(14px) scale(.98); opacity:0; }
+            to   { transform: translateY(0) scale(1);     opacity:1; }
+        }
+
+        /* Header */
+        #_sem-header {
+            padding: 11px 16px;
+            border-bottom: 0.5px solid var(--color-border-tertiary, #f0f0f0);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            background: var(--color-background-primary, #fff);
+        }
+        #_sem-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--color-background-danger, #fef2f2);
+            border: 0.5px solid var(--color-border-danger, #fca5a5);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--color-text-danger, #b91c1c);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        #_sem-breadcrumb {
+            font-size: 12px;
+            color: var(--color-text-tertiary, #9ca3af);
+            font-family: 'Consolas', 'Menlo', monospace;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        ._sem-btn-close-hd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--color-text-tertiary, #9ca3af);
+            font-size: 17px;
+            cursor: pointer;
+            transition: background .1s, color .1s;
+            flex-shrink: 0;
+        }
+        ._sem-btn-close-hd:hover {
+            background: var(--color-background-danger, #fef2f2);
+            color: var(--color-text-danger, #b91c1c);
+        }
+
+        /* Body */
+        #_sem-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 18px;
+        }
+
+        /* Message block */
+        ._sem-msg {
+            background: var(--color-background-danger, #fef2f2);
+            border: 0.5px solid var(--color-border-danger, #fecaca);
+            border-radius: 8px;
+            padding: 11px 14px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: var(--color-text-danger, #7f1d1d);
+            font-weight: 500;
+            line-height: 1.55;
+        }
+
+        /* Meta grid */
+        ._sem-meta {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 3px 14px;
+            margin-bottom: 14px;
+        }
+        ._sem-meta-label {
+            font-size: 11px;
+            color: var(--color-text-tertiary, #9ca3af);
+            padding: 3px 0;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        ._sem-meta-val {
+            font-size: 12px;
+            color: var(--color-text-primary, #111);
+            padding: 3px 0;
+            font-family: 'Consolas', 'Menlo', monospace;
+            word-break: break-all;
+        }
+        ._sem-meta-val.is-line {
+            color: var(--color-text-danger, #fc4b4b);
+            font-weight: 600;
+        }
+
+        ._sem-divider {
+            height: 0.5px;
+            background: var(--color-border-tertiary, #f3f4f6);
+            margin: 2px 0 14px;
+        }
+
+        /* Stack trace */
+        ._sem-trace-head {
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--color-text-tertiary, #9ca3af);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        ._sem-frame {
+            display: flex;
+            gap: 10px;
+            padding: 7px 8px;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            border: 0.5px solid transparent;
+            transition: background .1s, border-color .1s;
+        }
+        ._sem-frame:hover {
+            background: var(--color-background-secondary, #f9fafb);
+            border-color: var(--color-border-tertiary, #e5e7eb);
+        }
+        ._sem-frame-num {
+            font-size: 11px;
+            color: var(--color-text-tertiary, #d1d5db);
+            min-width: 22px;
+            padding-top: 1px;
+            font-family: 'Consolas', 'Menlo', monospace;
+            user-select: none;
+        }
+        ._sem-frame-info { flex: 1; min-width: 0; }
+        ._sem-frame-fn {
+            font-size: 12px;
+            color: var(--color-text-info, #1d4ed8);
+            font-family: 'Consolas', 'Menlo', monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 1px;
+        }
+        ._sem-frame-file {
+            font-size: 11px;
+            color: var(--color-text-tertiary, #9ca3af);
+            font-family: 'Consolas', 'Menlo', monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        ._sem-frame-line { color: var(--color-text-danger, #fc4b4b); font-weight: 600; }
+
+        /* Footer */
+        #_sem-footer {
+            padding: 11px 18px;
+            border-top: 0.5px solid var(--color-border-tertiary, #f0f0f0);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-shrink: 0;
+            background: var(--color-background-secondary, #f9fafb);
+        }
+        #_sem-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: var(--color-text-tertiary, #9ca3af);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        ._sem-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        ._sem-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 0.5px solid var(--color-border-secondary, #d1d5db);
+            background: var(--color-background-primary, #fff);
+            color: var(--color-text-primary, #111);
+            transition: background .12s, border-color .12s;
+            white-space: nowrap;
+            line-height: 1.3;
+        }
+        ._sem-btn:hover { background: var(--color-background-secondary, #f3f4f6); }
+        ._sem-btn:active { transform: scale(.98); }
+        ._sem-btn:disabled { opacity: .5; cursor: default; }
+        ._sem-btn-gpt {
+            background: var(--color-background-success, #f0fdf4);
+            border-color: var(--color-border-success, #86efac);
+            color: var(--color-text-success, #166534);
+        }
+        ._sem-btn-gpt:hover { filter: brightness(.96); }
+
+        ._sem-toast-inline {
+            display: none;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            color: var(--color-text-secondary, #6b7280);
+            animation: _sem-in .15s ease;
+        }
+        ._sem-toast-inline.show { display: flex; }
+
+        @media (max-width: 640px) {
+            #_sem-box { width: 99%; max-height: 96vh; border-radius: 10px; }
+            #_sem-breadcrumb { display: none; }
+            #_sem-footer { flex-wrap: wrap; gap: 10px; }
+        }
+    </style>
+
+    <div id="_sem-box">
+        <div id="_sem-header">
+            <span id="_sem-badge">
+                ⚠ Exception${historyBadge}
+            </span>
+            <span id="_sem-breadcrumb">${buildBreadcrumb()}</span>
+            <button class="_sem-btn-close-hd" id="_sem-close" aria-label="Close">&times;</button>
+        </div>
+
+        <div id="_sem-body">
+            <!-- content injected below -->
+        </div>
+
+        <div id="_sem-footer">
+            <div id="_sem-footer-left">
+                <span id="_sem-hint" style="display:flex;align-items:center;gap:5px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2"/></svg>
+                    Esc untuk menutup
+                    &nbsp;·&nbsp;
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    ${new Date().toLocaleTimeString("id-ID")}
+                </span>
+                <span id="_sem-toast" class="_sem-toast-inline" aria-live="polite">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span id="_sem-toast-msg"></span>
+                </span>
+            </div>
+            <div class="_sem-actions">
+                <button class="_sem-btn" id="_sem-copy">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy error
+                </button>
+                <button class="_sem-btn _sem-btn-gpt" id="_sem-gpt">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    Ask ChatGPT
+                </button>
+            </div>
+        </div>
+    </div>`;
+
+        document.body.appendChild(modal);
+
+        // ── Inject content ────────────────────────────────────────
+        const body = modal.querySelector("#_sem-body");
+
+        if (isJson) {
+            const div = document.createElement("div");
+            div.innerHTML = formatLaravelError(parsedJson);
+            body.appendChild(div);
+        } else {
+            const iframe = document.createElement("iframe");
+            iframe.setAttribute("sandbox", "allow-same-origin allow-scripts");
+            iframe.style.cssText = "width:100%;border:none;min-height:400px;flex:1;border-radius:6px";
+            body.appendChild(iframe);
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open(); doc.write(rawHtmlOrJson); doc.close();
+        }
+
+        // ── Toast (inline in footer left) ────────────────────────
+        function showToast(msg) {
+            const hint = modal.querySelector("#_sem-hint");
+            const toast = modal.querySelector("#_sem-toast");
+            const tm = modal.querySelector("#_sem-toast-msg");
+            hint.style.display = "none";
+            tm.textContent = msg;
+            toast.classList.add("show");
+            clearTimeout(toast._tid);
+            toast._tid = setTimeout(() => {
+                toast.classList.remove("show");
+                hint.style.display = "flex";
+            }, 3000);
+        }
+
+        // ── Wire buttons ──────────────────────────────────────────
+        modal.querySelector("#_sem-copy").onclick = function () {
+            copyToClipboard(this);
+        };
+        modal.querySelector("#_sem-gpt").onclick = function () {
+            openGPT(this);
+        };
+        modal.querySelector("#_sem-close").onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        const onKey = (e) => {
+            if (e.key === "Escape") { modal.remove(); document.removeEventListener("keydown", onKey); }
+        };
+        document.addEventListener("keydown", onKey);
     }
 
-
-    // Fungsi format error JSON seperti yang sudah kamu punya
+    // ── Format JSON exception ─────────────────────────────────────
     function formatLaravelError(err) {
-        const message = err.message || 'Unknown error';
-        const exception = err.exception || '';
-        const file = err.file || '';
-        const line = err.line || '';
+        const message = err.message || "Unknown error";
+        const exception = err.exception || "—";
+        const file = err.file || "—";
+        const line = err.line || "—";
         const trace = err.trace || {};
+        const frames = Object.values(trace);
 
-        let traceHtml = '<ol style="font-size:0.85rem; color:#555; padding-left:20px; margin-top:8px; max-height:250px; overflow:auto; border:1px solid #eee; border-radius:6px;">';
-
-        Object.values(trace).forEach((frame, idx) => {
-            const ffile = frame.file || 'unknown file';
-            const fline = frame.line || '';
-            const func = frame.function || '';
-            const className = frame.class || '';
-            const type = frame.type || '';
-            const fullFunc = className ? `${className}${type}${func}()` : `${func}()`;
-
-            traceHtml += `
-                <li style="margin-bottom:6px;">
-                    <div><strong>#${idx}</strong> ${fullFunc}</div>
-                    <div style="color:#999; font-style:italic;">${ffile}${fline ? ` : line ${fline}` : ''}</div>
-                </li>`;
+        let framesHtml = "";
+        frames.forEach((frame, idx) => {
+            const ffile = frame.file || "unknown";
+            const fline = frame.line || "";
+            const func = frame.function || "";
+            const cls = frame.class || "";
+            const type = frame.type || "";
+            const full = cls ? `${cls}${type}${func}()` : `${func}()`;
+            framesHtml += `
+            <div class="_sem-frame">
+                <span class="_sem-frame-num">#${idx}</span>
+                <div class="_sem-frame-info">
+                    <div class="_sem-frame-fn">${full}</div>
+                    <div class="_sem-frame-file">${ffile}${fline ? `:<span class="_sem-frame-line">${fline}</span>` : ""}</div>
+                </div>
+            </div>`;
         });
-
-        traceHtml += '</ol>';
 
         return `
-            <h2 style="color:#b91c1c; margin-bottom:12px;">⚠️ Laravel Exception</h2>
-            <div style="font-size:1.1rem; margin-bottom:8px;"><strong>Message:</strong> ${message}</div>
-            <div style="margin-bottom:8px;"><strong>Exception:</strong> ${exception}</div>
-            <div style="margin-bottom:12px;"><strong>File:</strong> ${file} <br><strong>Line:</strong> ${line}</div>
-            <details open style="border:1px solid #e5e7eb; border-radius:8px; padding:12px; background:#fafafa;">
-                <summary style="font-weight:bold; cursor:pointer; user-select:none;">Stack Trace (${Object.keys(trace).length} frames)</summary>
-                ${traceHtml}
-            </details>
-            `;
+        <div class="_sem-msg">${message}</div>
+        <div class="_sem-meta">
+            <span class="_sem-meta-label">Exception</span>
+            <span class="_sem-meta-val">${exception}</span>
+            <span class="_sem-meta-label">File</span>
+            <span class="_sem-meta-val">${file}</span>
+            <span class="_sem-meta-label">Line</span>
+            <span class="_sem-meta-val is-line">${line}</span>
+        </div>
+        <div class="_sem-divider"></div>
+        <div class="_sem-trace-head">Stack trace &nbsp;·&nbsp; ${frames.length} frames</div>
+        ${framesHtml}`;
     }
-
 
     /*==============================
     LIVE DOM AUTO EVAL SCRIPT
@@ -3944,22 +3406,22 @@
      * @param {Element} container - The DOM element containing the scripts.
      */
     function executeScripts(container) {
-        const scripts = container.querySelectorAll('script');
+        const scripts = container.querySelectorAll("script");
 
-        scripts.forEach(oldScript => {
-            const isExternal = oldScript.src?.trim() !== '';
+        scripts.forEach((oldScript) => {
+            const isExternal = oldScript.src?.trim() !== "";
 
             if (isExternal) {
                 const src = oldScript.src;
 
                 if (scriptCache.has(src)) return;
 
-                const newScript = document.createElement('script');
+                const newScript = document.createElement("script");
                 newScript.src = src;
                 newScript.async = false;
 
                 for (const attr of oldScript.attributes) {
-                    if (attr.name !== 'src') {
+                    if (attr.name !== "src") {
                         newScript.setAttribute(attr.name, attr.value);
                     }
                 }
@@ -3969,13 +3431,15 @@
             } else {
                 // For inline scripts, wrap them in an IIFE to ensure isolated execution context
                 // and prevent variable leakage or conflicts if re-executed.
-                const newScript = document.createElement('script');
-                let code = oldScript.textContent || '';
+                const newScript = document.createElement("script");
+                let code = oldScript.textContent || "";
                 const trimmed = code.trim();
 
                 // Check if the script is already wrapped in an IIFE or async IIFE
-                const isAlreadyWrapped = /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(
-                    trimmed);
+                const isAlreadyWrapped =
+                    /^\s*\(?\s*(?:function\s*\(|async\s+function\s*\()/i.test(
+                        trimmed,
+                    );
 
                 if (!isAlreadyWrapped) {
                     code = `(function () {\n${code}\n})();`;
@@ -3984,7 +3448,7 @@
                 newScript.textContent = code;
 
                 for (const attr of oldScript.attributes) {
-                    if (attr.name !== 'src') {
+                    if (attr.name !== "src") {
                         newScript.setAttribute(attr.name, attr.value);
                     }
                 }
@@ -3995,22 +3459,28 @@
     }
 
     function handleLiveBind() {
-        $(document).on('input change', 'input[name], select[name], textarea[name]', function () {
-            const $source = $(this);
-            const name = $source.attr('name');
-            if (!name) return;
+        $(document).on(
+            "input change",
+            "input[name], select[name], textarea[name]",
+            function () {
+                const $source = $(this);
+                const name = $source.attr("name");
+                if (!name) return;
 
-            const value = $source.is(':checkbox') ? $source.prop('checked') : $source.val();
+                const value = $source.is(":checkbox")
+                    ? $source.prop("checked")
+                    : $source.val();
 
-            $(`[live-bind="${name}"]`).each(function () {
-                const $target = $(this);
-                if ($target.is('input, textarea, select')) {
-                    $target.val(value);
-                } else {
-                    $target.text(value);
-                }
-            });
-        });
+                $(`[live-bind="${name}"]`).each(function () {
+                    const $target = $(this);
+                    if ($target.is("input, textarea, select")) {
+                        $target.val(value);
+                    } else {
+                        $target.text(value);
+                    }
+                });
+            },
+        );
     }
 
     /*==============================
@@ -4019,63 +3489,65 @@
 
     /** Binds all initial live DOM event handlers. */
     function bindLiveDomEvents() {
-        $(document).on('click', '[live-click]', function () {
-            handleLiveEvent($(this), 'click');
+        $(document).on("click", "[live-click]", function () {
+            handleLiveEvent($(this), "click");
         });
 
-        $(document).on('mouseenter mouseleave', '[live-hover]', function () {
-            handleLiveEvent($(this), 'hover');
+        $(document).on("mouseenter mouseleave", "[live-hover]", function () {
+            handleLiveEvent($(this), "hover");
         });
 
-        $(document).on('change', '[live-change]', function () {
-            handleLiveEvent($(this), 'change');
+        $(document).on("change", "[live-change]", function () {
+            handleLiveEvent($(this), "change");
         });
 
-        $(document).on('submit', '[live-submit]', function (e) {
+        $(document).on("submit", "[live-submit]", function (e) {
             e.preventDefault();
-            handleLiveEvent($(this), 'submit');
+            handleLiveEvent($(this), "submit");
         });
 
-        $(document).on('keyup', '[live-keyup]', function () {
-            handleLiveEvent($(this), 'keyup');
+        $(document).on("keyup", "[live-keyup]", function () {
+            handleLiveEvent($(this), "keyup");
         });
 
-        $(document).on('input', '[live-input]', function () {
-            handleLiveEvent($(this), 'input');
+        $(document).on("input", "[live-input]", function () {
+            handleLiveEvent($(this), "input");
         });
 
-        $(document).on('input', '[live-bind]', function () {
-            handleLiveEvent($(this), 'input');
+        $(document).on("input", "[live-bind]", function () {
+            handleLiveEvent($(this), "input");
         });
 
         // event binding, pakai debounce
         $(document).on(
-            'input change',
-            '[live-scope] input, [live-scope] select, [live-scope] textarea',
+            "input change",
+            "[live-scope] input, [live-scope] select, [live-scope] textarea",
             debounce(function () {
-                const scope = $(this).closest('[live-scope]');
+                const scope = $(this).closest("[live-scope]");
                 handleLiveDirectives(scope);
-            }, 200) // delay 200ms
+            }, 200), // delay 200ms
         );
 
+        $(document).on(
+            "click",
+            '[live-spa-region] a[href]:not([href^="#"]):not([href=""])',
+            function (e) {
+                const url = $(this).attr("href");
+                if (!url || isSpaExcluded(url)) return;
+                e.preventDefault();
+                loadSpaContent(url);
+            },
+        );
 
-
-        $(document).on('click', '[live-spa-region] a[href]:not([href^="#"]):not([href=""])', function (e) {
-            const url = $(this).attr('href');
-            if (!url || isSpaExcluded(url)) return;
-            e.preventDefault();
-            loadSpaContent(url);
-        });
-
-        $(document).on('submit', '[live-spa-region] form', function (e) {
+        $(document).on("submit", "[live-spa-region] form", function (e) {
             const form = this;
-            const url = form.action || '';
-            const method = form.method.toUpperCase() || 'GET';
+            const url = form.action || "";
+            const method = form.method.toUpperCase() || "GET";
 
             if (isSpaExcluded(url)) return;
             e.preventDefault();
 
-            if (method === 'GET') {
+            if (method === "GET") {
                 const formParams = new URLSearchParams(new FormData(form));
                 const existingUrl = new URL(url, window.location.origin);
                 formParams.forEach((value, key) => {
@@ -4085,80 +3557,107 @@
 
                 fetch(fullUrl, {
                     headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
+                        "X-Requested-With": "XMLHttpRequest",
                     },
                 })
-                    .then(res => res.text())
-                    .then(html => {
+                    .then((res) => res.text())
+                    .then((html) => {
                         updateSpaRegions(html);
-                        document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-                        document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-                            detail: {
-                                url: fullUrl
-                            }
-                        }));
-                        history.replaceState({
-                            spa: true,
-                            url: fullUrl
-                        }, '', fullUrl);
+                        document.dispatchEvent(
+                            new CustomEvent("live-dom:afterUpdate"),
+                        );
+                        document.dispatchEvent(
+                            new CustomEvent("live-dom:afterSpa", {
+                                detail: {
+                                    url: fullUrl,
+                                },
+                            }),
+                        );
+                        history.replaceState(
+                            {
+                                spa: true,
+                                url: fullUrl,
+                            },
+                            "",
+                            fullUrl,
+                        );
                     })
-                    .catch(err => console.error('SPA GET error:', err));
+                    .catch((err) => console.error("SPA GET error:", err));
                 return;
             }
 
             ajaxSpaFormSubmit(form, function (response) {
-                if (typeof response === 'string') {
+                if (typeof response === "string") {
                     updateSpaRegions(response);
-                    document.dispatchEvent(new CustomEvent('live-dom:afterUpdate'));
-                    document.dispatchEvent(new CustomEvent('live-dom:afterSpa', {
-                        detail: {
-                            url
-                        }
-                    }));
-                    history.pushState({
-                        spa: true,
-                        url
-                    }, '', url);
-                } else if (response && typeof response === 'object' && response.redirect) {
-                    console.log('SPA redirect handled.');
+                    document.dispatchEvent(
+                        new CustomEvent("live-dom:afterUpdate"),
+                    );
+                    document.dispatchEvent(
+                        new CustomEvent("live-dom:afterSpa", {
+                            detail: {
+                                url,
+                            },
+                        }),
+                    );
+                    history.pushState(
+                        {
+                            spa: true,
+                            url,
+                        },
+                        "",
+                        url,
+                    );
+                } else if (
+                    response &&
+                    typeof response === "object" &&
+                    response.redirect
+                ) {
+                    console.log("SPA redirect handled.");
                 } else {
-                    console.log('Form SPA submit success (non-redirect):', response);
+                    console.log(
+                        "Form SPA submit success (non-redirect):",
+                        response,
+                    );
                 }
             });
         });
     }
 
     function initLiveDom() {
-        initLoadingBar();               // loading bar
-        handleLiveBind();               // live-bind
-        bindLiveDomEvents();            // event handler utama
-        handlePollers();                // pollers (live-poll)
-        // handleLiveComputeUnified();     // inisialisasi live-compute
+        initLoadingBar(); // loading bar
+        handleLiveBind(); // live-bind
+        bindLiveDomEvents(); // event handler utama
+        handlePollers(); // pollers (live-poll)
+        // handleLiveComputeUnified();     // inisialisasi live-compute
         // handleLiveDirectives();
 
         // SPA state awal
         if (document.querySelector('[live-spa-region="main"]')) {
             const currentUrl = window.location.href;
-            history.replaceState({ spa: true, url: currentUrl }, '', currentUrl);
+            history.replaceState(
+                { spa: true, url: currentUrl },
+                "",
+                currentUrl,
+            );
         }
 
         // Dispatch event agar ekstensi luar bisa ikut hook
-        document.dispatchEvent(new CustomEvent('live-dom:init'));
+        document.dispatchEvent(new CustomEvent("live-dom:init"));
     }
 
     // Event listener for general DOM updates
-    document.addEventListener('live-dom:afterUpdate', function () {
+    document.addEventListener("live-dom:afterUpdate", function () {
         initLiveDom();
         handleLiveDirectives();
     });
 
     // Event listener after SPA content loads
-    document.addEventListener('live-dom:afterSpa', function () {
+    document.addEventListener("live-dom:afterSpa", function () {
         initLiveDom();
     });
 
     // Handle browser's back/forward buttons for SPA
-    window.addEventListener('popstate', function (event) {
+    window.addEventListener("popstate", function (event) {
         if (event.state && event.state.spa && event.state.url) {
             loadSpaContent(event.state.url, false); // false to prevent pushing state again
         }
@@ -4166,6 +3665,8 @@
 
     // window.ajaxDynamic = ajaxDynamic;
     window.debouncedAjaxDynamic = debouncedAjaxDynamic;
+    window.autoBindDomFromResponse = autoBindDomFromResponse;
+    window.runAjaxRequest = runAjaxRequest;
 
     // Initial setup when the DOM is ready
     $(document).ready(function () {
