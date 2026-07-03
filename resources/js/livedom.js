@@ -1013,12 +1013,6 @@
                     contentList[actionIndex] || contentList[0] || "";
                 const trimmedAction = action.trim();
 
-                // console.log(`Applying to target ${targetIndex}:`, {
-                //     target: $currentTarget,
-                //     action: trimmedAction,
-                //     content: content
-                // });
-
                 switch (trimmedAction) {
                     case "append":
                         $currentTarget.append(content);
@@ -1057,12 +1051,6 @@
                         $currentTarget.remove();
                         break;
                     default:
-                        // console.warn(`Unknown action: ${trimmedAction}`);
-                        // $currentTarget.html(content);
-                        // ============================
-                        // AUTO MODE → jika tidak ada live-dom (actions = '' atau undefined)
-                        // ============================
-
                         if (
                             !actions ||
                             actions.trim() === "" ||
