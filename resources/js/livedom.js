@@ -24,134 +24,6 @@
     // Simpan cache response sementara (single-use)
     const ajaxCache = new Map();
 
-    function ajaxDynamicOld(
-        method = "POST",
-        controller,
-        action,
-        data = {},
-        target = "html",
-        targetId = "#",
-        loading = true,
-        callback = null,
-        useCache = false, // ✅ opsi baru: default false (fresh data)
-    ) {
-        const key =
-            targetId ||
-            `${controller}_${action}_${method}_${JSON.stringify(data)}`;
-
-        // ✅ Jika ada request sebelumnya ke target yang sama → batalkan
-        if (ajaxDynamicControllers[key]) {
-            ajaxDynamicControllers[key].abort();
-        }
-
-        // ✅ Jika ada cache → pakai lalu hapus (single-use)
-        if (useCache && ajaxCache.has(key)) {
-            const response = ajaxCache.get(key);
-            ajaxCache.delete(key); // auto clear setelah dipakai
-
-            if (typeof callback === "function") {
-                callback(response);
-            } else {
-                callBackAjaxDynamic(target, targetId, response);
-            }
-            return;
-        }
-
-        const abortController = new AbortController();
-        ajaxDynamicControllers[key] = abortController;
-
-        if (loading) {
-            $(".loading").show();
-        }
-
-        const isFormData = data instanceof FormData;
-
-        $.ajax({
-            url: `/ajax/${controller}/${action}`,
-            method: method,
-            headers:
-                method !== "GET"
-                    ? {
-                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
-                            "content",
-                        ),
-                    }
-                    : {},
-
-            data:
-                method === "GET"
-                    ? data
-                    : isFormData
-                        ? data
-                        : JSON.stringify(data),
-            contentType:
-                method === "GET"
-                    ? undefined
-                    : isFormData
-                        ? false
-                        : "application/json",
-            processData: isFormData ? false : true,
-            cache: false,
-            signal: abortController.signal,
-
-            success: function (response) {
-                if (loading) {
-                    $(".loading").hide();
-                }
-
-                delete ajaxDynamicControllers[key];
-
-                // ✅ simpan ke cache sekali saja (auto clear dipakai lagi)
-                if (useCache) {
-                    ajaxCache.set(key, response);
-                }
-
-                if (typeof callback === "function") {
-                    callback(response);
-                } else {
-                    callBackAjaxDynamic(target, targetId, response);
-                }
-            },
-
-            error: function (jqXHR, textStatus) {
-                if (loading) {
-                    targetId !== "#"
-                        ? hideTargetLoading(targetId)
-                        : $(".loading").hide();
-                }
-
-                delete ajaxDynamicControllers[key];
-
-                if (textStatus === "abort") {
-                    console.log(
-                        `[AJAX Dynamic] Request to /ajax/${controller}/${action} was aborted.`,
-                    );
-                    return;
-                }
-
-                const contentType =
-                    jqXHR.getResponseHeader("content-type") || "";
-                const isHtmlResponse = contentType.includes("text/html");
-
-                if (isHtmlResponse) {
-                    showErrorModal(jqXHR.responseText);
-                    return;
-                }
-
-                let json = {};
-                try {
-                    json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
-                } catch (e) {
-                    json = {
-                        message: "Unparsable response",
-                        raw: jqXHR.responseText,
-                    };
-                }
-                showErrorModal(json);
-            },
-        });
-    }
-
     function ajaxDynamic(
         method = "POST",
         controller,
@@ -345,45 +217,45 @@
         $target.find(".dynamic-loading-overlay").remove();
 
         const $overlay = $(`
-      <div class="dynamic-loading-overlay" style="
-        position: absolute;
-        inset: 0;
-        background: rgba(255, 255, 255, 0.75);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 50;
-        border-radius: inherit;
-        animation: fadeIn 0.3s ease-in-out;
-      ">
-        <div class="spinner-glow"></div>
-      </div>
-    `);
+      <div class="dynamic-loading-overlay" style="
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.75);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        border-radius: inherit;
+        animation: fadeIn 0.3s ease-in-out;
+      ">
+        <div class="spinner-glow"></div>
+      </div>
+    `);
 
         const spinnerStyle = `
-      @keyframes spinnerFade {
-        0%, 100% { opacity: 0.3; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
+      @keyframes spinnerFade {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
 
-      .spinner-glow {
-        width: 32px;
-        height: 32px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
-        animation: spinnerFade 1s infinite ease-in-out;
-        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
-      }
+      .spinner-glow {
+        width: 32px;
+        height: 32px;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        animation: spinnerFade 1s infinite ease-in-out;
+        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
+      }
 
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
 
-      .dynamic-loading-overlay {
-        transition: opacity 0.3s ease;
-      }
-    `;
+      .dynamic-loading-overlay {
+        transition: opacity 0.3s ease;
+      }
+    `;
 
         if (!$("head").find("#spinner-style").length) {
             $("head").append(
@@ -506,19 +378,6 @@
 
             for (const selector of selectors) {
                 const $el = $(selector);
-                // if ($el.is('input, textarea, select')) {
-                //     $el.val(value);
-                //     $el.each(function () {
-                //         this.dispatchEvent(new Event('input', {
-                //             bubbles: true
-                //         }));
-                //         this.dispatchEvent(new Event('change', {
-                //             bubbles: true
-                //         }));
-                //     });
-                // } else {
-                //     $el.html(value);
-                // }
 
                 if ($el.is("input, textarea, select")) {
                     if ($el.val() !== String(value)) {
@@ -558,83 +417,6 @@
         }
         return methodType;
     }
-
-    /**
-     * Extracts data from the closest form or live-scope.
-     * @param {jQuery} $el - The jQuery object of the triggering element.
-     * @param {jQuery} formSelector - The jQuery object of the closest form.
-     * @returns {object|FormData} The extracted data.
-     */
-
-    // function extractData($el, $form) {
-    //     let formData = new FormData();
-
-    //     if ($form && $form.length) {
-    //         // Jika event berasal dari sebuah form → ambil form tersebut
-    //         $form.find('input[name], select[name], textarea[name]').each(function () {
-    //             appendInputToFormData(formData, this);
-    //         });
-
-    //     } else {
-    //         console.log('test');
-    //         // Jika TIDAK ADA form → ambil SEMUA form di dalam live-scope
-    //         const $scope = $el.closest('[live-scope]');
-    //         const $forms = $scope.find('form');
-
-    //         if ($forms.length > 0) {
-    //             // Loop semua form dalam scope
-    //             $forms.each(function () {
-    //                 $(this)
-    //                     .find('input[name], select[name], textarea[name]')
-    //                     .each(function () {
-    //                         appendInputToFormData(formData, this);
-    //                     });
-    //             });
-    //         } else {
-    //             // Jika scope memang tidak punya form sama sekali → fallback:
-    //             $scope.find('input[name], select[name], textarea[name]').each(function () {
-    //                 appendInputToFormData(formData, this);
-    //             });
-    //         }
-    //     }
-
-    //     return formData;
-    // }
-
-    // function extractData($el, $form) {
-    //     const formData = new FormData();
-    //     const $scope = $el.closest('[live-scope]');
-
-    //     if (!$scope.length) return formData;
-
-    //     const appended = new Set(); // cegah duplicate
-
-    //     const appendSafe = (el) => {
-    //         if (!el.name) return;
-    //         if (appended.has(el)) return;
-
-    //         appendInputToFormData(formData, el);
-    //         appended.add(el);
-    //     };
-
-    //     // 1️⃣ Jika event berasal dari FORM → ambil form tersebut dulu
-    //     if ($form && $form.length) {
-    //         $form
-    //             .find('input[name], select[name], textarea[name]')
-    //             .each(function () {
-    //                 appendSafe(this);
-    //             });
-    //     }
-
-    //     // 2️⃣ Ambil SEMUA input di scope (termasuk di form lain & luar form)
-    //     $scope
-    //         .find('input[name], select[name], textarea[name]')
-    //         .each(function () {
-    //             appendSafe(this);
-    //         });
-
-    //     return formData;
-    // }
 
     function extractData($el, $form, selector = null) {
         const formData = new FormData();
@@ -1076,13 +858,13 @@
                     result = Function(
                         "__el",
                         `
-            try {
-              return (${safeCallback});
-            } catch (e) {
-              console.warn('[LiveDomJs] Error evaluating beforeCallback:', e);
-              return undefined;
-            }
-          `,
+            try {
+              return (${safeCallback});
+            } catch (e) {
+              console.warn('[LiveDomJs] Error evaluating beforeCallback:', e);
+              return undefined;
+            }
+          `,
                     )($el[0]);
                 } else {
                     // Kalau hanya nama fungsi, panggil window[fnName]($el[0])
@@ -1232,9 +1014,9 @@
                 const trimmedAction = action.trim();
 
                 // console.log(`Applying to target ${targetIndex}:`, {
-                //     target: $currentTarget,
-                //     action: trimmedAction,
-                //     content: content
+                //     target: $currentTarget,
+                //     action: trimmedAction,
+                //     content: content
                 // });
 
                 switch (trimmedAction) {
@@ -1341,6 +1123,80 @@
     }
 
     /*==============================
+      LIVE COMPUTE — FORMAT REGISTRY
+      (shared across every handleLiveComputeUnified() instance)
+    ==============================*/
+    const LIVE_COMPUTE_FORMAT_REGISTRY = {
+        idr: { kind: "currency", locale: "id-ID", thousandSep: ".", decimalSep: ",", defaultDecimals: 0 },
+        usd: { kind: "currency", locale: "en-US", thousandSep: ",", decimalSep: ".", defaultDecimals: 2 },
+        jpy: { kind: "currency", locale: "ja-JP", thousandSep: ",", decimalSep: ".", defaultDecimals: 0 },
+        eur: { kind: "currency", locale: "de-DE", thousandSep: ".", decimalSep: ",", defaultDecimals: 2 },
+        percent: { kind: "percent", thousandSep: ",", decimalSep: ".", defaultDecimals: 1 },
+        plain: { kind: "plain", locale: "en-US", thousandSep: ",", decimalSep: ".", defaultDecimals: 0 },
+    };
+
+    function getLiveComputeFormat(key) {
+        if (!key) return null;
+        return LIVE_COMPUTE_FORMAT_REGISTRY[String(key).toLowerCase()] || null;
+    }
+
+    // every mounted handleLiveComputeUnified() scope registers itself here so
+    // LiveDom.setCurrency()/unpin() can reach all of them, not just the last one.
+    const liveComputeInstances = [];
+
+    window.LiveDom = window.LiveDom || {};
+
+    // Global default currency. Elements only follow this when they explicitly
+    // opt in with live-compute-format="auto" — everything else is untouched.
+    window.LiveDom.config = window.LiveDom.config || { currency: "idr" };
+
+    /**
+     * Register a custom currency/format (e.g. "gbp", "cny") without touching
+     * this file. Existing keys can be overridden the same way.
+     */
+    window.LiveDom.registerFormat = function (key, cfg) {
+        if (!key || !cfg) return;
+        LIVE_COMPUTE_FORMAT_REGISTRY[String(key).toLowerCase()] = cfg;
+    };
+
+    /**
+     * Instantly switch the active global currency. Only elements with
+     * live-compute-format="auto" react; pinned elements (idr/usd/... written
+     * literally) and non-currency kinds (percent/plain) are never touched.
+     * This never converts values — 1 juta stays 1 juta, only the notation
+     * (grouping/decimal separators, decimals) changes.
+     */
+    window.LiveDom.setCurrency = function (code) {
+        const cfg = getLiveComputeFormat(code);
+        if (!cfg || cfg.kind !== "currency") {
+            console.warn(`[LiveDom] "${code}" is not a registered currency format. setCurrency() ignored.`);
+            return;
+        }
+
+        const previous = window.LiveDom.config.currency;
+        if (previous === code) return;
+
+        window.LiveDom.config.currency = code;
+        liveComputeInstances.forEach((instance) => instance.refresh());
+
+        document.dispatchEvent(
+            new CustomEvent("livedom:currencychange", {
+                detail: { from: previous, to: code },
+            }),
+        );
+    };
+
+    /**
+     * Remove a pinned format from an element, letting it fall back to
+     * whatever live-compute-format="auto" elements are currently using.
+     */
+    window.LiveDom.unpin = function (element) {
+        if (!element) return;
+        element.removeAttribute("live-compute-format");
+        liveComputeInstances.forEach((instance) => instance.refresh());
+    };
+
+    /*==============================
       LIVE COMPUTE
     ==============================*/
 
@@ -1392,72 +1248,72 @@
                 .replace(/_$/g, "");
         }
 
-        // --- 1. ENHANCED NUMBER PARSER (from version 2) ---
-        function toNumber(val, currency = "idr") {
-            if (val == null || val === "" || val === undefined) return 0;
+        // --- FORMAT RESOLUTION ---
+        // Two different questions, resolved separately on purpose:
+        //   1) "how should I READ the numbers inside this formula?"   -> parsing format
+        //   2) "should I even FORMAT my own output, and how?"          -> display format
+        // (1) always resolves to *some* convention (falls back to the active
+        // global currency) because a decimal/thousand separator convention is
+        // needed to read numbers correctly regardless of display intent.
+        // (2) is strictly opt-in: no live-compute-format attribute = never
+        // formatted, on purpose — this is what keeps percent/plain/id fields
+        // safe from ever being mangled into currency notation.
+        function resolveParsingFormat(element) {
+            const raw = attr(element, "live-compute-format");
+            if (raw === "auto") return window.LiveDom.config.currency;
+            if (raw && getLiveComputeFormat(raw)) return raw;
+            return window.LiveDom.config.currency;
+        }
 
-            val = String(val).trim();
-            if (val === "" || val === "-") return 0;
+        function resolveDisplayFormat(element) {
+            const raw = attr(element, "live-compute-format");
+            if (raw === null || raw === "") return null; // opt-out: never formatted
+            if (raw === "auto") return window.LiveDom.config.currency;
+            return raw; // pinned literal key (idr/usd/percent/plain/...), may be unknown -> formatResult degrades safely
+        }
 
-            // Detect percentage
-            const isPercentage = val.includes("%");
-            val = val.replace(/%/g, "");
+        // --- 1. GENERIC NUMBER PARSER (config-driven, no whole-string guessing) ---
+        function toNumber(rawVal, formatKey) {
+            if (rawVal === null || rawVal === undefined || rawVal === "") return 0;
 
-            // Detect negative
-            const isNegative = /^-/.test(val);
-            val = val.replace(/^-/, "");
+            let strVal = String(rawVal).trim();
+            if (strVal === "" || strVal === "-") return 0;
 
-            // Remove all non-numeric characters except dots and commas
-            val = val.replace(/[^\d.,]/g, "");
+            const isPercentageLiteral = strVal.includes("%");
+            strVal = strVal.replace(/%/g, "");
 
-            if (val === "") return 0;
+            const isNegative = /^-/.test(strVal);
+            strVal = strVal.replace(/^-/, "");
 
-            let result = 0;
+            // strip anything that isn't a digit or a separator (currency symbols, spaces, etc.)
+            strVal = strVal.replace(/[^\d.,]/g, "");
+            if (strVal === "") return 0;
 
-            const normalizedCurrency = String(currency || "idr").toLowerCase();
+            const cfg =
+                getLiveComputeFormat(formatKey) ||
+                getLiveComputeFormat(window.LiveDom.config.currency) ||
+                getLiveComputeFormat("idr");
 
-            if (normalizedCurrency === "idr") {
-                // Indonesian format: 5.000.000 or 5.000.000,25
-                if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(/\./g, "").replace(",", "."));
-                } else if (/^\d+(,\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(",", "."));
-                } else if (/^\d+(\.\d+)?$/.test(val)) {
-                    result = parseFloat(val);
-                } else {
-                    result = parseFloat(val.replace(/[^\d]/g, ""));
-                }
-            } else if (normalizedCurrency === "usd") {
-                // US format: 5,000,000 or 5,000,000.25
-                if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(/,/g, ""));
-                } else if (/^\d+(\.\d+)?$/.test(val)) {
-                    result = parseFloat(val);
-                } else if (/^\d+(,\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(/,/g, ""));
-                } else {
-                    result = parseFloat(val.replace(/[^\d]/g, ""));
-                }
-            } else {
-                // Auto-detect fallback
-                if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(/\./g, "").replace(",", "."));
-                } else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(val)) {
-                    result = parseFloat(val.replace(/,/g, ""));
-                } else if (/^\d+([.,]\d+)?$/.test(val)) {
-                    result = val.includes(",")
-                        ? parseFloat(val.replace(",", "."))
-                        : parseFloat(val);
-                } else {
-                    result = parseFloat(val.replace(/[^\d]/g, ""));
-                }
+            const escapeRe = (ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            let cleaned = strVal;
+
+            // thousand separator is never meaningful for the value itself — drop it entirely
+            if (cfg.thousandSep) {
+                cleaned = cleaned.split(new RegExp(escapeRe(cfg.thousandSep), "g")).join("");
             }
+            // normalize whatever this format's decimal separator is to a plain "."
+            if (cfg.decimalSep && cfg.decimalSep !== ".") {
+                cleaned = cleaned.replace(new RegExp(escapeRe(cfg.decimalSep)), ".");
+            }
+            // anything left over that isn't a digit or the standardized "." is noise
+            cleaned = cleaned.replace(/[^\d.]/g, "");
 
+            let result = parseFloat(cleaned);
             if (isNaN(result)) result = 0;
             if (isNegative) result = -result;
-            if (isPercentage) result = result / 100;
+            if (isPercentageLiteral) result = result / 100;
 
-            // Use parseFloat with precision to avoid floating point errors
+            // parseFloat with fixed precision to avoid floating point artifacts
             return parseFloat(result.toFixed(10));
         }
 
@@ -1481,13 +1337,13 @@
         }
 
         // --- 3. VALUE CONVERGENCE CHECK (from version 2) ---
-        function isValueConverged(oldValue, newValue, currency = "idr") {
+        function isValueConverged(oldValue, newValue, formatKey) {
             if (oldValue == null && newValue == null) return true;
             if (oldValue == null || newValue == null) return false;
             if (oldValue === newValue) return true;
 
-            const oldNum = toNumber(oldValue, currency);
-            const newNum = toNumber(newValue, currency);
+            const oldNum = toNumber(oldValue, formatKey);
+            const newNum = toNumber(newValue, formatKey);
 
             if (isNaN(oldNum) || isNaN(newNum)) {
                 return String(oldValue).trim() === String(newValue).trim();
@@ -1569,9 +1425,27 @@
                 const name = el.name;
                 if (name) {
                     const sanitized = sanitizeName(name);
-                    // ✅ Checkbox support: store el.value when checked, 0 when unchecked
                     const isCheckbox = el.type === "checkbox";
-                    inputValueCache.set(sanitized, isCheckbox ? (el.checked ? el.value : 0) : el.value);
+
+                    let cacheValue;
+                    if (isCheckbox) {
+                        // ✅ Checkbox support: store el.value when checked, 0 when unchecked
+                        cacheValue = el.checked ? el.value : 0;
+                    } else if (isMaskableInput(el)) {
+                        // Opt-in real-time masking (live-compute-format on a raw
+                        // <input>): cache/state always holds the canonical number,
+                        // never the display string. Render the mask once on first
+                        // sight so server-rendered values get grouped immediately.
+                        if (getData(el, "canonical") === undefined) {
+                            primeMaskedInputFromDom(el, resolveParsingFormat(el));
+                            renderMaskedInput(el, resolveDisplayFormat(el));
+                        }
+                        cacheValue = getData(el, "canonical");
+                    } else {
+                        cacheValue = el.value;
+                    }
+
+                    inputValueCache.set(sanitized, cacheValue);
 
                     let match = name.match(regex) || name.match(regexAlt);
                     if (match) rowIndicesCache.add(parseInt(match[1], 10));
@@ -1641,9 +1515,10 @@
                             attr(element, "live-compute")?.trim() || "";
                         if (!expr) continue;
 
-                        const format =
-                            attr(element, "live-compute-format") || "idr";
-                        const formulaCacheKey = `${expr}::${format}`;
+                        // parsing format: how THIS element reads the variables in its own formula.
+                        // (may differ from its own display format on purpose — see resolveDisplayFormat)
+                        const parsingFormat = resolveParsingFormat(element);
+                        const formulaCacheKey = `${expr}::${parsingFormat}`;
 
                         try {
                             if (
@@ -1702,7 +1577,7 @@
                                     expr,
                                     globalInputs,
                                     indices,
-                                    format,
+                                    parsingFormat,
                                 );
 
                                 if (isNaN(result) || !isFinite(result)) {
@@ -1800,12 +1675,20 @@
 
         // --- 7. ENHANCED DOM UPDATER (with normalization) ---
         function displayResult(element, result) {
-
-            if (getData(element, 'userOwned') === true) return false;
+            // A field currently owned by the user (last one manually edited in
+            // this bidirectional group) is NEVER overwritten by its own formula.
+            // This is what makes A<->B pairs (e.g. discountPercent <-> discountAmount)
+            // safe with nothing more than two live-compute attributes pointing at
+            // each other — no live-compute-skip attribute needed.
+            if (getData(element, "userOwned") === true) return false;
 
             const lastValue = getData(element, "lastValue");
-            const format = attr(element, "live-compute-format");
-            let rawValue = toNumber(result, format || "idr");
+            const lastDisplayFormat = getData(element, "lastDisplayFormat");
+
+            const parsingFormat = resolveParsingFormat(element);
+            const displayFormat = resolveDisplayFormat(element); // null = never formatted, on purpose
+
+            let rawValue = toNumber(result, parsingFormat);
 
             if (isNaN(rawValue) || !isFinite(rawValue)) {
                 if (DEBUG_MODE)
@@ -1820,14 +1703,15 @@
             const decimalAttr = attr(element, "live-decimal-max");
             let maxDecimals =
                 decimalAttr === null || decimalAttr === ""
-                    ? 0
+                    ? null // null = let the format's own defaultDecimals decide
                     : parseInt(decimalAttr, 10);
 
-            if (isNaN(maxDecimals) || maxDecimals < 0) maxDecimals = 0;
-            if (maxDecimals > 20) maxDecimals = 20;
+            if (maxDecimals !== null && (isNaN(maxDecimals) || maxDecimals < 0))
+                maxDecimals = 0;
+            if (maxDecimals !== null && maxDecimals > 20) maxDecimals = 20;
 
             // Normalize the number with proper precision
-            rawValue = normalizeNumber(rawValue, maxDecimals);
+            rawValue = normalizeNumber(rawValue, maxDecimals === null ? 0 : maxDecimals);
 
             if (isNaN(rawValue) || !isFinite(rawValue)) {
                 rawValue = 0;
@@ -1839,13 +1723,14 @@
                 attr(element, "live-compute-init") === "false"
             ) {
                 setData(element, "lastValue", rawValue);
+                setData(element, "lastDisplayFormat", displayFormat);
 
                 // Get server value and format it
                 let serverValue = element.matches("input, textarea, select")
                     ? val(element)
                     : element.innerHTML;
-                let formattedServerValue = format
-                    ? formatResult(serverValue, format, maxDecimals)
+                let formattedServerValue = displayFormat
+                    ? formatResult(serverValue, displayFormat, maxDecimals)
                     : serverValue;
 
                 // Update display only if not formatted yet
@@ -1860,11 +1745,18 @@
                 return false;
             }
 
+            // A live-compute-format="auto" element resolves to a different real
+            // format whenever LiveDom.setCurrency() runs — detect that here so a
+            // pure format switch (no value change at all) still re-renders.
+            const formatChanged = displayFormat !== lastDisplayFormat;
+
             // Use enhanced convergence check
-            if (!isValueConverged(lastValue, rawValue, format || "idr")) {
+            if (formatChanged || !isValueConverged(lastValue, rawValue, parsingFormat)) {
                 setData(element, "lastValue", rawValue);
-                let displayValue = format
-                    ? formatResult(rawValue, format, maxDecimals)
+                setData(element, "lastDisplayFormat", displayFormat);
+
+                let displayValue = displayFormat
+                    ? formatResult(rawValue, displayFormat, maxDecimals)
                     : rawValue.toString();
 
                 updateElementValue(element, displayValue);
@@ -1898,7 +1790,7 @@
         }
 
         // --- 8. SAFE MATH ENGINE ---
-        function evaluateExpression(expr, globalInputs, indices, currency = "idr") {
+        function evaluateExpression(expr, globalInputs, indices, parsingFormat) {
             if (expr.includes("range")) {
                 const m = expr.match(
                     /(rangeDate|rangeMonth|rangeYear|rangeWeek)\(([^)]+)\)/,
@@ -1911,13 +1803,13 @@
                     expr,
                     globalInputs,
                     indices,
-                    currency,
+                    parsingFormat,
                 );
             }
 
             const vars = extractVariables(expr);
             const vals = vars.map((v) =>
-                toNumber(globalInputs.get(v) || 0, currency),
+                toNumber(globalInputs.get(v) || 0, parsingFormat),
             );
 
             try {
@@ -1943,12 +1835,12 @@
             expr,
             globalInputs,
             indices,
-            currency = "idr",
+            parsingFormat,
         ) {
             expr = expr.replace(
                 /sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi,
                 (match, r1, c, r2) => {
-                    const cacheKey = `sumif:${r1}:${c}:${r2}:${currency}`;
+                    const cacheKey = `sumif:${r1}:${c}:${r2}:${parsingFormat}`;
 
                     if (aggregateFunctionCache.has(cacheKey)) {
                         return aggregateFunctionCache.get(cacheKey);
@@ -1961,7 +1853,7 @@
                         globalInputs,
                         indices,
                     );
-                    const result = safeAggregate("sum", vals, currency);
+                    const result = safeAggregate("sum", vals, parsingFormat);
 
                     aggregateFunctionCache.set(cacheKey, result);
                     return result;
@@ -1971,7 +1863,7 @@
             return expr.replace(
                 /(sum|avg|min|max|count)\(([^()]+)\)/gi,
                 (match, fn, arg) => {
-                    const cacheKey = `${fn}:${arg}:${currency}`;
+                    const cacheKey = `${fn}:${arg}:${parsingFormat}`;
 
                     if (aggregateFunctionCache.has(cacheKey)) {
                         return aggregateFunctionCache.get(cacheKey);
@@ -1981,7 +1873,7 @@
                     const result = safeAggregate(
                         fn.toLowerCase(),
                         vals,
-                        currency,
+                        parsingFormat,
                     );
 
                     aggregateFunctionCache.set(cacheKey, result);
@@ -1990,15 +1882,15 @@
             );
         }
 
-        function safeAggregate(fn, vals, currency = "idr") {
+        function safeAggregate(fn, vals, parsingFormat) {
             if (!vals || vals.length === 0) return 0;
 
             const validVals = vals
                 .filter((v) => {
-                    const num = toNumber(v, currency);
+                    const num = toNumber(v, parsingFormat);
                     return isFinite(num) && !isNaN(num);
                 })
-                .map((v) => toNumber(v, currency));
+                .map((v) => toNumber(v, parsingFormat));
 
             if (validVals.length === 0) return 0;
 
@@ -2144,46 +2036,6 @@
                 return 0;
             }
         }
-        //         const exprFuncCache = new Map();
-        //         function safeFunctionEvaluation(vars, vals, expr) {
-        //             if (!exprFuncCache.has(expr)) {
-        //                 const funcBody = `
-        //                 const safeDivide = (a, b) => {
-        //                     const numB = typeof b === 'number' ? b : parseFloat(b) || 0;
-        //                     if (numB === 0) return 0;
-        //                     const result = (typeof a === 'number' ? a : parseFloat(a) || 0) / numB;
-        //                     return isFinite(result) ? result : 0;
-        //                 };
-        //                 const safeAdd = (a, b) => {
-        //                     const result = (typeof a === 'number' ? a : parseFloat(a) || 0) + 
-        //                                    (typeof b === 'number' ? b : parseFloat(b) || 0);
-        //                     return isFinite(result) ? result : 0;
-        //                 };
-        //                 const round = (num, digits=0) => { 
-        //                     const f = Math.pow(10, digits); 
-        //                     const result = Math.round(num * f) / f;
-        //                     return isFinite(result) ? result : 0;
-        //                 };
-        //                 try {
-        //                     const result = ${expr};
-        //                     return (isNaN(result) || !isFinite(result)) ? 0 : result;
-        //                 } catch(e) {
-        //                     return 0;
-        //                 }
-        //             `;
-
-        //                 const func = new Function(...vars, "Math", funcBody);
-        //                 exprFuncCache.set(expr, func);
-        //             }
-
-        //             try {
-        //                 const result = exprFuncCache.get(expr)(...vals, Math);
-        //                 return isNaN(result) || !isFinite(result) ? 0 : result;
-        //             } catch (e) {
-        //                 if (DEBUG_MODE) console.error("[SafeEval] Error:", e);
-        //                 return 0;
-        //             }
-        //         }
 
         function extractVariables(expr) {
             const vars = expr.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
@@ -2202,38 +2054,215 @@
             return [...new Set(vars.filter((v) => !reserved.includes(v)))];
         }
 
-        function formatResult(result, format, maxDecimals = 0) {
-            const num = parseFloat(result);
+        // formatKey here is always a resolved key (never "auto") coming from
+        // resolveDisplayFormat(). Unknown keys degrade to the raw string instead
+        // of throwing, so a typo in live-compute-format never breaks the page.
+        function formatResult(result, formatKey, maxDecimals) {
+            const cfg = getLiveComputeFormat(formatKey);
+            if (!cfg) return String(result);
 
+            const num = parseFloat(result);
             if (isNaN(num) || !isFinite(num)) return "0";
 
-            // Ensure maxDecimals is valid
-            maxDecimals = isNaN(parseInt(maxDecimals))
-                ? 0
-                : parseInt(maxDecimals);
+            let decimals =
+                maxDecimals === null || maxDecimals === undefined || isNaN(parseInt(maxDecimals))
+                    ? cfg.defaultDecimals
+                    : parseInt(maxDecimals, 10);
+            if (isNaN(decimals) || decimals < 0) decimals = 0;
 
-            if (format.toLowerCase() === "idr") {
-                try {
-                    return new Intl.NumberFormat("id-ID", {
-                        minimumFractionDigits: maxDecimals,
-                        maximumFractionDigits: maxDecimals,
-                    }).format(num);
-                } catch (e) {
-                    return num.toFixed(maxDecimals);
-                }
-            } else if (format.toLowerCase() === "usd") {
-                try {
-                    return new Intl.NumberFormat("en-US", {
-                        minimumFractionDigits: maxDecimals,
-                        maximumFractionDigits: maxDecimals,
-                    }).format(num);
-                } catch (e) {
-                    return num.toFixed(maxDecimals);
-                }
+            if (cfg.kind === "percent") {
+                return num.toFixed(decimals) + "%";
             }
 
-            const formatted = num.toFixed(maxDecimals);
-            return isFinite(parseFloat(formatted)) ? formatted : "0";
+            // "currency" and "plain" both render through Intl using the config's locale
+            try {
+                return new Intl.NumberFormat(cfg.locale || "en-US", {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals,
+                }).format(num);
+            } catch (e) {
+                return num.toFixed(decimals);
+            }
+        }
+
+        // --- 12. REAL-TIME INPUT MASKING ---
+        // Applies to plain <input name="..." live-compute-format="..."> fields —
+        // i.e. fields the USER types into directly, as opposed to [live-compute]
+        // output elements (those are already handled by displayResult above).
+        // Strictly opt-in: an <input> without live-compute-format is never
+        // touched, exactly like output elements without the attribute.
+        function isMaskableInput(element) {
+            return !!(
+                element &&
+                element.tagName === "INPUT" &&
+                element.type !== "checkbox" &&
+                element.type !== "radio" &&
+                element.hasAttribute("live-compute-format")
+            );
+        }
+
+        function resolveMaxDecimals(element, cfg) {
+            const decimalAttr = attr(element, "live-decimal-max");
+            let maxDecimals =
+                decimalAttr !== null && decimalAttr !== ""
+                    ? parseInt(decimalAttr, 10)
+                    : cfg.defaultDecimals;
+            if (isNaN(maxDecimals) || maxDecimals < 0)
+                maxDecimals = cfg.defaultDecimals;
+            return maxDecimals;
+        }
+
+        // Pure formatting: canonical number -> grouped string. No cursor math —
+        // used for static (re)renders (hydration, currency switch).
+        function buildMaskedDisplay(canonical, cfg, maxDecimals) {
+            const isNegative = canonical < 0;
+            const fixed = Math.abs(canonical).toFixed(maxDecimals);
+            const [intStr, fracStr] = fixed.split(".");
+            const groupedInt = cfg.thousandSep
+                ? intStr.replace(/\B(?=(\d{3})+(?!\d))/g, cfg.thousandSep)
+                : intStr;
+
+            let display = (isNegative ? "-" : "") + groupedInt;
+            if (fracStr && maxDecimals > 0) display += cfg.decimalSep + fracStr;
+            return display;
+        }
+
+        // Re-render a masked input from its stored canonical value. Used on
+        // hydration and on currency switch — never re-parses the *displayed*
+        // string, so it can't misread it under a different locale's rules.
+        function renderMaskedInput(element, formatKey) {
+            const cfg = getLiveComputeFormat(formatKey);
+            const canonical = getData(element, "canonical");
+            if (!cfg || canonical === undefined) return;
+
+            const maxDecimals = resolveMaxDecimals(element, cfg);
+            const display = buildMaskedDisplay(canonical, cfg, maxDecimals);
+
+            isInternalUpdate = true;
+            val(element, display);
+            isInternalUpdate = false;
+
+            setData(element, "lastMaskFormat", formatKey);
+        }
+
+        // First-sight hydration: read whatever the DOM/server already has into
+        // a canonical number, without writing back yet (renderMaskedInput does
+        // the actual write, right after, in the caller).
+        function primeMaskedInputFromDom(element, formatKey) {
+            const canonical = toNumber(val(element), formatKey);
+            setData(element, "canonical", canonical);
+            return canonical;
+        }
+
+        // Live, cursor-safe reformatting while the user is actively typing.
+        // Splits on the format's OWN decimal separator (never guesses which
+        // character means what), strips everything else, regroups thousands,
+        // and repositions the caret by DIGIT COUNT rather than character
+        // index — so inserting a separator mid-type never jumps the cursor.
+        function applyLiveMask(element, formatKey) {
+            const cfg = getLiveComputeFormat(formatKey);
+            if (!cfg) return toNumber(val(element), formatKey);
+
+            const raw = val(element);
+            const cursorPos = element.selectionStart ?? raw.length;
+
+            const isNegative = raw.trim().charAt(0) === "-";
+            const body = raw.replace(/-/g, "");
+
+            const sepIndex = cfg.decimalSep ? body.indexOf(cfg.decimalSep) : -1;
+            let intPart, fracPart;
+            if (sepIndex === -1) {
+                intPart = body;
+                fracPart = null;
+            } else {
+                intPart = body.slice(0, sepIndex);
+                fracPart = body.slice(sepIndex + 1);
+            }
+
+            intPart = intPart.replace(/\D/g, "");
+            if (fracPart !== null) {
+                fracPart = fracPart.replace(/\D/g, "");
+                fracPart = fracPart.slice(0, resolveMaxDecimals(element, cfg));
+            }
+
+            // digits sitting to the LEFT of the caret, before reformatting
+            const digitsBeforeCursor = raw
+                .slice(0, cursorPos)
+                .replace(/\D/g, "").length;
+
+            // Special case: the character the user just typed IS the decimal
+            // separator itself (no fraction digits yet). Pure digit-counting
+            // would place the caret one step BEHIND it (back on the last whole
+            // digit), pushing the next keystroke in front of the separator
+            // instead of after it. Detect that and pin the caret to the end.
+            const charBeforeCursor = raw.charAt(cursorPos - 1);
+            const justTypedDecimalSep =
+                !!cfg.decimalSep &&
+                charBeforeCursor === cfg.decimalSep &&
+                fracPart === "";
+
+            const groupedInt = cfg.thousandSep
+                ? intPart.replace(/\B(?=(\d{3})+(?!\d))/g, cfg.thousandSep)
+                : intPart;
+
+            let display = (isNegative ? "-" : "") + groupedInt;
+            if (fracPart !== null) display += cfg.decimalSep + fracPart;
+
+            isInternalUpdate = true;
+            element.value = display;
+            isInternalUpdate = false;
+
+            // walk the freshly-built string until the same digit count is passed
+            let seen = 0;
+            let newPos = display.length;
+            if (justTypedDecimalSep) {
+                newPos = display.length;
+            } else if (digitsBeforeCursor === 0) {
+                newPos = isNegative ? 1 : 0;
+            } else {
+                for (let i = 0; i < display.length; i++) {
+                    if (/\d/.test(display[i])) seen++;
+                    if (seen >= digitsBeforeCursor) {
+                        newPos = i + 1;
+                        break;
+                    }
+                }
+            }
+            try {
+                element.setSelectionRange(newPos, newPos);
+            } catch (e) {
+                // some input types (e.g. type="number") don't support selection ranges
+            }
+
+            const canonicalStr =
+                (isNegative ? "-" : "") +
+                (intPart || "0") +
+                (fracPart !== null ? "." + fracPart : "");
+            let canonical = parseFloat(canonicalStr);
+            if (isNaN(canonical)) canonical = 0;
+
+            setData(element, "canonical", canonical);
+            setData(element, "lastMaskFormat", formatKey);
+            return canonical;
+        }
+
+        // Re-render every masked input that follows the global currency (i.e.
+        // pinned with live-compute-format="auto") from its stored canonical
+        // value. Pinned literals (idr/usd/...) and non-currency kinds
+        // (percent/plain) are untouched — mirrors reformatting behavior of
+        // live-compute output elements in displayResult.
+        function remaskAutoInputs() {
+            cachedInputElements.forEach((element) => {
+                if (!isMaskableInput(element)) return;
+                if (attr(element, "live-compute-format") !== "auto") return;
+                if (getData(element, "canonical") === undefined) return;
+
+                const formatKey = resolveDisplayFormat(element); // "auto" -> current global
+                renderMaskedInput(element, formatKey);
+                if (element.name) {
+                    updateInputCache(element.name, getData(element, "canonical"));
+                }
+            });
         }
 
         // --- 11. OPTIMIZED SCHEDULER & INIT ---
@@ -2282,12 +2311,30 @@
                         e.target.matches &&
                         e.target.matches("input, select, textarea")
                     ) {
+                        // Real-time masking: only for a plain <input> that opted in
+                        // with live-compute-format. Reformats as-you-type and
+                        // returns the canonical number (never the display string).
+                        let maskedCanonical;
+                        if (isMaskableInput(e.target)) {
+                            maskedCanonical = applyLiveMask(
+                                e.target,
+                                resolveDisplayFormat(e.target),
+                            );
+                        }
+
                         if (e.target.name) {
                             const isCheckbox = e.target.type === "checkbox";
                             // ✅ Checkbox: store el.value when checked, 0 when unchecked
-                            const cachedValue = isCheckbox ? (e.target.checked ? e.target.value : 0) : e.target.value;
+                            const cachedValue = isCheckbox
+                                ? (e.target.checked ? e.target.value : 0)
+                                : (maskedCanonical !== undefined ? maskedCanonical : e.target.value);
                             updateInputCache(e.target.name, cachedValue);
                             setData(e.target, "lastManualInput", Date.now());
+
+                            // Bidirectional pairs (A's formula reads B, B's formula reads A)
+                            // work purely off this: whichever field the user is actively
+                            // typing in becomes "owned" and every other compute element
+                            // is free to react to it. No live-compute-skip attribute needed.
                             cachedComputeElements.forEach((el) => {
                                 setData(el, "userOwned", el === e.target);
                             });
@@ -2339,7 +2386,20 @@
         }
 
         init();
+
+        // Expose this scope to the global format registry so
+        // LiveDom.setCurrency()/unpin() can trigger a refresh here too.
+        const instanceApi = {
+            rootScope,
+            refresh: () => {
+                remaskAutoInputs();
+                scheduleProcess(0);
+            },
+        };
+        liveComputeInstances.push(instanceApi);
+        return instanceApi;
     }
+
 
     /*==============================
       SPA ROUTER INTEGRATION
@@ -2490,13 +2550,13 @@
                 return Function(
                     "__el",
                     `
-          try {
-            return (${replaced});
-          } catch (e) {
-            console.warn('[LiveDomJs] Error in callback expression:', e);
-            return undefined;
-          }
-        `,
+          try {
+            return (${replaced});
+          } catch (e) {
+            console.warn('[LiveDomJs] Error in callback expression:', e);
+            return undefined;
+          }
+        `,
                 )(el);
             } catch (e) {
                 console.warn(
@@ -3628,7 +3688,7 @@
         handleLiveBind(); // live-bind
         bindLiveDomEvents(); // event handler utama
         handlePollers(); // pollers (live-poll)
-        // handleLiveComputeUnified();     // inisialisasi live-compute
+        // handleLiveComputeUnified();     // inisialisasi live-compute
         // handleLiveDirectives();
 
         // SPA state awal
