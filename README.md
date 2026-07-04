@@ -103,7 +103,7 @@ Reactive calculations that run entirely in the browser — no server round trips
 />
 
 <!-- Aggregate across all rows -->
-<input live-compute="sum(subtotal)" live-compute-format="idr" readonly />
+<input live-compute="sum(subtotal_?)" live-compute-format="idr" readonly />
 ```
 
 Supports: `sum()`, `avg()`, `min()`, `max()`, `count()`, `sumif()` — and both IDR (`1.000.000,00`) and USD (`1,000,000.00`) number formats.

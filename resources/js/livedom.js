@@ -1194,11 +1194,21 @@
         // 🔥 OPTIMIZED FOR 1000++ INPUTS
         const TIME_BUDGET_MS = 16;
         const INPUT_DEBOUNCE = 200;
-        const DEBUG_MODE = false;
+        // ✅ Jendela proteksi untuk field bidirectional (lihat displayResult()):
+        // cukup untuk menutupi INPUT_DEBOUNCE + beberapa pass konvergensi normal,
+        // tapi tidak permanen — lihat komentar di displayResult().
+        const OWNERSHIP_WINDOW_MS = INPUT_DEBOUNCE + 400;
+        // ✅ FIX: dulu di-hardcode `false` sehingga warning/error live-compute
+        // TIDAK PERNAH muncul di console, bahkan saat app.debug=true. Sekarang
+        // ikut flag global IS_DEBUG (meta[name="app-debug"]) yang sama dipakai
+        // di seluruh file, supaya formula yang gagal di-parse kelihatan lagi.
+        const DEBUG_MODE = IS_DEBUG;
         const MAX_ITERATIONS = 10; // Increased from 5 to 10 for better convergence
         const BATCH_SIZE = 50;
         const PRECISION_TOLERANCE = 0.0001;
-        const STABILITY_THRESHOLD = 0.001; // 0.1% change considered stable
+        // (STABILITY_THRESHOLD dihapus — dulu dideklarasikan "0.1% dianggap
+        // stabil" tapi tidak pernah benar-benar dipakai di isValueConverged();
+        // toleransi konvergensi yang aktif adalah tingkatan absolut di bawah.)
 
         // --- STATE MANAGEMENT ---
         const elementData = new WeakMap();
@@ -1299,7 +1309,12 @@
             let result = parseFloat(cleaned);
             if (isNaN(result)) result = 0;
             if (isNegative) result = -result;
-            if (isPercentageLiteral) result = result / 100;
+            // ✅ FIX: dulu SEMUA format (idr/usd/plain/...) yang kebetulan
+            // mengandung karakter "%" akan dibagi 100, bukan cuma format
+            // "percent". Sekarang hanya format berjenis "percent" yang
+            // diperlakukan begitu, supaya angka currency/plain yang tidak
+            // sengaja mengandung "%" tidak ikut rusak.
+            if (isPercentageLiteral && cfg.kind === "percent") result = result / 100;
 
             // parseFloat with fixed precision to avoid floating point artifacts
             return parseFloat(result.toFixed(10));
@@ -1372,6 +1387,60 @@
             return isFinite(result) ? result : 0;
         }
 
+        // --- 4a. SHARED: nilai cache untuk satu input, konsisten dipakai oleh
+        // rebuildDomCache() (build awal) MAUPUN oleh proses re-cache di setiap
+        // iterasi konvergensi (process()). Sebelumnya kedua tempat itu punya
+        // logic terpisah yang gampang divergen: iterasi ke-2+ dulu langsung
+        // baca `el.value` mentah walau elemennya masked-input, sehingga string
+        // tampilan (mis. "1.234.567") ikut dianggap "nilai" tanpa dikonversi
+        // balik ke angka canonical — kalau format input beda dari format
+        // parsing formula yang membacanya, hasilnya bisa salah total.
+        function computeInputCacheValue(el) {
+            const isCheckbox = el.type === "checkbox";
+            if (isCheckbox) {
+                return el.checked ? el.value : 0;
+            }
+            if (isMaskableInput(el)) {
+                if (getData(el, "canonical") === undefined) {
+                    primeMaskedInputFromDom(el, resolveParsingFormat(el));
+                    renderMaskedInput(el, resolveDisplayFormat(el));
+                }
+                return getData(el, "canonical");
+            }
+            return el.value;
+        }
+
+        // --- 4a-bis. FIX: "unlock" untuk elemen [live-compute][live-compute-init="false"].
+        // Sebelumnya, satu-satunya kode yang menghapus attribute ini menyasar
+        // `e.target` di event input/change — yaitu elemen <input> yang lagi
+        // diketik user. Untuk elemen OUTPUT read-only (<span>/<div>, yang justru
+        // pemakaian paling umum dari live-compute-init="false"), attribute-nya
+        // tidak pernah ada yang menghapus, sehingga rebuildDomCache() TERUS
+        // membuang elemen itu dari cache selamanya — formula-nya tidak pernah
+        // dihitung sama sekali, walau user sudah mengedit semua input terkait.
+        // Fungsi ini dipanggil sekali di awal setiap interaksi manual (input/
+        // change): buka kunci SEMUA elemen live-compute-init="false" yang masih
+        // terkunci dalam rootScope ini. Dijaga dengan flag `hasLockedInitOutputs`
+        // supaya setelah semuanya terbuka, tidak ada lagi querySelectorAll yang
+        // sia-sia di setiap keystroke.
+        let hasLockedInitOutputs = null; // null = belum pernah dicek
+        function unlockLiveComputeInitOutputs() {
+            if (hasLockedInitOutputs === false) return; // fast path
+
+            const locked = rootScope.querySelectorAll(
+                '[live-compute][live-compute-init="false"]',
+            );
+
+            if (locked.length === 0) {
+                hasLockedInitOutputs = false;
+                return;
+            }
+
+            locked.forEach((el) => el.removeAttribute("live-compute-init"));
+            hasLockedInitOutputs = false;
+            isCacheDirty = true; // elemen yang baru dibuka harus ikut masuk cache lagi
+        }
+
         // --- 4. OPTIMIZED CACHE BUILDER ---
         function rebuildDomCache() {
             if (!isCacheDirty) return;
@@ -1413,25 +1482,7 @@
                 const name = el.name;
                 if (name) {
                     const sanitized = sanitizeName(name);
-                    const isCheckbox = el.type === "checkbox";
-
-                    let cacheValue;
-                    if (isCheckbox) {
-                        // ✅ Checkbox support: store el.value when checked, 0 when unchecked
-                        cacheValue = el.checked ? el.value : 0;
-                    } else if (isMaskableInput(el)) {
-                        // Opt-in real-time masking (live-compute-format on a raw
-                        // <input>): cache/state always holds the canonical number,
-                        // never the display string. Render the mask once on first
-                        // sight so server-rendered values get grouped immediately.
-                        if (getData(el, "canonical") === undefined) {
-                            primeMaskedInputFromDom(el, resolveParsingFormat(el));
-                            renderMaskedInput(el, resolveDisplayFormat(el));
-                        }
-                        cacheValue = getData(el, "canonical");
-                    } else {
-                        cacheValue = el.value;
-                    }
+                    const cacheValue = computeInputCacheValue(el);
 
                     inputValueCache.set(sanitized, cacheValue);
 
@@ -1465,7 +1516,7 @@
         }
 
         // --- 6. OPTIMIZED MAIN PROCESSOR ---
-        function process(sourceElement = null) {
+        function process() {
             if (processingPromise) return processingPromise;
 
             processingPromise = new Promise((resolve) => {
@@ -1632,8 +1683,20 @@
                             ) {
                                 const el = cachedInputElements[i];
                                 if (el.name) {
-                                    const isCheckbox = el.type === "checkbox";
-                                    const cachedValue = isCheckbox ? (el.checked ? el.value : 0) : el.value;
+                                    // ✅ FIX: dulu di sini langsung baca `el.value`
+                                    // mentah untuk semua input non-checkbox,
+                                    // termasuk masked-input. Itu artinya, dari
+                                    // iterasi konvergensi ke-2 dan seterusnya,
+                                    // formula lain membaca STRING TAMPILAN
+                                    // (mis. "1.234,56") alih-alih angka
+                                    // canonical-nya. Kalau format masked-input
+                                    // itu beda dari format parsing formula yang
+                                    // membacanya (mis. input "usd" dibaca oleh
+                                    // formula ber-format "idr"), pemisah ribuan/
+                                    // desimal salah dibaca dan angkanya rusak.
+                                    // computeInputCacheValue() menyamakan lagi
+                                    // dengan logic rebuildDomCache().
+                                    const cachedValue = computeInputCacheValue(el);
                                     updateInputCache(el.name, cachedValue);
                                 }
                             }
@@ -1663,12 +1726,25 @@
 
         // --- 7. ENHANCED DOM UPDATER (with normalization) ---
         function displayResult(element, result) {
-            // A field currently owned by the user (last one manually edited in
-            // this bidirectional group) is NEVER overwritten by its own formula.
-            // This is what makes A<->B pairs (e.g. discountPercent <-> discountAmount)
-            // safe with nothing more than two live-compute attributes pointing at
-            // each other — no live-compute-skip attribute needed.
-            if (getData(element, "userOwned") === true) return false;
+            // ✅ FIX (bidirectional A<->B pairs, e.g. discountPercent <-> discountAmount):
+            // dulu proteksi ini pakai flag boolean permanen ("userOwned") yang di-set
+            // true saat user mengetik dan TIDAK PERNAH kembali false dengan sendirinya.
+            // Akibatnya field yang pernah diedit manual TERKUNCI SELAMANYA dari update
+            // formula berikutnya — termasuk saat nilai dasarnya berubah lewat cara lain
+            // (broadcast realtime, AJAX, atau field lain yang di-update programatik),
+            // yang semuanya tidak memicu event "input" asli sehingga tidak pernah ada
+            // kesempatan untuk melepas kuncinya. Flag itu juga di-reset secara BLANKET
+            // ke SEMUA elemen live-compute di halaman pada setiap keystroke (O(n) per
+            // ketikan — mahal untuk halaman dengan banyak elemen), padahal seharusnya
+            // hanya relevan untuk field yang benar-benar sedang diketik.
+            //
+            // Sekarang: field dilindungi dari overwrite formula HANYA selama beberapa
+            // ratus ms setelah terakhir diketik (cukup menutupi debounce + siklus
+            // konvergensi yang sedang berjalan). Begitu user berhenti mengetik field
+            // itu, ia otomatis "lepas kunci" dan formula bisa meng-update-nya lagi —
+            // tidak perlu event dari field lain, dan tidak ada loop O(n) sama sekali.
+            const lastManualInput = getData(element, "lastManualInput") || 0;
+            if (Date.now() - lastManualInput < OWNERSHIP_WINDOW_MS) return false;
 
             const lastValue = getData(element, "lastValue");
             const lastDisplayFormat = getData(element, "lastDisplayFormat");
@@ -1786,7 +1862,13 @@
                 if (m) return 0;
             }
 
-            if (expr.match(/(sum|avg|min|max|count|sumif)\(/)) {
+            // ✅ FIX: lookbehind (?<![\w.]) memastikan "min(", "max(", dst hanya
+            // dianggap fungsi agregat LiveDom kalau BUKAN didahului huruf/angka/
+            // underscore atau titik. Tanpa ini, `Math.max(a, b)` ikut tertangkap
+            // (karena mengandung substring "max("), lalu diganti jadi angka hasil
+            // agregat sehingga expr berubah jadi "Math.<angka>" — sintaks JS yang
+            // tidak valid — dan formula selalu gagal senyap, hasilnya selalu 0.
+            if (/(?<![\w.])(sum|avg|min|max|count|sumif)\(/.test(expr)) {
                 expr = processAggregateFunctions(
                     expr,
                     globalInputs,
@@ -1825,8 +1907,11 @@
             indices,
             parsingFormat,
         ) {
+            // ✅ FIX: guard yang sama seperti di evaluateExpression() — jangan
+            // sentuh "sumif(" yang didahului huruf/angka/underscore/titik
+            // (mis. "Math." atau bagian dari identifier lain).
             expr = expr.replace(
-                /sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi,
+                /(?<![\w.])sumif\(([^,]+),\s*([^,]+),\s*([^)]+)\)/gi,
                 (match, r1, c, r2) => {
                     const cacheKey = `sumif:${r1}:${c}:${r2}:${parsingFormat}`;
 
@@ -1849,7 +1934,7 @@
             );
 
             return expr.replace(
-                /(sum|avg|min|max|count)\(([^()]+)\)/gi,
+                /(?<![\w.])(sum|avg|min|max|count)\(([^()]+)\)/gi,
                 (match, fn, arg) => {
                     const cacheKey = `${fn}:${arg}:${parsingFormat}`;
 
@@ -1936,6 +2021,18 @@
                     if (val !== undefined) vals.push(val);
                 });
             } else {
+                // ⚠️ Catatan desain: fungsi agregat di sini hanya menerima SATU
+                // nama field (opsional dengan wildcard "?" untuk row), bukan
+                // daftar eksplisit seperti "a, b, c". Kalau argumennya mengandung
+                // koma, itu tanda umum salah pakai (developer mengira ini bisa
+                // menjumlahkan beberapa variabel sekaligus) — beri warning di
+                // debug mode alih-alih diam-diam mengembalikan 0.
+                if (DEBUG_MODE && arg.includes(",")) {
+                    console.warn(
+                        `[LiveCompute] Argumen agregat "${arg}" mengandung koma — ini dibaca sebagai SATU nama field (dan kemungkinan besar tidak ketemu, hasil jadi 0), bukan daftar variabel terpisah. Gunakan pola wildcard, mis. sum(price_?), untuk menjumlahkan beberapa baris.`,
+                    );
+                }
+
                 const key = sanitizeName(arg);
                 const val = globalInputs.get(key);
                 if (val !== undefined) vals.push(val);
@@ -2038,6 +2135,19 @@
                 "Math",
                 "safeDivide",
                 "safeAdd",
+                // ✅ FIX: literal JS yang mungkin dipakai langsung di ekspresi,
+                // mis. `active == true ? 1 : 0`. Tanpa ini, "true" ikut
+                // diekstrak sebagai nama variabel lalu dijadikan nama parameter
+                // di `new Function(...)` — tapi "true"/"false"/"null" adalah
+                // reserved word JS dan TIDAK BOLEH jadi nama parameter, jadi
+                // `new Function()` throw SyntaxError dan formula diam-diam
+                // selalu bernilai 0.
+                "true",
+                "false",
+                "null",
+                "undefined",
+                "NaN",
+                "Infinity",
             ];
             return [...new Set(vars.filter((v) => !reserved.includes(v)))];
         }
@@ -2045,6 +2155,24 @@
         // formatKey here is always a resolved key (never "auto") coming from
         // resolveDisplayFormat(). Unknown keys degrade to the raw string instead
         // of throwing, so a typo in live-compute-format never breaks the page.
+        // ✅ PERF: Intl.NumberFormat itu lumayan berat untuk dibuat, dan biasanya
+        // cuma ada segelintir kombinasi (locale, decimals) yang benar-benar dipakai
+        // di satu halaman walau elemen live-compute-nya ribuan. Cache instance-nya
+        // supaya formatResult() tidak bikin objek baru tiap kali ada nilai berubah.
+        const numberFormatCache = new Map();
+        function getNumberFormat(locale, decimals) {
+            const key = `${locale}:${decimals}`;
+            let fmt = numberFormatCache.get(key);
+            if (!fmt) {
+                fmt = new Intl.NumberFormat(locale, {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals,
+                });
+                numberFormatCache.set(key, fmt);
+            }
+            return fmt;
+        }
+
         function formatResult(result, formatKey, maxDecimals) {
             const cfg = getLiveComputeFormat(formatKey);
             if (!cfg) return String(result);
@@ -2064,10 +2192,7 @@
 
             // "currency" and "plain" both render through Intl using the config's locale
             try {
-                return new Intl.NumberFormat(cfg.locale || "en-US", {
-                    minimumFractionDigits: decimals,
-                    maximumFractionDigits: decimals,
-                }).format(num);
+                return getNumberFormat(cfg.locale || "en-US", decimals).format(num);
             } catch (e) {
                 return num.toFixed(decimals);
             }
@@ -2254,9 +2379,9 @@
         }
 
         // --- 11. OPTIMIZED SCHEDULER & INIT ---
-        function scheduleProcess(delay = 0, sourceElement = null) {
+        function scheduleProcess(delay = 0) {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => process(sourceElement), delay);
+            debounceTimer = setTimeout(() => process(), delay);
         }
 
         function init() {
@@ -2317,23 +2442,24 @@
                                 ? (e.target.checked ? e.target.value : 0)
                                 : (maskedCanonical !== undefined ? maskedCanonical : e.target.value);
                             updateInputCache(e.target.name, cachedValue);
+                            // ✅ FIX: ini sekarang SATU-SATUNYA hal yang perlu dicatat
+                            // untuk proteksi bidirectional (lihat displayResult()) —
+                            // O(1), bukan lagi forEach ke semua elemen live-compute.
                             setData(e.target, "lastManualInput", Date.now());
-
-                            // Bidirectional pairs (A's formula reads B, B's formula reads A)
-                            // work purely off this: whichever field the user is actively
-                            // typing in becomes "owned" and every other compute element
-                            // is free to react to it. No live-compute-skip attribute needed.
-                            cachedComputeElements.forEach((el) => {
-                                setData(el, "userOwned", el === e.target);
-                            });
                         }
 
-                        // Unlock init attribute on manual input
+                        // Unlock init attribute on manual input (self-computing
+                        // input case: this element itself carries the attribute)
                         if (e.target.hasAttribute("live-compute-init")) {
                             e.target.removeAttribute("live-compute-init");
                         }
 
-                        scheduleProcess(INPUT_DEBOUNCE, e.target);
+                        // ✅ FIX: juga buka kunci elemen OUTPUT read-only yang
+                        // masih live-compute-init="false" di scope ini — lihat
+                        // penjelasan di unlockLiveComputeInitOutputs().
+                        unlockLiveComputeInitOutputs();
+
+                        scheduleProcess(INPUT_DEBOUNCE);
                     }
                 },
                 { passive: true },
@@ -2353,17 +2479,18 @@
                     ) {
                         // ✅ Store el.value when checked, 0 when unchecked
                         const checkboxValue = e.target.checked ? e.target.value : 0;
-                        updateInputCache(e.target.name, checkboxValue, false);
+                        updateInputCache(e.target.name, checkboxValue);
                         setData(e.target, "lastManualInput", Date.now());
-                        cachedComputeElements.forEach((el) => {
-                            setData(el, "userOwned", el === e.target);
-                        });
 
                         if (e.target.hasAttribute("live-compute-init")) {
                             e.target.removeAttribute("live-compute-init");
                         }
 
-                        scheduleProcess(INPUT_DEBOUNCE, e.target);
+                        // ✅ FIX: sama seperti di handler "input" — buka kunci
+                        // elemen output live-compute-init="false" di scope ini.
+                        unlockLiveComputeInitOutputs();
+
+                        scheduleProcess(INPUT_DEBOUNCE);
                     }
                 },
                 { passive: true },
