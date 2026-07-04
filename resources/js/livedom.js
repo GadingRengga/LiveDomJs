@@ -2520,6 +2520,49 @@
       SPA ROUTER INTEGRATION
     ==============================*/
 
+    /**
+     * FIX (bug #3): sebelumnya ada 3 mekanisme request berbeda untuk SPA
+     * (ajaxSpa via fetch+AbortController, ajaxSpaFormSubmit via $.ajax tanpa
+     * abort, dan fetch polos untuk form GET/redirect tanpa abort & tanpa
+     * loading bar) — jadi hanya sebagian yang bisa saling membatalkan
+     * request lama dan loading bar tidak konsisten muncul. Helper ini
+     * dipakai bersama supaya semua jalur GET SPA berbagi controller yang
+     * sama dan selalu menampilkan loading bar.
+     * @param {string} url
+     * @returns {Promise<string>} response body sebagai text
+     */
+    function spaFetchGet(url) {
+        if (currentSpaController) {
+            currentSpaController.abort();
+        }
+        currentSpaController = new AbortController();
+        const signal = currentSpaController.signal;
+
+        showLoadingBar();
+
+        return fetch(url, {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            signal,
+        })
+            .then((res) => res.text())
+            .finally(() => {
+                hideLoadingBar();
+                currentSpaController = null;
+            });
+    }
+
+    /**
+     * Dispatch pasangan event afterUpdate + afterSpa setelah region SPA
+     * diperbarui.
+     * @param {string} url
+     */
+    function dispatchSpaEvents(url) {
+        document.dispatchEvent(new CustomEvent("live-dom:afterUpdate"));
+        document.dispatchEvent(
+            new CustomEvent("live-dom:afterSpa", { detail: { url } }),
+        );
+    }
+
     let currentSpaController = null;
 
     /**
@@ -2619,14 +2662,7 @@
             null,
             (res) => {
                 updateSpaRegions(res);
-                document.dispatchEvent(new CustomEvent("live-dom:afterUpdate"));
-                document.dispatchEvent(
-                    new CustomEvent("live-dom:afterSpa", {
-                        detail: {
-                            url,
-                        },
-                    }),
-                );
+                dispatchSpaEvents(url);
                 if (pushState)
                     history.pushState(
                         {
@@ -2738,87 +2774,95 @@
                     return;
                 }
 
-                $.ajax({
-                    url,
+                clearFormErrors(form);
+
+                // FIX (bug #3): sebelumnya pakai $.ajax dan tidak terhubung
+                // ke currentSpaController sama sekali, jadi request submit
+                // form tidak bisa dibatalkan kalau user buru-buru navigasi
+                // lagi (race condition). Sekarang pakai fetch + controller
+                // yang sama dengan request SPA lainnya.
+                if (currentSpaController) {
+                    currentSpaController.abort();
+                }
+                currentSpaController = new AbortController();
+                const signal = currentSpaController.signal;
+
+                showLoadingBar();
+
+                fetch(url, {
                     method,
-                    data: formData,
-                    processData: false,
-                    contentType: false,
+                    body: formData,
+                    signal,
                     headers: {
                         "X-Requested-With": "XMLHttpRequest",
                         "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
                             "content",
                         ),
                     },
-                    beforeSend: function () {
-                        showLoadingBar();
-                        clearFormErrors(form);
-                    },
-                    success: (response) => {
-                        const redirectUrl = response?.redirect;
+                })
+                    .then(async (response) => {
+                        const contentType =
+                            response.headers.get("content-type") || "";
+                        const isJson = contentType.includes("application/json");
+                        const body = isJson
+                            ? await response.json()
+                            : await response.text();
+
+                        if (!response.ok) {
+                            if (response.status === 422 && isJson) {
+                                showFormErrors(form, body?.errors || {});
+                            } else {
+                                showErrorModal(body);
+                            }
+                            runAfterCallback(body, true);
+                            callbackError?.(body);
+                            return;
+                        }
+
+                        const redirectUrl = isJson ? body?.redirect : null;
 
                         if (redirectUrl) {
-                            fetch(redirectUrl, {
-                                headers: {
-                                    "X-Requested-With": "XMLHttpRequest",
-                                },
-                            })
-                                .then((res) => res.text())
+                            return spaFetchGet(redirectUrl)
                                 .then((html) => {
                                     updateSpaRegions(html);
-                                    document.dispatchEvent(
-                                        new CustomEvent("live-dom:afterUpdate"),
-                                    );
-                                    document.dispatchEvent(
-                                        new CustomEvent("live-dom:afterSpa", {
-                                            detail: {
-                                                url: redirectUrl,
-                                            },
-                                        }),
-                                    );
+                                    dispatchSpaEvents(redirectUrl);
                                     history.pushState(
-                                        {
-                                            spa: true,
-                                            url: redirectUrl,
-                                        },
+                                        { spa: true, url: redirectUrl },
                                         "",
                                         redirectUrl,
                                     );
-                                    runAfterCallback(response, false);
-                                    callbackSuccess?.(response);
+                                    runAfterCallback(body, false);
+                                    callbackSuccess?.(body);
                                 })
                                 .catch((err) => {
                                     console.error(
                                         "SPA redirect fetch error:",
                                         err,
                                     );
-                                    runAfterCallback(response, true);
+                                    runAfterCallback(body, true);
                                     callbackError?.(err);
                                 });
-                        } else {
-                            runAfterCallback(response, false);
-                            callbackSuccess?.(response);
                         }
-                    },
-                    error: (xhr) => {
-                        if (xhr.status === 422) {
-                            const errors = xhr.responseJSON?.errors || {};
-                            showFormErrors(form, errors);
-                        } else {
-                            console.error("Form submit error:", xhr);
-                            const content = xhr.responseText;
-                            try {
-                                const json = JSON.parse(content);
-                                showErrorModal(json);
-                            } catch {
-                                showErrorModal(content);
-                            }
+
+                        runAfterCallback(body, false);
+                        callbackSuccess?.(body);
+                    })
+                    .catch((error) => {
+                        if (error.name === "AbortError") {
+                            console.log(
+                                "[SPA] Form submit dibatalkan:",
+                                url,
+                            );
+                            return;
                         }
-                        runAfterCallback(xhr, true);
-                        callbackError?.(xhr);
-                    },
-                    complete: hideLoadingBar,
-                });
+                        console.error("Form submit error:", error);
+                        runAfterCallback(error, true);
+                        callbackError?.(error);
+                    })
+                    .finally(() => {
+                        hideLoadingBar();
+                        currentSpaController = null;
+                    });
             })
             .catch((error) => {
                 console.error("Error in before callback chain:", error);
@@ -2858,22 +2902,32 @@
      * @returns {boolean} True if the URL should be excluded.
      */
     function isSpaExcluded(url) {
+        const excludes = (
+            window.liveDomConfig?.spaExcludePrefixes || []
+        ).filter(Boolean);
+        if (excludes.length === 0) return false;
+
+        let path;
         try {
-            const path = new URL(url, window.location.origin).pathname;
-            const excludes = (
-                window.liveDomConfig?.spaExcludePrefixes || []
-            ).filter(Boolean);
-            return excludes.some((prefix) => path.startsWith(prefix));
+            path = new URL(url, window.location.origin).pathname;
         } catch (e) {
+            // FIX (bug #5): fallback ini dulu membandingkan url MENTAH
+            // (termasuk origin/query/hash) terhadap prefix, sementara jalur
+            // normal di atas membandingkan pathname saja — jadi hasilnya
+            // bisa beda antara kedua jalur untuk url yang sama persis.
+            // Sekarang fallback juga menormalkan ke pathname supaya
+            // konsisten dengan jalur utama.
             console.warn(
                 "Error parsing URL for SPA exclusion, falling back:",
                 e,
             );
-            const excludes = (
-                window.liveDomConfig?.spaExcludePrefixes || []
-            ).filter(Boolean);
-            return excludes.some((prefix) => url.startsWith(prefix));
+            path = String(url).split("#")[0].split("?")[0];
+            if (path.startsWith(window.location.origin)) {
+                path = path.slice(window.location.origin.length);
+            }
         }
+
+        return excludes.some((prefix) => path.startsWith(prefix));
     }
 
     /*==============================
@@ -3629,13 +3683,24 @@
                 }
 
                 document.head.appendChild(newScript);
+
+                // FIX (bug #2): script inline langsung tereksekusi secara
+                // synchronous begitu di-append (bukan lewat network seperti
+                // script eksternal), jadi elemennya tidak perlu terus
+                // menempel di <head>. Kalau dibiarkan, setiap navigasi SPA
+                // menambah 1 elemen <script> baru ke <head> selamanya
+                // (memory leak yang tumbuh terus seiring lamanya sesi).
+                newScript.remove();
             }
         });
     }
 
     function handleLiveBind() {
+        // FIX (bug #1): namespaced + off-before-on supaya handler tidak
+        // menumpuk setiap kali initLiveDom() dipanggil ulang (live-dom:afterUpdate / afterSpa).
+        $(document).off("input.liveDomBind change.liveDomBind");
         $(document).on(
-            "input change",
+            "input.liveDomBind change.liveDomBind",
             "input[name], select[name], textarea[name]",
             function () {
                 const $source = $(this);
@@ -3662,40 +3727,53 @@
       LIVE DOM HOOKS & INITIALIZATION
     ==============================*/
 
-    /** Binds all initial live DOM event handlers. */
+    /**
+     * Binds all initial live DOM event handlers.
+     *
+     * FIX (bug #1): initLiveDom() dipanggil ulang setiap kali ada event
+     * "live-dom:afterUpdate" / "live-dom:afterSpa" (yaitu setiap aksi ajax
+     * ATAU setiap navigasi SPA). Karena jQuery `.on()` tidak menggantikan
+     * handler lama, tanpa namespace + `.off()` di sini, delegated handler
+     * akan MENUMPUK setiap kali fungsi ini terpanggil ulang -> satu klik
+     * bisa memicu N request ajax duplikat setelah N kali update/navigasi.
+     * Solusinya: pakai namespace ".liveDomCore" dan `.off()` semua handler
+     * lama dengan namespace itu sebelum mendaftarkan yang baru.
+     */
     function bindLiveDomEvents() {
-        $(document).on("click", "[live-click]", function () {
+        $(document).off(".liveDomCore");
+
+        $(document).on("click.liveDomCore", "[live-click]", function () {
             handleLiveEvent($(this), "click");
         });
 
-        $(document).on("mouseenter mouseleave", "[live-hover]", function () {
+        $(document).on("mouseenter.liveDomCore mouseleave.liveDomCore", "[live-hover]", function () {
             handleLiveEvent($(this), "hover");
         });
 
-        $(document).on("change", "[live-change]", function () {
+        $(document).on("change.liveDomCore", "[live-change]", function () {
             handleLiveEvent($(this), "change");
         });
 
-        $(document).on("submit", "[live-submit]", function (e) {
+        $(document).on("submit.liveDomCore", "[live-submit]", function (e) {
             e.preventDefault();
             handleLiveEvent($(this), "submit");
         });
 
-        $(document).on("keyup", "[live-keyup]", function () {
+        $(document).on("keyup.liveDomCore", "[live-keyup]", function () {
             handleLiveEvent($(this), "keyup");
         });
 
-        $(document).on("input", "[live-input]", function () {
+        $(document).on("input.liveDomCore", "[live-input]", function () {
             handleLiveEvent($(this), "input");
         });
 
-        $(document).on("input", "[live-bind]", function () {
+        $(document).on("input.liveDomCore", "[live-bind]", function () {
             handleLiveEvent($(this), "input");
         });
 
         // event binding, pakai debounce
         $(document).on(
-            "input change",
+            "input.liveDomCore change.liveDomCore",
             "[live-scope] input, [live-scope] select, [live-scope] textarea",
             debounce(function () {
                 const scope = $(this).closest("[live-scope]");
@@ -3704,7 +3782,7 @@
         );
 
         $(document).on(
-            "click",
+            "click.liveDomCore",
             '[live-spa-region] a[href]:not([href^="#"]):not([href=""])',
             function (e) {
                 const url = $(this).attr("href");
@@ -3714,7 +3792,7 @@
             },
         );
 
-        $(document).on("submit", "[live-spa-region] form", function (e) {
+        $(document).on("submit.liveDomCore", "[live-spa-region] form", function (e) {
             const form = this;
             const url = form.action || "";
             const method = form.method.toUpperCase() || "GET";
@@ -3730,24 +3808,10 @@
                 });
                 const fullUrl = existingUrl.toString();
 
-                fetch(fullUrl, {
-                    headers: {
-                        "X-Requested-With": "XMLHttpRequest",
-                    },
-                })
-                    .then((res) => res.text())
+                spaFetchGet(fullUrl)
                     .then((html) => {
                         updateSpaRegions(html);
-                        document.dispatchEvent(
-                            new CustomEvent("live-dom:afterUpdate"),
-                        );
-                        document.dispatchEvent(
-                            new CustomEvent("live-dom:afterSpa", {
-                                detail: {
-                                    url: fullUrl,
-                                },
-                            }),
-                        );
+                        dispatchSpaEvents(fullUrl);
                         history.replaceState(
                             {
                                 spa: true,
@@ -3757,23 +3821,17 @@
                             fullUrl,
                         );
                     })
-                    .catch((err) => console.error("SPA GET error:", err));
+                    .catch((err) => {
+                        if (err.name === "AbortError") return;
+                        console.error("SPA GET error:", err);
+                    });
                 return;
             }
 
             ajaxSpaFormSubmit(form, function (response) {
                 if (typeof response === "string") {
                     updateSpaRegions(response);
-                    document.dispatchEvent(
-                        new CustomEvent("live-dom:afterUpdate"),
-                    );
-                    document.dispatchEvent(
-                        new CustomEvent("live-dom:afterSpa", {
-                            detail: {
-                                url,
-                            },
-                        }),
-                    );
+                    dispatchSpaEvents(url);
                     history.pushState(
                         {
                             spa: true,
@@ -3798,6 +3856,12 @@
         });
     }
 
+    // FIX (bug #4): dulu blok "SPA state awal" ada di dalam initLiveDom() dan
+    // history.replaceState() jalan SETIAP kali initLiveDom() dipanggil ulang
+    // — padahal itu terjadi di setiap aksi ajax biasa juga (bukan cuma SPA),
+    // jadi history state ditimpa berkali-kali tanpa perlu. Cukup jalan sekali.
+    let spaHistoryInitialized = false;
+
     function initLiveDom() {
         initLoadingBar(); // loading bar
         handleLiveBind(); // live-bind
@@ -3806,8 +3870,12 @@
         // handleLiveComputeUnified();     // inisialisasi live-compute
         // handleLiveDirectives();
 
-        // SPA state awal
-        if (document.querySelector('[live-spa-region="main"]')) {
+        // SPA state awal — cukup sekali per page load
+        if (
+            !spaHistoryInitialized &&
+            document.querySelector('[live-spa-region="main"]')
+        ) {
+            spaHistoryInitialized = true;
             const currentUrl = window.location.href;
             history.replaceState(
                 { spa: true, url: currentUrl },
