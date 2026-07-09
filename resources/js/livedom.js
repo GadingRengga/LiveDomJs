@@ -1,5 +1,127 @@
-(function ($) {
+(function () {
     "use strict";
+
+    /*==============================
+        VANILLA JS DOM HELPERS
+        (pengganti jQuery — dipakai internal saja, tidak mengubah
+        API atribut live-* sedikit pun)
+    ==============================*/
+    function qs(selector, root = document) {
+        return root.querySelector(selector);
+    }
+    function qsa(selector, root = document) {
+        return Array.from(root.querySelectorAll(selector));
+    }
+    // Normalisasi "target" yang di versi lama bisa berupa selector string,
+    // Element, atau NodeList/Array — selalu kembalikan array of Element.
+    function toElements(target) {
+        if (!target) return [];
+        if (target instanceof Element) return [target];
+        if (target instanceof NodeList || Array.isArray(target)) {
+            return Array.from(target).filter((t) => t instanceof Element);
+        }
+        if (typeof target === "string") return qsa(target);
+        return [];
+    }
+    function showEl(el) {
+        if (!el) return;
+        if (el.dataset._liveDisplay === undefined) {
+            const current = el.style.display;
+            el.dataset._liveDisplay = current && current !== "none" ? current : "";
+        }
+        el.style.display = el.dataset._liveDisplay || "";
+    }
+    function hideEl(el) {
+        if (!el) return;
+        if (el.dataset._liveDisplay === undefined) {
+            const current = el.style.display;
+            el.dataset._liveDisplay = current && current !== "none" ? current : "";
+        }
+        el.style.display = "none";
+    }
+    function toggleEl(el, force) {
+        if (!el) return;
+        const shouldShow = typeof force === "boolean" ? force : el.style.display === "none";
+        if (shouldShow) showEl(el);
+        else hideEl(el);
+    }
+    function closestAncestor(el, selector) {
+        return el && el.closest ? el.closest(selector) : null;
+    }
+    function isEl(el, selector) {
+        return !!(el && el.matches && el.matches(selector));
+    }
+    function csrfToken() {
+        const meta = qs('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute("content") : "";
+    }
+
+    // Replikasi PERSIS algoritma jQuery.param() (mode default, traditional:false)
+    // — ini yang dipakai $.ajax secara internal untuk mengubah object `data`
+    // jadi query string saat method GET. Ditulis ulang manual karena
+    // URLSearchParams + JSON.stringify (versi lama) menghasilkan format
+    // berbeda untuk array/nested object dibanding jQuery:
+    //   jQuery : { a: [1,2] }        -> "a%5B%5D=1&a%5B%5D=2"   (a[]=1&a[]=2)
+    //   jQuery : { a: { b: 1 } }     -> "a%5Bb%5D=1"             (a[b]=1)
+    //   jQuery : { a: [{x:1}] }      -> "a%5B0%5D%5Bx%5D=1"      (a[0][x]=1)
+    //   jQuery : { a: null }         -> "a="
+    // Semua kasus di atas SEKARANG identik hasilnya dengan versi jQuery.
+    const rbracket = /\[\]$/;
+
+    function jqType(obj) {
+        if (obj == null) return obj + "";
+        return typeof obj === "object" || typeof obj === "function"
+            ? Object.prototype.toString.call(obj).slice(8, -1).toLowerCase()
+            : typeof obj;
+    }
+
+    function jqParam(data) {
+        const s = [];
+
+        const add = (key, value) => {
+            const v = typeof value === "function" ? value() : value;
+            s.push(
+                encodeURIComponent(key) +
+                    "=" +
+                    encodeURIComponent(v == null ? "" : v),
+            );
+        };
+
+        const buildParams = (prefix, obj) => {
+            if (Array.isArray(obj)) {
+                obj.forEach((v, i) => {
+                    if (rbracket.test(prefix)) {
+                        // prefix sudah diakhiri "[]" -> jangan di-bracket lagi (nested array)
+                        add(prefix, v);
+                    } else {
+                        buildParams(
+                            prefix +
+                                "[" +
+                                (typeof v === "object" && v != null ? i : "") +
+                                "]",
+                            v,
+                        );
+                    }
+                });
+            } else if (jqType(obj) === "object") {
+                for (const name in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, name)) {
+                        buildParams(prefix + "[" + name + "]", obj[name]);
+                    }
+                }
+            } else {
+                add(prefix, obj);
+            }
+        };
+
+        for (const prefix in data) {
+            if (Object.prototype.hasOwnProperty.call(data, prefix)) {
+                buildParams(prefix, data[prefix]);
+            }
+        }
+
+        return s.join("&");
+    }
 
     /*==============================
         AJAX DYNAMIC
@@ -24,6 +146,39 @@
     // Simpan cache response sementara (single-use)
     const ajaxCache = new Map();
 
+    // FIX (live-loading): show/hide berbasis refcount, supaya kalau 2 request
+    // beririsan menunjuk target loading yang sama, elemen itu tidak ke-hide
+    // prematur oleh request pertama yang selesai duluan sementara request
+    // kedua masih berjalan. `loadingTarget` bisa berupa:
+    //   - satu selector string (mis. dari live-loading="#id")
+    //   - array campuran selector string / elemen DOM (live-loading DAN
+    //     live-loading-indicator digabung jadi satu array di handleLiveEvent())
+    //   - null/undefined (tidak ada loading indicator)
+    const loadingRefCount = new Map();
+
+    function toLoadingList(loadingTarget) {
+        if (!loadingTarget) return [];
+        return Array.isArray(loadingTarget) ? loadingTarget : [loadingTarget];
+    }
+
+    function showLoading(loadingTarget) {
+        toLoadingList(loadingTarget).forEach((target) => {
+            loadingRefCount.set(target, (loadingRefCount.get(target) || 0) + 1);
+            toElements(target).forEach(showEl);
+        });
+    }
+
+    function hideLoading(loadingTarget) {
+        toLoadingList(loadingTarget).forEach((target) => {
+            const remaining = Math.max(
+                0,
+                (loadingRefCount.get(target) || 0) - 1,
+            );
+            loadingRefCount.set(target, remaining);
+            if (remaining === 0) toElements(target).forEach(hideEl);
+        });
+    }
+
     function ajaxDynamic(
         method = "POST",
         controller,
@@ -31,7 +186,7 @@
         data = {},
         target = "html",
         targetId = "#",
-        loading = true,
+        loading = null,
         callback = null,
         useCache = false,
     ) {
@@ -56,16 +211,18 @@
         const abortController = new AbortController();
         ajaxDynamicControllers[key] = abortController;
 
-        if (loading) $(".loading").show();
+        showLoading(loading);
 
         const isFormData = data instanceof FormData;
 
         // 🔥 Deteksi elemen pemicu LiveDOM
-        const $trigger = $(document.activeElement).closest(
+        const triggerEl = closestAncestor(
+            document.activeElement,
             "[live-click], [live-change]",
         );
-        const isRealtime = $trigger.attr("live-realtime") === "true";
-        const liveTarget = $trigger.attr("live-target") || targetId || "auto";
+        const isRealtime = triggerEl?.getAttribute("live-realtime") === "true";
+        const liveTarget =
+            triggerEl?.getAttribute("live-target") || targetId || "auto";
 
         // ✅ Tambahkan metadata ke data (untuk AjaxController)
         if (!isFormData) {
@@ -79,47 +236,68 @@
             data.append("live_target", liveTarget);
         }
 
-        console.log("🚀 Sending $.ajax to", `/ajax/${controller}/${action}`);
-
-        $.ajax({
-            url: `/ajax/${controller}/${action}`,
-            method: method,
+        let url = `/ajax/${controller}/${action}`;
+        const fetchOptions = {
+            method,
+            signal: abortController.signal,
             headers: {
-                ...(method !== "GET" && {
-                    "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
-                        "content",
-                    ),
-                }),
+                ...(method !== "GET" && { "X-CSRF-TOKEN": csrfToken() }),
                 ...(isRealtime && { "X-Live-Reverb": "true" }),
             },
-            data:
-                method === "GET"
-                    ? data
-                    : isFormData
-                        ? data
-                        : JSON.stringify(data),
-            contentType:
-                method === "GET"
-                    ? undefined
-                    : isFormData
-                        ? false
-                        : "application/json",
-            processData: isFormData ? false : true,
-            cache: false,
-            signal: abortController.signal,
+        };
 
-            success: function (response) {
-                console.log("✅ SUCCESS fired", response);
-                if (loading) $(".loading").hide();
+        if (method === "GET") {
+            // FIX (serialisasi GET): dulu pakai URLSearchParams + JSON.stringify
+            // untuk value object, yang formatnya BEDA dari jQuery ($.ajax
+            // menyerialisasi `data` object via $.param() secara internal).
+            // Sekarang pakai jqParam() supaya query string yang dihasilkan
+            // identik persis dengan versi jQuery (termasuk array & nested object).
+            const queryString = jqParam(data || {});
+            if (queryString) url += `?${queryString}`;
+        } else if (isFormData) {
+            fetchOptions.body = data;
+        } else {
+            fetchOptions.headers["Content-Type"] = "application/json";
+            fetchOptions.body = JSON.stringify(data);
+        }
+
+        console.log("🚀 Sending fetch to", url);
+
+        fetch(url, fetchOptions)
+            .then(async (res) => {
+                const contentType = res.headers.get("content-type") || "";
+                let parsed = null;
+                let rawText = null;
+
+                if (contentType.includes("application/json")) {
+                    parsed = await res.json();
+                } else {
+                    rawText = await res.text();
+                    try {
+                        parsed = JSON.parse(rawText);
+                    } catch {
+                        parsed = null;
+                    }
+                }
+
+                if (!res.ok) {
+                    const err = new Error(`HTTP ${res.status}`);
+                    err.contentType = contentType;
+                    err.rawText = rawText;
+                    err.parsed = parsed;
+                    throw err;
+                }
+
+                console.log("✅ SUCCESS fired", parsed);
                 delete ajaxDynamicControllers[key];
-                if (useCache) ajaxCache.set(key, response);
+                if (useCache) ajaxCache.set(key, parsed);
 
                 // ⚡ Jika server sudah melakukan broadcast realtime → skip render lokal
                 if (
-                    response.message?.includes(
+                    parsed?.message?.includes(
                         "Broadcasted via ReverbDynamic",
                     ) ||
-                    response.realtime === true
+                    parsed?.realtime === true
                 ) {
                     console.log(
                         "[ReverbDynamic] Broadcasted realtime — skip local DOM update.",
@@ -127,42 +305,33 @@
                     return;
                 }
 
-                if (typeof callback === "function") callback(response);
-                else callBackAjaxDynamic(target, targetId, response);
-            },
-
-            error: function (jqXHR, textStatus) {
-                try {
-                    if (loading)
-                        targetId !== "#"
-                            ? hideTargetLoading(targetId)
-                            : $(".loading").hide();
-                } catch (e) { }
-
+                if (typeof callback === "function") callback(parsed);
+                else callBackAjaxDynamic(target, targetId, parsed);
+            })
+            .catch((err) => {
+                // (hide loading indicator sudah ditangani oleh `.finally` di bawah)
                 delete ajaxDynamicControllers[key];
 
-                if (textStatus === "abort") { return; }
+                if (err.name === "AbortError") return;
 
                 // ✅ Debug mode → langsung toast, skip modal detail
                 if (!IS_DEBUG) {
-                    const msg = jqXHR.responseJSON?.message || "Terjadi kesalahan.";
+                    const msg = err.parsed?.message || "Terjadi kesalahan.";
                     showProductionErrorToast(msg);
                     return;
                 }
 
                 // 🛠️ Development mode → tampilkan detail error
-                const contentType = jqXHR.getResponseHeader("content-type") || "";
+                const contentType = err.contentType || "";
 
                 if (contentType.includes("text/html")) {
-                    showErrorModal(jqXHR.responseText);
+                    showErrorModal(err.rawText);
                     return;
                 }
 
-                let json = {};
-                try {
-                    json = jqXHR.responseJSON || JSON.parse(jqXHR.responseText);
-                } catch {
-                    json = { message: "Unparsable response", raw: jqXHR.responseText };
+                let json = err.parsed;
+                if (!json) {
+                    json = { message: "Unparsable response", raw: err.rawText };
                 }
 
                 if (json.production_error) {
@@ -171,8 +340,10 @@
                 }
 
                 showErrorModal(json);
-            },
-        });
+            })
+            .finally(() => {
+                hideLoading(loading);
+            });
     }
 
     /**
@@ -190,7 +361,9 @@
             ) {
                 window[target](response.data, targetId);
             } else if (target === "html") {
-                $(`${targetId}`).html(response.data);
+                qsa(`${targetId}`).forEach((el) => {
+                    el.innerHTML = response.data;
+                });
             } else if (typeof target == "function") {
                 target(response.data, targetId);
             }
@@ -204,81 +377,6 @@
                 trace: response.trace || {},
             });
         }
-    }
-
-    /**
-     * Displays a loading overlay on the specified target element.
-     * @param {string} targetId - The CSS selector of the element to show loading on.
-     */
-    function showTargetLoading(targetId) {
-        const $target = $(targetId);
-        if ($target.length === 0) return;
-
-        $target.find(".dynamic-loading-overlay").remove();
-
-        const $overlay = $(`
-      <div class="dynamic-loading-overlay" style="
-        position: absolute;
-        inset: 0;
-        background: rgba(255, 255, 255, 0.75);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 50;
-        border-radius: inherit;
-        animation: fadeIn 0.3s ease-in-out;
-      ">
-        <div class="spinner-glow"></div>
-      </div>
-    `);
-
-        const spinnerStyle = `
-      @keyframes spinnerFade {
-        0%, 100% { opacity: 0.3; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.2); }
-      }
-
-      .spinner-glow {
-        width: 32px;
-        height: 32px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #6366f1, #ec4899);
-        animation: spinnerFade 1s infinite ease-in-out;
-        box-shadow: 0 0 10px rgba(99,102,241,0.4), 0 0 20px rgba(236,72,153,0.3);
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-
-      .dynamic-loading-overlay {
-        transition: opacity 0.3s ease;
-      }
-    `;
-
-        if (!$("head").find("#spinner-style").length) {
-            $("head").append(
-                `<style id="spinner-style">${spinnerStyle}</style>`,
-            );
-        }
-
-        if ($target.css("position") === "static") {
-            $target.css("position", "relative");
-        }
-
-        $target.append($overlay);
-    }
-
-    /**
-     * Hides the loading overlay on the specified target element.
-     * @param {string} targetId - The CSS selector of the element to hide loading from.
-     */
-    function hideTargetLoading(targetId) {
-        const $target = $(targetId);
-        $target.find(".dynamic-loading-overlay").fadeOut(300, function () {
-            $(this).remove();
-        });
     }
 
     /*==============================
@@ -377,22 +475,29 @@
             ];
 
             for (const selector of selectors) {
-                const $el = $(selector);
+                const els = qsa(selector);
+                if (!els.length) continue;
 
-                if ($el.is("input, textarea, select")) {
-                    if ($el.val() !== String(value)) {
-                        $el.val(value);
-                        $el.each(function () {
-                            this.dispatchEvent(
+                const isFormField = els.some((el) =>
+                    isEl(el, "input, textarea, select"),
+                );
+
+                if (isFormField) {
+                    if (els[0].value !== String(value)) {
+                        els.forEach((el) => {
+                            el.value = value;
+                            el.dispatchEvent(
                                 new Event("input", { bubbles: true }),
                             );
-                            this.dispatchEvent(
+                            el.dispatchEvent(
                                 new Event("change", { bubbles: true }),
                             );
                         });
                     }
                 } else {
-                    $el.html(value);
+                    els.forEach((el) => {
+                        el.innerHTML = value;
+                    });
                 }
             }
         });
@@ -400,114 +505,120 @@
 
     /**
      * Resolves the HTTP method type based on the element and event.
-     * @param {jQuery} $el - The jQuery object of the triggering element.
+     * @param {Element} el - The triggering element.
      * @param {string} eventType - The event type (e.g., 'submit').
-     * @param {jQuery} formSelector - The jQuery object of the closest form.
+     * @param {Element} formEl - The closest form element.
      * @returns {string} The resolved HTTP method.
      */
-    function resolveMethodType($el, eventType, formSelector) {
+    function resolveMethodType(el, eventType, formEl) {
         let methodType = "POST";
-        if (eventType === "submit" && formSelector) {
-            methodType = (
-                $(formSelector).attr("method") || "POST"
-            ).toUpperCase();
+        if (eventType === "submit" && formEl) {
+            methodType = (formEl.getAttribute("method") || "POST").toUpperCase();
         }
-        if ($el.attr("live-method")) {
-            methodType = $el.attr("live-method").toUpperCase();
+        if (el.getAttribute("live-method")) {
+            methodType = el.getAttribute("live-method").toUpperCase();
         }
         return methodType;
     }
 
-    function extractData($el, $form, selector = null) {
+    function extractData(el, formEl, selector = null) {
         const formData = new FormData();
         const appended = new Set();
 
-        const appendSafe = (el) => {
-            if (!el.name || appended.has(el)) return;
-            appendInputToFormData(formData, el);
-            appended.add(el);
+        const appendSafe = (inputEl) => {
+            if (!inputEl.name || appended.has(inputEl)) return;
+            appendInputToFormData(formData, inputEl);
+            appended.add(inputEl);
         };
 
-        let $root;
+        let roots;
 
         // SKENARIO A: Jika ada selector spesifik (misal: live-click="updateDimension('#tr-1')")
+        // Catatan: selector class (mis. ".row") bisa cocok ke LEBIH DARI SATU elemen
+        // sekaligus — persis seperti jQuery $(selector) yang mengembalikan koleksi,
+        // jadi di sini pakai querySelectorAll (bukan querySelector) supaya semua
+        // root ikut diproses, bukan cuma yang pertama ditemukan.
         if (
             selector &&
             typeof selector === "string" &&
             (selector.startsWith("#") || selector.startsWith("."))
         ) {
-            $root = $(selector);
+            roots = qsa(selector);
         }
         // SKENARIO B: Tanpa parameter, ambil scope terdekat (Konsep Lama)
         else {
-            $root = $el.closest("[live-scope]");
+            const scopeEl = closestAncestor(el, "[live-scope]");
+            roots = scopeEl ? [scopeEl] : [];
         }
 
-        if (!$root || !$root.length) return formData;
+        if (!roots.length) return formData;
 
         // AMBIL DATA HANYA DARI ROOT YANG TERPILIH
-        // .find() akan mencari input di dalam elemen tersebut
-        // .addBack() memastikan jika $root itu sendiri adalah input, nilainya tetap terambil
-        $root
-            .find("input[name], select[name], textarea[name]")
-            .addBack("input[name], select[name], textarea[name]")
-            .each(function () {
-                appendSafe(this);
-            });
+        // querySelectorAll mencari input di dalam elemen tersebut; kalau root
+        // itu sendiri adalah input, ikut dimasukkan juga (setara .addBack()).
+        const inputSelector = "input[name], select[name], textarea[name]";
+        roots.forEach((root) => {
+            const inputs = qsa(inputSelector, root);
+            if (isEl(root, inputSelector)) inputs.unshift(root);
+            inputs.forEach(appendSafe);
+        });
 
         return formData;
     }
 
     function appendInputToFormData(fd, el) {
-        const $input = $(el);
-        const name = $input.attr("name");
+        const name = el.getAttribute("name");
         if (!name) return;
 
-        if ($input.is(":file")) {
-            const files = $input[0].files;
+        if (el.type === "file") {
+            const files = el.files;
             for (let i = 0; i < files.length; i++) {
                 fd.append(name, files[i]);
             }
-        } else if ($input.is(":checkbox")) {
-            if ($input.is(":checked")) {
-                fd.append(name, $input.val());
+        } else if (el.type === "checkbox") {
+            if (el.checked) {
+                fd.append(name, el.value);
             }
-        } else if ($input.is(":radio")) {
-            if ($input.is(":checked")) {
-                fd.append(name, $input.val());
+        } else if (el.type === "radio") {
+            if (el.checked) {
+                fd.append(name, el.value);
             }
         } else {
-            fd.append(name, $input.val());
+            fd.append(name, el.value);
         }
     }
 
     /**
      * Live conditionals: show, class, style, attr
      */
-    function evaluateExpr(expr, $el) {
-        const $scope = $el.closest("[live-scope]");
+    function evaluateExpr(expr, el) {
+        const scope = closestAncestor(el, "[live-scope]");
         const inputs = {};
 
-        $scope
-            .find("input[name], select[name], textarea[name]")
-            .each(function () {
-                const name = $(this).attr("name");
-                if (!name) return;
-                let val;
-                if ($(this).is(":checkbox")) {
-                    val = $(this).is(":checked") ? $(this).val() : null;
-                } else if ($(this).is(":radio")) {
-                    if ($(this).is(":checked")) val = $(this).val();
-                } else {
-                    val = $(this).val();
-                }
+        if (scope) {
+            qsa("input[name], select[name], textarea[name]", scope).forEach(
+                (inputEl) => {
+                    const name = inputEl.getAttribute("name");
+                    if (!name) return;
+                    let val;
+                    if (inputEl.type === "checkbox") {
+                        val = inputEl.checked ? inputEl.value : null;
+                    } else if (inputEl.type === "radio") {
+                        if (inputEl.checked) val = inputEl.value;
+                    } else {
+                        val = inputEl.value;
+                    }
 
-                const safeName = name
-                    .replace(/\]\[|\[|\]/g, "_")
-                    .replace(/_+$/, "");
-                const numVal = parseFloat(String(val).replace(/[^\d.-]/g, ""));
-                inputs[safeName] = isNaN(numVal) ? val : numVal;
-            });
+                    const safeName = name
+                        .replace(/\]\[|\[|\]/g, "_")
+                        .replace(/_+$/, "");
+                    const numVal = parseFloat(
+                        String(val).replace(/[^\d.-]/g, ""),
+                    );
+                    inputs[safeName] = isNaN(numVal) ? val : numVal;
+                },
+            );
+        }
 
         // biar ekspresi kayak dpp_[1] tetap bisa dipakai
         expr = expr.replace(/\[\s*(\w+)\s*\]/g, "_$1");
@@ -532,56 +643,56 @@
     // cache parsing live-attr biar sekali aja
     const liveAttrCache = new WeakMap();
 
-    function parseLiveAttr($el) {
-        if (liveAttrCache.has($el[0])) {
-            return liveAttrCache.get($el[0]);
+    function parseLiveAttr(el) {
+        if (liveAttrCache.has(el)) {
+            return liveAttrCache.get(el);
         }
-        const expr = $el.attr("live-attr");
+        const expr = el.getAttribute("live-attr");
         if (!expr) return [];
         const parsed = expr.split(",").map((pair) => {
             const [attr, js] = pair.split(":");
             return { attr: attr.trim(), js: js.trim() };
         });
-        liveAttrCache.set($el[0], parsed);
+        liveAttrCache.set(el, parsed);
         return parsed;
     }
 
     function handleLiveDirectives(scope) {
-        const $scope = scope ? $(scope) : $(document);
+        const root = scope || document;
 
-        $scope.find("[live-show]").each(function () {
-            const expr = $(this).attr("live-show");
-            const result = evaluateExpr(expr, $(this));
-            $(this).toggle(!!result);
+        qsa("[live-show]", root).forEach((el) => {
+            const expr = el.getAttribute("live-show");
+            const result = evaluateExpr(expr, el);
+            toggleEl(el, !!result);
         });
 
-        $scope.find("[live-class]").each(function () {
-            const expr = $(this).attr("live-class");
-            const result = evaluateExpr(expr, $(this));
+        qsa("[live-class]", root).forEach((el) => {
+            const expr = el.getAttribute("live-class");
+            const result = evaluateExpr(expr, el);
             if (typeof result === "string") {
-                $(this).attr(
+                el.setAttribute(
                     "class",
-                    ($(this).attr("class-base") || "") + " " + result,
+                    (el.getAttribute("class-base") || "") + " " + result,
                 );
             }
         });
 
-        $scope.find("[live-style]").each(function () {
-            const expr = $(this).attr("live-style");
-            const result = evaluateExpr(expr, $(this));
+        qsa("[live-style]", root).forEach((el) => {
+            const expr = el.getAttribute("live-style");
+            const result = evaluateExpr(expr, el);
             if (typeof result === "string") {
-                $(this).attr("style", result);
+                el.setAttribute("style", result);
             }
         });
 
-        $scope.find("[live-attr]").each(function () {
-            const parsed = parseLiveAttr($(this));
+        qsa("[live-attr]", root).forEach((el) => {
+            const parsed = parseLiveAttr(el);
             parsed.forEach(({ attr, js }) => {
-                const result = evaluateExpr(js, $(this));
+                const result = evaluateExpr(js, el);
                 if (result === false || result == null) {
-                    $(this).removeAttr(attr);
+                    el.removeAttribute(attr);
                 } else {
-                    $(this).attr(attr, result === true ? attr : result);
+                    el.setAttribute(attr, result === true ? attr : result);
                 }
             });
         });
@@ -589,28 +700,29 @@
 
     /**
      * Extracts content from an element (e.g., its value for inputs, or HTML content).
-     * @param {jQuery} $el - The jQuery element.
+     * @param {Element} el - The element.
      * @returns {string} The extracted content.
      */
-    function extractElementContent($el) {
-        if ($el.is("input, textarea, select")) {
-            return $el.val();
+    function extractElementContent(el) {
+        if (isEl(el, "input, textarea, select")) {
+            return el.value;
         }
-        return $el.html();
+        return el.innerHTML;
     }
 
     /**
-     * Resolves target elements based on a selector string, supporting various jQuery traversal methods.
-     * @param {jQuery} $el - The reference jQuery element.
+     * Resolves target elements based on a selector string, supporting various
+     * traversal methods (setara jQuery .closest()/.find()/.parent()/dst).
+     * @param {Element} el - The reference element.
      * @param {string} targetSelector - The selector string (e.g., 'closest(.parent-class)', '#my-id', 'self').
-     * @returns {jQuery} A jQuery collection of the resolved target elements.
+     * @returns {Element[]} Array elemen target yang cocok.
      */
-    function liveTarget($el, targetSelector) {
+    function liveTarget(el, targetSelector) {
         const targets = [];
         const selectors = targetSelector.split(",").map((s) => s.trim());
 
         for (let sel of selectors) {
-            let $target = null;
+            let found = [];
 
             const match = sel.match(/^(\w+)(\(([^)]+)\))?$/);
             if (match) {
@@ -618,81 +730,123 @@
                 const param = match[3] ? match[3].trim() : null;
 
                 switch (method) {
-                    case "closest":
-                        if (param) $target = $el.closest(param);
+                    case "closest": {
+                        if (param) {
+                            const t = closestAncestor(el, param);
+                            if (t) found = [t];
+                        }
                         break;
+                    }
                     case "find":
-                        if (param) $target = $el.find(param);
+                        if (param) found = qsa(param, el);
                         break;
                     case "parent":
-                        $target = $el.parent();
+                        if (el.parentElement) found = [el.parentElement];
                         break;
                     case "children":
-                        $target = $el.children(param || undefined);
+                        found = Array.from(el.children).filter(
+                            (c) => !param || c.matches(param),
+                        );
                         break;
-                    case "next":
-                        $target = param ? $el.next(param) : $el.next();
+                    case "next": {
+                        const n = el.nextElementSibling;
+                        if (n && (!param || n.matches(param))) found = [n];
                         break;
-                    case "prev":
-                        $target = param ? $el.prev(param) : $el.prev();
+                    }
+                    case "prev": {
+                        const p = el.previousElementSibling;
+                        if (p && (!param || p.matches(param))) found = [p];
                         break;
+                    }
                     case "siblings":
-                        $target = param ? $el.siblings(param) : $el.siblings();
+                        if (el.parentElement) {
+                            found = Array.from(el.parentElement.children).filter(
+                                (c) => c !== el && (!param || c.matches(param)),
+                            );
+                        }
                         break;
                     case "self":
-                        $target = $el;
+                        found = [el];
                         break;
                     default:
-                        $target = $(sel);
+                        found = qsa(sel);
                         break;
                 }
             } else {
-                $target = $(sel);
+                found = qsa(sel);
             }
 
-            if ($target && $target.length) {
-                targets.push(...$target.toArray());
+            if (found.length) {
+                targets.push(...found);
             }
         }
-        return $(targets);
+        return targets;
     }
 
     /**
      * Handles live events (click, hover, change, etc.) by triggering AJAX calls or local DOM updates.
-     * @param {jQuery} $el - The jQuery object of the triggering element.
+     * @param {Element} el - The triggering element.
      * @param {string} eventType - The type of event (e.g., 'click', 'change').
      */
-    function handleLiveEvent($el, eventType) {
-        const rawMethods = $el.attr(`live-${eventType}`);
-        const rawTargets = $el.attr("live-target") || "";
-        const domAction = $el.attr("live-dom") || "auto";
-        const formSelector = $el.closest("form").length
-            ? $el.closest("form")
-            : null;
-        const controller = $el.closest("[live-scope]").attr("live-scope");
+    function handleLiveEvent(el, eventType) {
+        const rawMethods = el.getAttribute(`live-${eventType}`);
+        const rawTargets = el.getAttribute("live-target") || "";
+        const domAction = el.getAttribute("live-dom") || "auto";
+        const formEl = closestAncestor(el, "form");
+        const scopeEl = closestAncestor(el, "[live-scope]");
+        const controller = scopeEl ? scopeEl.getAttribute("live-scope") : null;
         if (!controller && rawMethods) {
             console.warn(
                 `[Live Event] Element with live-${eventType} needs a live-scope attribute on an ancestor.`,
-                $el[0],
+                el,
             );
             return;
         }
 
-        const loading = $el.attr("live-loading") === "true";
-        const loadingIndicator = $el.attr("live-loading-indicator");
-        const dataArgs = $el.attr("live-data");
+        // FIX (live-loading): dulu hanya menerima literal "true" dan mengabaikan
+        // nilai lain sepenuhnya (mis. live-loading="#loading-button" dibaca sama
+        // seperti tidak ada atribut sama sekali — selector-nya tidak pernah
+        // dipakai). Sekarang nilai atribut DIPAKAI sebagai selector target:
+        //   live-loading="#id"   -> tampilkan/sembunyikan elemen #id
+        //   live-loading="true"  -> tetap didukung, fallback ke overlay global ".loading"
+        //   tidak ada / "false"  -> tidak ada indikator loading
+        const loadingAttr = el.getAttribute("live-loading");
+        const resolvedLoading =
+            !loadingAttr || loadingAttr === "false"
+                ? null
+                : loadingAttr === "true"
+                    ? ".loading"
+                    : loadingAttr;
 
-        const beforeCallback = $el.attr("live-callback-before");
+        // FIX (live-loading-indicator): dulu SELALU di-`.show()` di execute()
+        // di bawah, tanpa pasangan `.hide()` di mana pun di seluruh file —
+        // begitu tampil, elemen ini nyangkut selamanya. Sekarang digabung ke
+        // lifecycle show/hide yang sama dengan live-loading (lihat
+        // showLoading()/hideLoading() + `.finally()` callback di ajaxDynamic()).
+        // Mendukung dua bentuk pemakaian:
+        //   live-loading-indicator="#selector" -> tampilkan elemen #selector
+        //   live-loading-indicator (tanpa nilai) -> tampilkan elemen ini (el) sendiri
+        const hasLoadingIndicatorAttr = el.hasAttribute("live-loading-indicator");
+        const loadingIndicatorAttr = el.getAttribute("live-loading-indicator");
+        const loadingIndicatorTarget = hasLoadingIndicatorAttr
+            ? loadingIndicatorAttr || el
+            : null;
+
+        const loadingList = [resolvedLoading, loadingIndicatorTarget].filter(
+            Boolean,
+        );
+        const loading = loadingList.length ? loadingList : null;
+        const dataArgs = el.getAttribute("live-data");
+
+        const beforeCallback = el.getAttribute("live-callback-before");
         const execute = () => {
-            const methodType = resolveMethodType($el, eventType, formSelector);
+            const methodType = resolveMethodType(el, eventType, formEl);
 
             // Jangan jalankan extractData di sini!
             // Kita pindahkan ke dalam loop agar lebih spesifik.
 
-            if (loadingIndicator) $(loadingIndicator).show();
-
             if (!rawMethods) {
-                return runLocalUpdate($el, domAction, rawTargets);
+                return runLocalUpdate(el, domAction, rawTargets);
             }
 
             // const methods = rawMethods.split(',').map(m => m.trim()).filter(Boolean);
@@ -738,7 +892,7 @@
                         argsRaw = Function(
                             "__el",
                             `return [${fixedArgStr}]`,
-                        )($el[0]);
+                        )(el);
 
                         // Jika hanya ada satu argumen dan itu array string (nested), coba parse manual
                         if (
@@ -771,9 +925,9 @@
                     // Sanitize nilai untuk serialisasi aman
                     const argsSanitized = argsRaw.map((arg) => {
                         if (arg instanceof Element) {
-                            return $(arg).is("input, select, textarea")
-                                ? $(arg).val()
-                                : $(arg).text().trim();
+                            return isEl(arg, "input, select, textarea")
+                                ? arg.value
+                                : arg.textContent.trim();
                         }
 
                         // Hindari window atau objek global
@@ -808,7 +962,7 @@
 
             parsedMethods.forEach(({ method, args }, i) => {
                 const targetSel = targetFor(i);
-                const $targets = targetSel ? liveTarget($el, targetSel) : $el;
+                const targetEls = targetSel ? liveTarget(el, targetSel) : [el];
 
                 let postData;
 
@@ -823,14 +977,14 @@
                 if (dataArgs) {
                     postData = { data: dataArgs };
                 } else if (isSelector) {
-                    // PAKSA hanya ambil dari selector, jangan kirim formSelector agar tidak bocor
-                    postData = extractData($el, null, firstArg);
+                    // PAKSA hanya ambil dari selector, jangan kirim formEl agar tidak bocor
+                    postData = extractData(el, null, firstArg);
                 } else if (args && args.length > 0) {
                     const dataPayload = args.length === 1 ? args[0] : args;
                     postData = { data: dataPayload };
                 } else {
                     // Ambil semua (default)
-                    postData = extractData($el, formSelector);
+                    postData = extractData(el, formEl);
                 }
 
                 runAjaxRequest(
@@ -839,9 +993,9 @@
                     method,
                     postData,
                     domAction,
-                    $targets,
+                    targetEls,
                     loading,
-                    $el,
+                    el,
                 );
             });
         };
@@ -865,12 +1019,12 @@
               return undefined;
             }
           `,
-                    )($el[0]);
+                    )(el);
                 } else {
-                    // Kalau hanya nama fungsi, panggil window[fnName]($el[0])
+                    // Kalau hanya nama fungsi, panggil window[fnName](el)
                     const fn = window[beforeCallback.trim()];
                     if (typeof fn === "function") {
-                        result = fn($el[0]);
+                        result = fn(el);
                     } else {
                         console.warn(
                             `[LiveDomJs] live-callback-before function "${beforeCallback}" not found.`,
@@ -910,9 +1064,9 @@
      * @param {string} method - Method name.
      * @param {object|FormData} data - Data to send.
      * @param {string} domAction - How to apply the response to the DOM.
-     * @param {jQuery} $targets - jQuery collection of target elements.
+     * @param {Element[]} targetEls - Array elemen target.
      * @param {boolean} loading - Whether to show loading.
-     * @param {jQuery} $el - The original triggering element.
+     * @param {Element} el - The original triggering element.
      */
     function runAjaxRequest(
         methodType,
@@ -920,9 +1074,9 @@
         method,
         data,
         domAction,
-        $targets,
+        targetEls,
         loading,
-        $el = null,
+        el = null,
     ) {
         const callback = function (response) {
             let responseData =
@@ -935,18 +1089,18 @@
             }
 
             if (typeof responseData === "string") {
-                $targets.each(function () {
-                    applyDomAction($(this), domAction, responseData);
+                toElements(targetEls).forEach((t) => {
+                    applyDomAction(t, domAction, responseData);
                 });
             }
 
-            if ($el && $el.attr) {
-                const afterCallback = $el.attr("live-callback-after");
+            if (el && el.getAttribute) {
+                const afterCallback = el.getAttribute("live-callback-after");
                 if (
                     afterCallback &&
                     typeof window[afterCallback] === "function"
                 ) {
-                    window[afterCallback]($el[0], response);
+                    window[afterCallback](el, response);
                 }
             }
 
@@ -966,34 +1120,33 @@
 
     /**
      * Performs a local DOM update without an AJAX request.
-     * @param {jQuery} $el - The triggering element.
+     * @param {Element} el - The triggering element.
      * @param {string} domAction - How to apply the content to the DOM.
      * @param {string} rawTargets - Raw target selector string.
      */
-    function runLocalUpdate($el, domAction, rawTargets) {
+    function runLocalUpdate(el, domAction, rawTargets) {
         const targetSel = rawTargets || "";
-        const $targets = targetSel ? liveTarget($el, targetSel) : $el;
+        const targetEls = targetSel ? liveTarget(el, targetSel) : [el];
         if (domAction === "remove") {
-            $targets.remove();
+            targetEls.forEach((t) => t.remove());
             // initLiveDom();
             return;
         }
 
-        const content = extractElementContent($el);
-        $targets.each(function () {
-            applyDomAction($(this), domAction, content);
+        const content = extractElementContent(el);
+        targetEls.forEach((t) => {
+            applyDomAction(t, domAction, content);
         });
     }
 
     /**
      * Applies content to a target element using a specified DOM action.
-     * @param {jQuery} $target - The target element.
-     * @param {string} action - The DOM action (e.g., 'html', 'append', 'value').
-     * @param {string} content - The content to apply.
+     * @param {Element|Element[]} targets - The target element(s).
+     * @param {string} actions - The DOM action (e.g., 'html', 'append', 'value').
+     * @param {string} contents - The content to apply.
      */
-    function applyDomAction($targets, actions, contents) {
-        // Pastikan $targets adalah jQuery object array
-        $targets = $targets instanceof jQuery ? $targets : $($targets);
+    function applyDomAction(targets, actions, contents) {
+        const targetEls = toElements(targets);
 
         // Split actions dan contents jika berupa string multiple
         const actionList =
@@ -1005,9 +1158,7 @@
                     ? contents
                     : [contents];
 
-        $targets.each(function (targetIndex) {
-            const $currentTarget = $(this);
-
+        targetEls.forEach((currentTarget) => {
             actionList.forEach((action, actionIndex) => {
                 const content =
                     contentList[actionIndex] || contentList[0] || "";
@@ -1015,40 +1166,41 @@
 
                 switch (trimmedAction) {
                     case "append":
-                        $currentTarget.append(content);
+                        currentTarget.insertAdjacentHTML("beforeend", content);
                         break;
                     case "prepend":
-                        $currentTarget.prepend(content);
+                        currentTarget.insertAdjacentHTML("afterbegin", content);
                         break;
                     case "before":
-                        $currentTarget.before(content);
+                        currentTarget.insertAdjacentHTML("beforebegin", content);
                         break;
                     case "after":
-                        $currentTarget.after(content);
+                        currentTarget.insertAdjacentHTML("afterend", content);
                         break;
                     case "value":
                     case "val":
-                        $currentTarget.val(content).trigger("change");
-                        $currentTarget.trigger("input");
-                        $currentTarget.trigger("change");
+                        currentTarget.value = content;
+                        currentTarget.dispatchEvent(new Event("change", { bubbles: true }));
+                        currentTarget.dispatchEvent(new Event("input", { bubbles: true }));
+                        currentTarget.dispatchEvent(new Event("change", { bubbles: true }));
                         break;
                     case "text":
-                        $currentTarget.text(content);
+                        currentTarget.textContent = content;
                         break;
                     case "html":
-                        $currentTarget.html(content);
+                        currentTarget.innerHTML = content;
                         break;
                     case "toggle":
-                        $currentTarget.toggle(content);
+                        toggleEl(currentTarget, !!content);
                         break;
                     case "show":
-                        $currentTarget.show();
+                        showEl(currentTarget);
                         break;
                     case "hide":
-                        $currentTarget.hide();
+                        hideEl(currentTarget);
                         break;
                     case "remove":
-                        $currentTarget.remove();
+                        currentTarget.remove();
                         break;
                     default:
                         if (
@@ -1056,25 +1208,23 @@
                             actions.trim() === "" ||
                             actions.trim() === "auto"
                         ) {
-                            if ($currentTarget.is("input, textarea, select")) {
-                                $currentTarget
-                                    .val(content)
-                                    .trigger("input")
-                                    .trigger("change");
+                            if (isEl(currentTarget, "input, textarea, select")) {
+                                currentTarget.value = content;
+                                currentTarget.dispatchEvent(new Event("input", { bubbles: true }));
+                                currentTarget.dispatchEvent(new Event("change", { bubbles: true }));
                             } else {
-                                $currentTarget.html(content);
+                                currentTarget.innerHTML = content;
                             }
                             break;
                         }
 
                         // fallback: anggap text/html
-                        if ($currentTarget.is("input, textarea, select")) {
-                            $currentTarget
-                                .val(content)
-                                .trigger("input")
-                                .trigger("change");
+                        if (isEl(currentTarget, "input, textarea, select")) {
+                            currentTarget.value = content;
+                            currentTarget.dispatchEvent(new Event("input", { bubbles: true }));
+                            currentTarget.dispatchEvent(new Event("change", { bubbles: true }));
                         } else {
-                            $currentTarget.html(content);
+                            currentTarget.innerHTML = content;
                         }
                         break;
                 }
@@ -1089,24 +1239,25 @@
     /**
      * Initializes polling for elements with 'live-poll' attribute.
      */
+    const pollIntervalStore = new WeakMap();
+
     function handlePollers() {
-        $("[live-poll]").each(function () {
-            const $el = $(this);
-            const interval = parseInt($el.attr("live-poll"), 10);
-            const controller = $el.attr("live-scope");
-            const method = $el.attr("live-click") || "poll";
-            const target = "#" + $el.attr("id");
+        qsa("[live-poll]").forEach((el) => {
+            const interval = parseInt(el.getAttribute("live-poll"), 10);
+            const controller = el.getAttribute("live-scope");
+            const method = el.getAttribute("live-click") || "poll";
+            const target = "#" + el.getAttribute("id");
 
             // Clear existing interval to prevent duplicates on re-init
-            if ($el.data("poll-interval")) {
-                clearInterval($el.data("poll-interval"));
+            if (pollIntervalStore.has(el)) {
+                clearInterval(pollIntervalStore.get(el));
             }
 
             const pollInterval = setInterval(() => {
                 ajaxDynamic("GET", controller, method, {}, "html", target);
             }, interval);
 
-            $el.data("poll-interval", pollInterval); // Store interval ID
+            pollIntervalStore.set(el, pollInterval); // Store interval ID
         });
     }
 
@@ -2585,7 +2736,7 @@
 
         const headers = {
             "X-Requested-With": "XMLHttpRequest",
-            "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
+            "X-CSRF-TOKEN": csrfToken(),
         };
 
         const fetchOptions = {
@@ -2795,9 +2946,7 @@
                     signal,
                     headers: {
                         "X-Requested-With": "XMLHttpRequest",
-                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
-                            "content",
-                        ),
+                        "X-CSRF-TOKEN": csrfToken(),
                     },
                 })
                     .then(async (response) => {
@@ -2874,8 +3023,8 @@
      * @param {HTMLFormElement} form - The form element.
      */
     function clearFormErrors(form) {
-        $(form).find(".is-invalid").removeClass("is-invalid");
-        $(form).find(".invalid-feedback").remove();
+        qsa(".is-invalid", form).forEach((el) => el.classList.remove("is-invalid"));
+        qsa(".invalid-feedback", form).forEach((el) => el.remove());
     }
 
     /**
@@ -2885,14 +3034,17 @@
      */
     function showFormErrors(form, errors) {
         for (const [field, messages] of Object.entries(errors)) {
-            const input = $(form).find(`[name="${field}"]`);
-            if (input.length) {
-                input.addClass("is-invalid");
-                const errorHtml = `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join("<br>")}</div>`;
-                if (input.next(".invalid-feedback").length === 0) {
-                    input.after(errorHtml);
+            const inputs = qsa(`[name="${field}"]`, form);
+            inputs.forEach((inputEl) => {
+                inputEl.classList.add("is-invalid");
+                const next = inputEl.nextElementSibling;
+                const alreadyHasFeedback =
+                    next && next.classList.contains("invalid-feedback");
+                if (!alreadyHasFeedback) {
+                    const errorHtml = `<div class="invalid-feedback text-red-600 text-sm mt-1">${messages.join("<br>")}</div>`;
+                    inputEl.insertAdjacentHTML("afterend", errorHtml);
                 }
-            }
+            });
         }
     }
 
@@ -2936,56 +3088,69 @@
 
     /** Initializes the global loading bar element. */
     function initLoadingBar() {
-        if ($("#loading-bar").length === 0) {
-            const $loadingBar = $('<div id="loading-bar"></div>').css({
+        if (!qs("#loading-bar")) {
+            const bar = document.createElement("div");
+            bar.id = "loading-bar";
+            Object.assign(bar.style, {
                 position: "fixed",
-                top: 0,
-                left: 0,
+                top: "0",
+                left: "0",
                 height: "3px",
                 width: "0%",
                 backgroundColor: "#2563eb",
-                zIndex: 99999,
-                transition: "width 0.3s ease",
+                zIndex: "99999",
+                transition: "width 0.3s ease, opacity 0.2s ease",
                 willChange: "width",
                 display: "none",
+                opacity: "1",
             });
-            $("body").append($loadingBar);
+            document.body.appendChild(bar);
         }
     }
 
-    /** Shows the loading bar animation. */
+    let loadingBarHideTimer = null;
+
+    /** Shows the loading bar animation (CSS transition, bukan jQuery .animate()). */
     function showLoadingBar() {
-        $("#loading-bar")
-            .stop(true)
-            .css({
-                width: "0%",
-                display: "block",
-            })
-            .animate(
-                {
-                    width: "80%",
-                },
-                800,
-            );
+        const bar = qs("#loading-bar");
+        if (!bar) return;
+
+        clearTimeout(loadingBarHideTimer);
+
+        // reset instan tanpa transisi (setara .stop(true))
+        bar.style.transition = "none";
+        bar.style.opacity = "1";
+        bar.style.width = "0%";
+        bar.style.display = "block";
+
+        // paksa reflow supaya browser menganggap perubahan width berikut ini transisi baru
+        void bar.offsetWidth;
+
+        bar.style.transition = "width 0.8s ease";
+        bar.style.width = "80%";
     }
 
-    /** Hides the loading bar animation. */
+    /** Hides the loading bar animation (CSS transition, bukan jQuery .animate()/.fadeOut()). */
     function hideLoadingBar() {
-        $("#loading-bar")
-            .stop(true)
-            .animate(
-                {
-                    width: "100%",
-                },
-                300,
-                function () {
-                    $(this).fadeOut(200, function () {
-                        $(this).css({
-                            width: "0%",
-                        });
-                    });
-                },
-            );
+        const bar = qs("#loading-bar");
+        if (!bar) return;
+
+        clearTimeout(loadingBarHideTimer);
+
+        bar.style.transition = "width 0.3s ease";
+        bar.style.width = "100%";
+
+        loadingBarHideTimer = setTimeout(() => {
+            bar.style.transition = "opacity 0.2s ease";
+            bar.style.opacity = "0";
+
+            loadingBarHideTimer = setTimeout(() => {
+                bar.style.transition = "none";
+                bar.style.display = "none";
+                bar.style.width = "0%";
+                bar.style.opacity = "1";
+            }, 200);
+        }, 300);
     }
 
     // ============================================================
@@ -3695,31 +3860,95 @@
         });
     }
 
+    /*==============================
+      EVENT DELEGATION REGISTRY
+      (pengganti jQuery namespaced .on()/.off() — setiap listener yang
+      didaftarkan lewat delegate()/delegateHover() dicatat di sini per
+      namespace, supaya undelegateNamespace() bisa melepas semuanya
+      sekaligus sebelum initLiveDom() mendaftarkan ulang. Ini yang mencegah
+      handler menumpuk setiap kali live-dom:afterUpdate / afterSpa terjadi
+      — persis alasan kenapa versi jQuery pakai namespace ".liveDomCore".)
+    ==============================*/
+    const _liveDomCoreListeners = {};
+
+    function delegate(namespace, type, selector, handler, options) {
+        const listener = function (e) {
+            const target = e.target && e.target.closest
+                ? e.target.closest(selector)
+                : null;
+            if (!target) return;
+            handler.call(target, e, target);
+        };
+        document.addEventListener(type, listener, options);
+        if (!_liveDomCoreListeners[namespace]) _liveDomCoreListeners[namespace] = [];
+        _liveDomCoreListeners[namespace].push({ type, listener, options });
+    }
+
+    // mouseenter/mouseleave asli tidak bubbling, jadi didelegasikan lewat
+    // mouseover/mouseout + pengecekan relatedTarget (persis cara jQuery
+    // mensimulasikan delegated mouseenter/mouseleave).
+    function delegateHover(namespace, selector, handler) {
+        const makeListener = () => (e) => {
+            const target = e.target && e.target.closest
+                ? e.target.closest(selector)
+                : null;
+            if (!target) return;
+            if (e.relatedTarget && target.contains(e.relatedTarget)) return;
+            handler.call(target, e, target);
+        };
+        const overListener = makeListener();
+        const outListener = makeListener();
+
+        document.addEventListener("mouseover", overListener);
+        document.addEventListener("mouseout", outListener);
+
+        if (!_liveDomCoreListeners[namespace]) _liveDomCoreListeners[namespace] = [];
+        _liveDomCoreListeners[namespace].push(
+            { type: "mouseover", listener: overListener },
+            { type: "mouseout", listener: outListener },
+        );
+    }
+
+    function undelegateNamespace(namespace) {
+        const entries = _liveDomCoreListeners[namespace] || [];
+        entries.forEach(({ type, listener, options }) => {
+            document.removeEventListener(type, listener, options);
+        });
+        _liveDomCoreListeners[namespace] = [];
+    }
+
     function handleLiveBind() {
         // FIX (bug #1): namespaced + off-before-on supaya handler tidak
         // menumpuk setiap kali initLiveDom() dipanggil ulang (live-dom:afterUpdate / afterSpa).
-        $(document).off("input.liveDomBind change.liveDomBind");
-        $(document).on(
-            "input.liveDomBind change.liveDomBind",
+        undelegateNamespace("liveDomBind");
+
+        const bindHandler = (e, target) => {
+            const name = target.getAttribute("name");
+            if (!name) return;
+
+            const value =
+                target.type === "checkbox" ? target.checked : target.value;
+
+            qsa(`[live-bind="${name}"]`).forEach((bindEl) => {
+                if (isEl(bindEl, "input, textarea, select")) {
+                    bindEl.value = value;
+                } else {
+                    bindEl.textContent = value;
+                }
+            });
+        };
+
+        delegate(
+            "liveDomBind",
+            "input",
             "input[name], select[name], textarea[name]",
-            function () {
-                const $source = $(this);
-                const name = $source.attr("name");
-                if (!name) return;
-
-                const value = $source.is(":checkbox")
-                    ? $source.prop("checked")
-                    : $source.val();
-
-                $(`[live-bind="${name}"]`).each(function () {
-                    const $target = $(this);
-                    if ($target.is("input, textarea, select")) {
-                        $target.val(value);
-                    } else {
-                        $target.text(value);
-                    }
-                });
-            },
+            bindHandler,
+        );
+        delegate(
+            "liveDomBind",
+            "change",
+            "input[name], select[name], textarea[name]",
+            bindHandler,
         );
     }
 
@@ -3740,120 +3969,135 @@
      * lama dengan namespace itu sebelum mendaftarkan yang baru.
      */
     function bindLiveDomEvents() {
-        $(document).off(".liveDomCore");
+        undelegateNamespace("liveDomCore");
 
-        $(document).on("click.liveDomCore", "[live-click]", function () {
-            handleLiveEvent($(this), "click");
+        delegate("liveDomCore", "click", "[live-click]", (e, target) => {
+            handleLiveEvent(target, "click");
         });
 
-        $(document).on("mouseenter.liveDomCore mouseleave.liveDomCore", "[live-hover]", function () {
-            handleLiveEvent($(this), "hover");
+        delegateHover("liveDomCore", "[live-hover]", (e, target) => {
+            handleLiveEvent(target, "hover");
         });
 
-        $(document).on("change.liveDomCore", "[live-change]", function () {
-            handleLiveEvent($(this), "change");
+        delegate("liveDomCore", "change", "[live-change]", (e, target) => {
+            handleLiveEvent(target, "change");
         });
 
-        $(document).on("submit.liveDomCore", "[live-submit]", function (e) {
+        delegate("liveDomCore", "submit", "[live-submit]", (e, target) => {
             e.preventDefault();
-            handleLiveEvent($(this), "submit");
+            handleLiveEvent(target, "submit");
         });
 
-        $(document).on("keyup.liveDomCore", "[live-keyup]", function () {
-            handleLiveEvent($(this), "keyup");
+        delegate("liveDomCore", "keyup", "[live-keyup]", (e, target) => {
+            handleLiveEvent(target, "keyup");
         });
 
-        $(document).on("input.liveDomCore", "[live-input]", function () {
-            handleLiveEvent($(this), "input");
+        delegate("liveDomCore", "input", "[live-input]", (e, target) => {
+            handleLiveEvent(target, "input");
         });
 
-        $(document).on("input.liveDomCore", "[live-bind]", function () {
-            handleLiveEvent($(this), "input");
+        delegate("liveDomCore", "input", "[live-bind]", (e, target) => {
+            handleLiveEvent(target, "input");
         });
 
         // event binding, pakai debounce
-        $(document).on(
-            "input.liveDomCore change.liveDomCore",
+        const debouncedDirectives = debounce((e, target) => {
+            const scope = closestAncestor(target, "[live-scope]");
+            handleLiveDirectives(scope);
+        }, 200); // delay 200ms
+
+        delegate(
+            "liveDomCore",
+            "input",
             "[live-scope] input, [live-scope] select, [live-scope] textarea",
-            debounce(function () {
-                const scope = $(this).closest("[live-scope]");
-                handleLiveDirectives(scope);
-            }, 200), // delay 200ms
+            debouncedDirectives,
+        );
+        delegate(
+            "liveDomCore",
+            "change",
+            "[live-scope] input, [live-scope] select, [live-scope] textarea",
+            debouncedDirectives,
         );
 
-        $(document).on(
-            "click.liveDomCore",
+        delegate(
+            "liveDomCore",
+            "click",
             '[live-spa-region] a[href]:not([href^="#"]):not([href=""])',
-            function (e) {
-                const url = $(this).attr("href");
+            (e, target) => {
+                const url = target.getAttribute("href");
                 if (!url || isSpaExcluded(url)) return;
                 e.preventDefault();
                 loadSpaContent(url);
             },
         );
 
-        $(document).on("submit.liveDomCore", "[live-spa-region] form", function (e) {
-            const form = this;
-            const url = form.action || "";
-            const method = form.method.toUpperCase() || "GET";
+        delegate(
+            "liveDomCore",
+            "submit",
+            "[live-spa-region] form",
+            (e, target) => {
+                const form = target;
+                const url = form.action || "";
+                const method = form.method.toUpperCase() || "GET";
 
-            if (isSpaExcluded(url)) return;
-            e.preventDefault();
+                if (isSpaExcluded(url)) return;
+                e.preventDefault();
 
-            if (method === "GET") {
-                const formParams = new URLSearchParams(new FormData(form));
-                const existingUrl = new URL(url, window.location.origin);
-                formParams.forEach((value, key) => {
-                    existingUrl.searchParams.set(key, value);
-                });
-                const fullUrl = existingUrl.toString();
+                if (method === "GET") {
+                    const formParams = new URLSearchParams(new FormData(form));
+                    const existingUrl = new URL(url, window.location.origin);
+                    formParams.forEach((value, key) => {
+                        existingUrl.searchParams.set(key, value);
+                    });
+                    const fullUrl = existingUrl.toString();
 
-                spaFetchGet(fullUrl)
-                    .then((html) => {
-                        updateSpaRegions(html);
-                        dispatchSpaEvents(fullUrl);
-                        history.replaceState(
+                    spaFetchGet(fullUrl)
+                        .then((html) => {
+                            updateSpaRegions(html);
+                            dispatchSpaEvents(fullUrl);
+                            history.replaceState(
+                                {
+                                    spa: true,
+                                    url: fullUrl,
+                                },
+                                "",
+                                fullUrl,
+                            );
+                        })
+                        .catch((err) => {
+                            if (err.name === "AbortError") return;
+                            console.error("SPA GET error:", err);
+                        });
+                    return;
+                }
+
+                ajaxSpaFormSubmit(form, function (response) {
+                    if (typeof response === "string") {
+                        updateSpaRegions(response);
+                        dispatchSpaEvents(url);
+                        history.pushState(
                             {
                                 spa: true,
-                                url: fullUrl,
+                                url,
                             },
                             "",
-                            fullUrl,
-                        );
-                    })
-                    .catch((err) => {
-                        if (err.name === "AbortError") return;
-                        console.error("SPA GET error:", err);
-                    });
-                return;
-            }
-
-            ajaxSpaFormSubmit(form, function (response) {
-                if (typeof response === "string") {
-                    updateSpaRegions(response);
-                    dispatchSpaEvents(url);
-                    history.pushState(
-                        {
-                            spa: true,
                             url,
-                        },
-                        "",
-                        url,
-                    );
-                } else if (
-                    response &&
-                    typeof response === "object" &&
-                    response.redirect
-                ) {
-                    console.log("SPA redirect handled.");
-                } else {
-                    console.log(
-                        "Form SPA submit success (non-redirect):",
-                        response,
-                    );
-                }
-            });
-        });
+                        );
+                    } else if (
+                        response &&
+                        typeof response === "object" &&
+                        response.redirect
+                    ) {
+                        console.log("SPA redirect handled.");
+                    } else {
+                        console.log(
+                            "Form SPA submit success (non-redirect):",
+                            response,
+                        );
+                    }
+                });
+            },
+        );
     }
 
     // FIX (bug #4): dulu blok "SPA state awal" ada di dalam initLiveDom() dan
@@ -3912,9 +4156,17 @@
     window.runAjaxRequest = runAjaxRequest;
 
     // Initial setup when the DOM is ready
-    $(document).ready(function () {
+    function domReady(fn) {
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", fn);
+        } else {
+            fn();
+        }
+    }
+
+    domReady(function () {
         initLiveDom();
         handleLiveComputeUnified();
         handleLiveDirectives();
     });
-})(jQuery);
+})();
