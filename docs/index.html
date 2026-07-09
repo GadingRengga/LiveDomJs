@@ -366,19 +366,21 @@ php artisan reverb:install</pre>
 {
     $exists = User::where(<span class="c-str">'username'</span>, $request->username)->exists();
 
-    <span class="c-kw">return</span> response()->json([
-        <span class="c-str">'success'</span> => <span class="c-kw">true</span>,
-        <span class="c-str">'data'</span>    => $exists
-            ? <span class="c-str">'&lt;span class="text-red-500"&gt;Username taken&lt;/span&gt;'</span>
-            : <span class="c-str">'&lt;span class="text-green-500"&gt;Username available&lt;/span&gt;'</span>,
-    ]);
+    <span class="c-kw">return</span> $exists
+        ? <span class="c-str">'&lt;span class="text-red-500"&gt;Username taken&lt;/span&gt;'</span>
+        : <span class="c-str">'&lt;span class="text-green-500"&gt;Username available&lt;/span&gt;'</span>;
 }</pre>
       </div>
       <p class="text-gray-600 text-sm">
-        The response is expected as JSON with a <code class="font-mono text-[13px]">success</code> boolean and a
-        <code class="font-mono text-[13px]">data</code> payload (or a Blade <code class="font-mono text-[13px]">View</code>, which
-        <code class="font-mono text-[13px]">AjaxController</code> renders to a string automatically). On failure, return
-        <code class="font-mono text-[13px]">success: false</code> — LiveDomJS shows an error modal (dev) or toast (production) for you.
+        <code class="font-mono text-[13px]">AjaxController</code> wraps whatever you return into the
+        <code class="font-mono text-[13px]">{ success, message, data }</code> envelope automatically — your method just
+        returns the raw payload (a string, an array, or a Blade <code class="font-mono text-[13px]">View</code>, which gets
+        <code class="font-mono text-[13px]">-&gt;render()</code>'d to a string for you). <strong>Don't</strong> wrap it yourself
+        in <code class="font-mono text-[13px]">response()->json([...])</code> — <code class="font-mono text-[13px]">AjaxController</code>
+        only unwraps <code class="font-mono text-[13px]">View</code> instances specially, so a hand-built
+        <code class="font-mono text-[13px]">JsonResponse</code> ends up nested as-is under <code class="font-mono text-[13px]">data</code>
+        instead of the string/array you meant to send. On failure, throw or let the exception propagate —
+        LiveDomJS shows an error modal (dev) or toast (production) for you automatically.
       </p>
     </section>
     <!-- CORE CONCEPTS -->
@@ -1017,8 +1019,9 @@ Each page independently re-calls the same controller/action via GET and re-rende
           <tbody class="divide-y divide-gray-100">
             <tr><td class="px-4 py-2 font-mono text-[13px]">route_prefix</td><td class="px-4 py-2 font-mono text-[13px]">ajax</td><td class="px-4 py-2 text-gray-600">The dynamic endpoint becomes <code class="font-mono text-[12px]">/{prefix}/{controller}/{action}</code>.</td></tr>
             <tr><td class="px-4 py-2 font-mono text-[13px]">route_middleware</td><td class="px-4 py-2 font-mono text-[13px]">['web']</td><td class="px-4 py-2 text-gray-600">Middleware stack applied to the dynamic AJAX route.</td></tr>
-            <tr><td class="px-4 py-2 font-mono text-[13px]">auto_inject</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">Auto-injects jQuery + <code class="font-mono text-[12px]">livedom.js</code> before <code class="font-mono text-[12px]">&lt;/body&gt;</code> on every HTML response.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">auto_inject</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">Auto-injects <code class="font-mono text-[12px]">livedom.js</code> (100% vanilla JS — no jQuery required) before <code class="font-mono text-[12px]">&lt;/body&gt;</code> on every HTML response.</td></tr>
             <tr><td class="px-4 py-2 font-mono text-[13px]">auto_inject_realtime</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">When true <em>and</em> a Reverb key is configured, also injects the CSRF meta tag, <code class="font-mono text-[12px]">window.userGlobal</code>, Echo, and <code class="font-mono text-[12px]">dynamic-broadcast.js</code>.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">jquery_cdn</td><td class="px-4 py-2 font-mono text-[13px]">null</td><td class="px-4 py-2 text-gray-600">Not needed by LiveDomJS itself. Set a CDN URL only if some <em>other</em> custom script in your project still depends on a global jQuery.</td></tr>
             <tr><td class="px-4 py-2 font-mono text-[13px]">pusher_cdn</td><td class="px-4 py-2 font-mono text-[13px]">pusher-js 8.4.0 CDN</td><td class="px-4 py-2 text-gray-600">Reverb speaks the Pusher protocol, so the client library is pusher-js.</td></tr>
             <tr><td class="px-4 py-2 font-mono text-[13px]">echo_cdn</td><td class="px-4 py-2 font-mono text-[13px]">laravel-echo 1.16.1 CDN</td><td class="px-4 py-2 text-gray-600">Set either CDN key to <code class="font-mono text-[12px]">null</code> if you bundle your own via Vite.</td></tr>
             <tr><td class="px-4 py-2 font-mono text-[13px]">serve_assets</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">Serves <code class="font-mono text-[12px]">livedom.js</code>/<code class="font-mono text-[12px]">dynamic-broadcast.js</code> from the package directly, no <code class="font-mono text-[12px]">vendor:publish</code> required. Published files in <code class="font-mono text-[12px]">public/</code> always take priority.</td></tr>
