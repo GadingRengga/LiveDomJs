@@ -1,1143 +1,1416 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LiveDomJs – Reactive HTML Framework for Laravel</title>
-    <meta name="description"
-        content="LiveDomJs is a lightweight Reactive HTML framework for Laravel that enables reactive DOM manipulation directly from Blade without needing a frontend framework. Fast, simple, and efficient.">
-    <meta name="keywords"
-        content="LiveDomJs, reactive html, laravel reactive, livedom, reactive blade, laravel spa, ajax laravel, reactive dom, frontendless laravel, javascript laravel">
-    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveDomJS — HTML-native reactivity for Laravel</title>
+<meta name="description" content="LiveDomJS is a lightweight JavaScript engine that brings reactive UI, live compute, real-time broadcasting, and SPA navigation to Laravel Blade using plain HTML attributes — no build step, no frontend framework.">
+<meta name="keywords" content="LiveDomJs, reactive html, laravel reactive, livedom, reactive blade, laravel spa, ajax laravel, live-compute, live-realtime, laravel reverb, frontendless laravel">
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+<link rel="canonical" href="https://gadingrengga.github.io/LiveDomJs/">
 
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://gadingrengga.github.io/LiveDomJs/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="LiveDomJS — HTML-native reactivity for Laravel">
+<meta property="og:description" content="Reactive UI, live compute, real-time broadcasting, and SPA navigation for Laravel Blade — driven entirely by HTML attributes.">
+<meta property="og:url" content="https://gadingrengga.github.io/LiveDomJs/">
+<meta property="og:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
 
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="LiveDomJs – Reactive HTML Framework for Laravel">
-    <meta property="og:description"
-        content="Lightweight Reactive HTML framework for Laravel. DOM manipulation directly from Blade without frontend framework.">
-    <meta property="og:url" content="https://gadingrengga.github.io/LiveDomJs/">
-    <meta property="og:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LiveDomJS — HTML-native reactivity for Laravel">
+<meta name="twitter:description" content="Reactive UI, live compute, real-time broadcasting, and SPA navigation for Laravel Blade — driven entirely by HTML attributes.">
+<meta name="twitter:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
 
-    <!-- Twitter / X -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="LiveDomJs – Reactive HTML Framework for Laravel">
-    <meta name="twitter:description" content="Lightweight Reactive HTML for Laravel without frontend complexity.">
-    <meta name="twitter:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
+<script type="application/ld+json">
+{
+"@context": "https://schema.org",
+"@type": "SoftwareApplication",
+"name": "LiveDomJs",
+"url": "https://gadingrengga.github.io/LiveDomJs/",
+"applicationCategory": "Web Development Framework",
+"operatingSystem": "Any",
+"programmingLanguage": ["JavaScript", "PHP"],
+"creator": { "@type": "Person", "name": "Gading Rengga" },
+"license": "MIT",
+"description": "Reactive HTML framework for Laravel — live compute, real-time broadcasting, SPA navigation, and reactive directives, all via HTML attributes.",
+"keywords": ["LiveDomJs", "Laravel reactive", "Reactive HTML", "Blade framework", "Frontendless Laravel", "live-compute", "live-realtime"]
+}
+</script>
 
-    <!-- Schema.org JSON-LD -->
-    <script type="application/ld+json">
-        {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "LiveDomJs",
-        "url": "https://gadingrengga.github.io/LiveDomJs/",
-        "applicationCategory": "Web Development Framework",
-        "operatingSystem": "Any",
-        "programmingLanguage": ["JavaScript", "PHP"],
-        "creator": {
-            "@type": "Person",
-            "name": "Gading Rengga"
+<link rel="icon" href="https://gadingrengga.github.io/LiveDomJs/assets/favicon.ico" type="image/x-icon">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#0B0E14',
+          panel: '#10141D',
+          edge: '#1E2430',
+          live: '#39FF9E',
+          liveDim: '#1F9E63',
+          wire: '#FFB020',
+          paper: '#FAFAF8',
         },
-        "license": "MIT",
-        "description": "Reactive HTML framework for Laravel, enabling DOM manipulation directly from Blade without frontend complexity.",
-        "keywords": ["LiveDomJs", "Laravel reactive", "Reactive HTML", "Blade framework", "Frontendless Laravel"]
+        fontFamily: {
+          display: ['"Space Grotesk"', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['"JetBrains Mono"', 'monospace'],
         }
-    </script>
+      }
+    }
+  }
+</script>
 
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', sans-serif; }
+  h1,h2,h3,h4,.font-display { font-family: 'Space Grotesk', sans-serif; }
+  code, pre, .font-mono-attr { font-family: 'JetBrains Mono', monospace; }
 
+  /* attribute pill */
+  .attr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82em;
+    background: #EFFBF4;
+    color: #0F7A47;
+    border: 1px solid #BFE9D2;
+    padding: 0.1em 0.5em;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .attr-dark {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(57,255,158,0.08);
+    color: #39FF9E;
+    border: 1px solid rgba(57,255,158,0.25);
+    padding: 0.1em 0.5em;
+    border-radius: 5px;
+  }
 
-    <!-- Favicon -->
-    <link rel="icon" href="https://gadingrengga.github.io/LiveDomJs/assets/favicon.ico" type="image/x-icon">
+  /* live pulse dot */
+  .pulse-dot { position: relative; display:inline-block; width:7px; height:7px; border-radius:50%; background:#39FF9E; }
+  .pulse-dot::after {
+    content: ''; position:absolute; inset:-4px; border-radius:50%;
+    border: 1px solid #39FF9E; animation: pulse-ring 2s ease-out infinite;
+  }
+  @keyframes pulse-ring {
+    0% { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+  /* code block */
+  .codeblock {
+    background: #0B0E14;
+    color: #E6EDF3;
+    border: 1px solid #1E2430;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.84rem;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+  .codeblock .c-tag { color: #7EE1FF; }
+  .codeblock .c-attrname { color: #39FF9E; }
+  .codeblock .c-str { color: #FFD479; }
+  .codeblock .c-cmt { color: #6B7685; font-style: italic; }
+  .codeblock .c-php { color: #C9A6FF; }
+  .codeblock .c-kw { color: #FF8FA3; }
 
-    <style>
-        html {
-            scroll-behavior: smooth;
-        }
+  .doc-nav-link.active {
+    color: #0F7A47;
+    background: #EFFBF4;
+    font-weight: 600;
+  }
+  .doc-nav-link { display:block; padding: 5px 10px; border-radius:7px; color:#4B5563; font-size: 0.84rem; }
+  .doc-nav-link:hover { background:#F3F4F6; color:#111827; }
 
-        .hero-gradient {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #D8DCE2; border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
 
-        .code-highlight {
-            background: #2d3748;
-            color: #e2e8f0;
-        }
+  .section-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: #0F7A47;
+    text-transform: uppercase;
+  }
 
-        .syntax-php {
-            color: #81E6D9;
-        }
-
-        .syntax-html {
-            color: #FEB2B2;
-        }
-
-        .syntax-js {
-            color: #F6E05E;
-        }
-
-        .syntax-comment {
-            color: #A0AEC0;
-        }
-
-        .feature-card {
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-
-        .navbar-blur {
-            backdrop-filter: blur(20px);
-            background-color: rgba(255, 255, 255, 0.8);
-        }
-
-        .logo-container {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 20px;
-        }
-
-        /* Mobile menu styles */
-        .mobile-menu {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-
-        .mobile-menu.open {
-            max-height: 300px;
-        }
-
-        /* Responsive table styles */
-        .responsive-table {
-            overflow-x: auto;
-        }
-
-        /* Improve code block responsiveness */
-        pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        /* Responsive text sizing */
-        @media (max-width: 640px) {
-            .responsive-text {
-                font-size: 0.875rem;
-            }
-        }
-    </style>
+  .grid-fade {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+</style>
 </head>
+<body class="bg-paper text-gray-900 font-body antialiased">
 
-<body class="bg-gray-50 text-gray-900">
-
-    <!-- Navigation -->
-    <nav class="fixed w-full z-50 navbar-blur border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center space-x-4">
-                    <div class="logo-container">LD</div>
-                    <div>
-                        <h1 class="text-xl font-bold text-gray-900">LiveDomJS</h1>
-                        <p class="text-xs text-gray-500">Modern HTML - REACTIVE Laravel Library</p>
-                    </div>
-                </div>
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="#installation" class="text-gray-600 hover:text-blue-600 transition-colors">Installation</a>
-                    <a href="#features" class="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
-                    <a href="#documentation"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">Documentation</a>
-                    <a href="#examples" class="text-gray-600 hover:text-blue-600 transition-colors">Examples</a>
-                </div>
-                <div class="md:hidden">
-                    <button id="mobile-menu-button" class="text-gray-600 hover:text-blue-600 transition-colors">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 6h16M4 12h16M4 18h16"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <!-- Mobile Menu -->
-            <div id="mobile-menu" class="mobile-menu md:hidden bg-white border-t border-gray-200">
-                <div class="py-2 space-y-1">
-                    <a href="#installation"
-                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Installation</a>
-                    <a href="#features"
-                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Features</a>
-                    <a href="#documentation"
-                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Documentation</a>
-                    <a href="#examples"
-                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Examples</a>
-                </div>
-            </div>
-        </div>
+<!-- Top bar -->
+<header class="fixed top-0 inset-x-0 z-50 border-b border-gray-200 bg-paper/90 backdrop-blur">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5">
+      <span class="w-7 h-7 rounded-md bg-ink flex items-center justify-center">
+        <span class="pulse-dot"></span>
+      </span>
+      <span class="font-display font-bold text-[15px] tracking-tight">LiveDomJS</span>
+      <span class="hidden sm:inline text-[11px] font-mono text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">v2</span>
+    </a>
+    <nav class="hidden md:flex items-center gap-6 text-[13.5px] text-gray-600">
+      <a href="#getting-started" class="hover:text-gray-900">Getting started</a>
+      <a href="#attribute-reference" class="hover:text-gray-900">Attributes</a>
+      <a href="#live-compute" class="hover:text-gray-900">Live Compute</a>
+      <a href="#realtime" class="hover:text-gray-900">Real-time</a>
+      <a href="#recipes" class="hover:text-gray-900">Recipes</a>
+      <a href="https://github.com/GadingRengga/LiveDomJs" target="_blank" class="hover:text-gray-900">GitHub ↗</a>
     </nav>
+    <button id="mobile-nav-toggle" class="md:hidden text-gray-600">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+</header>
 
-    <!-- Hero Section -->
-    <section class="hero-gradient pt-24 pb-16 text-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div class="logo-container mx-auto mb-6 w-20 h-20 text-3xl">LD</div>
-            <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">LiveDomJS</h1>
-            <p class="text-lg md:text-xl lg:text-2xl mb-8 text-blue-100">Modern HTML - REACTIVE Laravel Library for
-                Faster Web Development</p>
-            <p class="text-base md:text-lg mb-12 text-blue-100 max-w-3xl mx-auto">
-                A comprehensive solution for dynamic interactions, SPA routing, Excel-like form computation, and much
-                more. Enhance user experience easily without excessive JavaScript complexity.
-            </p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="#installation"
-                    class="bg-white text-blue-600 px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center">
-                    Get Started
-                </a>
-                <a href="#documentation"
-                    class="border-2 border-white text-white px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors text-center">
-                    View Documentation
-                </a>
-            </div>
+<!-- Hero -->
+<section id="top" class="relative bg-ink text-white pt-28 pb-20 overflow-hidden grid-fade">
+  <div class="absolute -top-24 -right-24 w-[420px] h-[420px] rounded-full bg-live/10 blur-3xl"></div>
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 relative">
+    <div class="max-w-3xl">
+      <div class="inline-flex items-center gap-2 text-[12px] font-mono text-live border border-live/30 bg-live/5 rounded-full px-3 py-1 mb-6">
+        <span class="pulse-dot"></span> zero build step · zero routes · zero JS files
+      </div>
+      <h1 class="font-display text-4xl md:text-6xl font-bold leading-[1.05] mb-6">
+        HTML gets a nervous system.<br>
+        <span class="text-live">Laravel</span> stays exactly where it is.
+      </h1>
+      <p class="text-lg text-gray-300 mb-8 max-w-2xl">
+        LiveDomJS turns HTML attributes into a full reactivity engine for Laravel Blade —
+        AJAX, spreadsheet-grade live computation, WebSocket broadcasting, and SPA navigation —
+        without writing a single line of client-side JavaScript.
+      </p>
+      <div class="flex flex-wrap gap-3 mb-12">
+        <a href="#getting-started" class="bg-live text-ink font-semibold px-5 py-2.5 rounded-lg hover:bg-white transition-colors text-sm">Get started →</a>
+        <a href="#attribute-reference" class="border border-white/20 px-5 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-sm">Browse attributes</a>
+      </div>
+      <div class="codeblock p-5 max-w-xl">
+<pre><span class="c-cmt">&lt;!-- this is the entire feature --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"saveUser"</span> <span class="c-attrname">live-realtime</span>=<span class="c-str">"true"</span><span class="c-tag">&gt;</span>
+  Save
+<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-3xl">
+      <div><div class="font-display text-2xl font-bold text-live">30+</div><div class="text-xs text-gray-400 mt-1">live-* attributes</div></div>
+      <div><div class="font-display text-2xl font-bold text-live">0</div><div class="text-xs text-gray-400 mt-1">new routes/files</div></div>
+      <div><div class="font-display text-2xl font-bold text-live">6</div><div class="text-xs text-gray-400 mt-1">aggregate functions</div></div>
+      <div><div class="font-display text-2xl font-bold text-live">1</div><div class="text-xs text-gray-400 mt-1">composer command</div></div>
+    </div>
+  </div>
+</section>
+<!-- Docs layout -->
+<div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex gap-10 py-12">
+
+  <!-- Sidebar -->
+  <aside class="hidden lg:block w-64 shrink-0">
+    <div class="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2 space-y-6 text-sm">
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Start here</div>
+        <a href="#overview" class="doc-nav-link">Overview</a>
+        <a href="#getting-started" class="doc-nav-link">Installation</a>
+        <a href="#core-concepts" class="doc-nav-link">Core concepts</a>
+      </div>
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Interaction</div>
+        <a href="#interaction-attributes" class="doc-nav-link">Trigger attributes</a>
+        <a href="#sending-data" class="doc-nav-link">Sending data &amp; arguments</a>
+        <a href="#targeting" class="doc-nav-link">Targeting the DOM</a>
+        <a href="#loading-callbacks" class="doc-nav-link">Loading &amp; callbacks</a>
+      </div>
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Reactivity</div>
+        <a href="#live-compute" class="doc-nav-link">Live Compute</a>
+        <a href="#reactive-directives" class="doc-nav-link">Reactive directives</a>
+      </div>
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Real-time &amp; SPA</div>
+        <a href="#realtime" class="doc-nav-link">live-realtime &amp; Reverb</a>
+        <a href="#spa" class="doc-nav-link">SPA navigation</a>
+      </div>
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Platform</div>
+        <a href="#errors-debugging" class="doc-nav-link">Errors &amp; debugging</a>
+        <a href="#configuration" class="doc-nav-link">Configuration</a>
+        <a href="#js-api" class="doc-nav-link">JavaScript API</a>
+        <a href="#php-api" class="doc-nav-link">PHP API</a>
+      </div>
+
+      <div>
+        <div class="section-eyebrow mb-2 px-2">Reference</div>
+        <a href="#attribute-reference" class="doc-nav-link">Full attribute table</a>
+        <a href="#recipes" class="doc-nav-link">Recipes</a>
+        <a href="#troubleshooting" class="doc-nav-link">Troubleshooting</a>
+        <a href="#comparison" class="doc-nav-link">Comparison</a>
+        <a href="#changelog" class="doc-nav-link">Changelog &amp; roadmap</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="min-w-0 flex-1 max-w-[840px] space-y-24">
+
+    <!-- OVERVIEW -->
+    <section id="overview" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">01 — Overview</div>
+      <h2 class="font-display text-3xl font-bold mb-5">What is LiveDomJS?</h2>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        LiveDomJS is a lightweight JavaScript engine 
+        that lets Blade templates call <strong>existing Laravel controllers</strong> directly from HTML attributes.
+        There is no separate API layer to design, no JavaScript state management to write, and no new routes to
+        register — every interaction is described declaratively on the element that triggers it.
+      </p>
+      <p class="text-gray-600 leading-relaxed mb-8">
+        Under the hood, every attribute you add is handled by one of four engines that ship inside
+        <code class="attr">livedom.js</code>: the <strong>AJAX/event engine</strong> (click, change, submit, hover,
+        keyup, polling), the <strong>Live Compute engine</strong> (client-side spreadsheet-style formulas), the
+        <strong>real-time engine</strong> (WebSocket broadcasting through Laravel Reverb), and the
+        <strong>SPA engine</strong> (region-based navigation with history support).
+      </p>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="border border-gray-200 rounded-xl p-5">
+          <div class="text-live-dim text-liveDim font-mono text-xs mb-2">// convention</div>
+          <p class="text-sm text-gray-700"><code class="attr">live-click="saveUser"</code> sends a request to
+            <code class="font-mono text-[13px]">/ajax/{live-scope}/saveUser</code>, which Laravel's
+            <code class="font-mono text-[13px]">AjaxController</code> dispatches straight to
+            <code class="font-mono text-[13px]">App\Http\Controllers\{live-scope}@saveUser</code>. The controller
+            never knows it was called this way.</p>
         </div>
+        <div class="border border-gray-200 rounded-xl p-5">
+          <div class="text-liveDim font-mono text-xs mb-2">// no jQuery in your code</div>
+          <p class="text-sm text-gray-700">LiveDomJS still bundles jQuery internally today (see
+            <a href="#comparison" class="underline">roadmap</a>), but you never write jQuery yourself — every
+            selector, event binding, and DOM patch is generated from the attributes you declare.</p>
+        </div>
+      </div>
     </section>
 
-    <!-- Features Overview -->
-    <section id="features" class="py-16 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">LiveDomJS Key Features</h2>
-                <p class="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-                    All-in-one library providing a modern web development experience with Laravel
-                </p>
-            </div>
+    <!-- GETTING STARTED -->
+    <section id="getting-started" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">02 — Getting started</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Installation</h2>
+      <p class="text-gray-600 mb-2"><strong>Requirements:</strong> Laravel 9, 10, 11, or 12 · PHP 8.0+</p>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                <div
-                    class="feature-card bg-gradient-to-br from-blue-50 to-indigo-100 p-6 md:p-8 rounded-2xl border border-blue-200">
-                    <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Dynamic AJAX</h3>
-                    <p class="text-gray-600">Automatic AJAX system with simple HTML attributes. No need to write manual
-                        JavaScript.</p>
-                </div>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt"># that's the whole install</span>
+composer require gadingrengga/livedomjs</pre>
+      </div>
 
-                <div
-                    class="feature-card bg-gradient-to-br from-green-50 to-emerald-100 p-6 md:p-8 rounded-2xl border border-green-200">
-                    <div class="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">
-                            </path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Live Computation</h3>
-                    <p class="text-gray-600">Automatic real-time calculations with Excel-like formulas. Supports SUM,
-                        AVG, SUMIF and date functions.</p>
-                </div>
+      <p class="text-gray-600 leading-relaxed mb-5">
+        Nothing else is required. The moment the package is required by Composer:
+      </p>
+      <ul class="space-y-2 text-gray-700 mb-8 list-disc pl-5">
+        <li>The route <code class="attr">/ajax/{controller}/{action}</code> is registered automatically by <code class="font-mono text-[13px]">LiveDomServiceProvider</code>.</li>
+        <li>The CSRF meta tag is injected automatically whenever real-time assets are active — you don't need to add it by hand.</li>
+        <li>Assets are served directly from the package via a fallback route — no <code class="font-mono text-[13px]">vendor:publish</code> needed to get started.</li>
+      </ul>
 
-                <div
-                    class="feature-card bg-gradient-to-br from-purple-50 to-violet-100 p-6 md:p-8 rounded-2xl border border-purple-200">
-                    <div class="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">SPA Router</h3>
-                    <p class="text-gray-600">Single Page Application with automatic routing. Smooth navigation without
-                        page reload.</p>
-                </div>
+      <h3 class="font-display text-xl font-semibold mb-3">Optional: publishing &amp; customizing</h3>
+      <p class="text-gray-600 mb-4">If you want to change the route prefix, disable auto-injection, or edit <code class="attr">livedom.js</code> directly in your project:</p>
+      <div class="codeblock p-5 my-5">
+<pre>php artisan livedomjs:install --publish</pre>
+      </div>
+      <p class="text-gray-600 mb-8">This publishes <code class="attr">config/livedomjs.php</code> and the JS assets to <code class="font-mono text-[13px]">public/vendor/livedomjs</code>. Once published, your local copy automatically takes priority over the package's built-in fallback.</p>
 
-                <div
-                    class="feature-card bg-gradient-to-br from-orange-50 to-red-100 p-6 md:p-8 rounded-2xl border border-orange-200">
-                    <div class="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
-                            </path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Live Conditionals</h3>
-                    <p class="text-gray-600">Show/hide elements dynamically based on input conditions. Reactive UI
-                        without complex JavaScript.</p>
-                </div>
-
-                <div
-                    class="feature-card bg-gradient-to-br from-teal-50 to-cyan-100 p-6 md:p-8 rounded-2xl border border-teal-200">
-                    <div class="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Auto Polling</h3>
-                    <p class="text-gray-600">Automatically refresh content periodically. Ideal for real-time dashboards
-                        and notifications.</p>
-                </div>
-
-                <div
-                    class="feature-card bg-gradient-to-br from-pink-50 to-rose-100 p-6 md:p-8 rounded-2xl border border-pink-200">
-                    <div class="w-12 h-12 bg-pink-600 rounded-xl flex items-center justify-center mb-6">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z">
-                            </path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Live Data Binding</h3>
-                    <p class="text-gray-600">Automatic data synchronization between elements. Easy-to-use two-way data
-                        binding.</p>
-                </div>
-            </div>
+      <div class="border-l-4 border-wire bg-amber-50/60 rounded-r-lg p-5 mb-8">
+        <p class="text-sm font-semibold text-amber-900 mb-1">⚠ Laravel 11 &amp; 12 — one extra step for real-time only</p>
+        <p class="text-sm text-amber-800 leading-relaxed">
+          New Laravel 11/12 projects ship a "slim skeleton" without <code class="font-mono text-[13px]">config/broadcasting.php</code> or
+          <code class="font-mono text-[13px]">routes/channels.php</code>. AJAX, live-compute, and SPA work with zero setup on any version —
+          only <code class="attr">live-realtime</code> needs broadcasting configured first:
+        </p>
+        <div class="codeblock p-4 mt-3">
+<pre>php artisan install:broadcasting</pre>
         </div>
+        <p class="text-sm text-amber-800 mt-3">On Laravel 9/10, <code class="font-mono text-[13px]">config/broadcasting.php</code> already exists, so you only need:</p>
+        <div class="codeblock p-4 mt-3">
+<pre>composer require laravel/reverb
+php artisan reverb:install</pre>
+        </div>
+        <p class="text-sm text-amber-800 mt-3">
+          Once <code class="font-mono text-[13px]">REVERB_APP_KEY</code> is set in <code class="font-mono text-[13px]">.env</code>, LiveDomJS
+          detects it automatically and starts injecting the realtime script stack. Until then, <code class="attr">live-realtime</code> is
+          silently inactive — no errors, no "Echo is not defined". Keep a broadcast server and queue worker running:
+          <code class="font-mono text-[13px]">php artisan reverb:start</code> and <code class="font-mono text-[13px]">php artisan queue:work</code>.
+        </p>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Your first reactive element</h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;div</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"UserController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;input</span> name=<span class="c-str">"username"</span> placeholder=<span class="c-str">"Enter username..."</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"checkAvailability"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"#status"</span><span class="c-tag">&gt;</span>Check<span class="c-tag">&lt;/button&gt;</span>
+  <span class="c-tag">&lt;div</span> id=<span class="c-str">"status"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;/div&gt;</span></pre>
+      </div>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">// app/Http/Controllers/UserController.php — no new routes or files needed</span>
+<span class="c-kw">public function</span> checkAvailability(Request $request)
+{
+    $exists = User::where(<span class="c-str">'username'</span>, $request->username)->exists();
+
+    <span class="c-kw">return</span> response()->json([
+        <span class="c-str">'success'</span> => <span class="c-kw">true</span>,
+        <span class="c-str">'data'</span>    => $exists
+            ? <span class="c-str">'&lt;span class="text-red-500"&gt;Username taken&lt;/span&gt;'</span>
+            : <span class="c-str">'&lt;span class="text-green-500"&gt;Username available&lt;/span&gt;'</span>,
+    ]);
+}</pre>
+      </div>
+      <p class="text-gray-600 text-sm">
+        The response is expected as JSON with a <code class="font-mono text-[13px]">success</code> boolean and a
+        <code class="font-mono text-[13px]">data</code> payload (or a Blade <code class="font-mono text-[13px]">View</code>, which
+        <code class="font-mono text-[13px]">AjaxController</code> renders to a string automatically). On failure, return
+        <code class="font-mono text-[13px]">success: false</code> — LiveDomJS shows an error modal (dev) or toast (production) for you.
+      </p>
+    </section>
+    <!-- CORE CONCEPTS -->
+    <section id="core-concepts" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">03 — Core concepts</div>
+      <h2 class="font-display text-3xl font-bold mb-5">How a request actually flows</h2>
+      <div class="codeblock p-5 my-5 text-[13px]">
+<pre>User clicks [live-click="saveUser"]
+    │
+    ▼
+POST /ajax/UserController/saveUser        ← route registered by LiveDomServiceProvider
+    │
+    ▼
+AjaxController::handle()                  ← resolves "UserController" → App\Http\Controllers\UserController
+    │
+    ▼
+UserController@saveUser($request)         ← your existing controller, untouched
+    │
+    ▼
+{ success: true, data: "&lt;html or json&gt;" }
+    │
+    ▼
+Rendered into [live-target="#result"]     ← or passed to a callback / autoBindDomFromResponse()</pre>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-8">
+        Controller names may include <code class="font-mono text-[13px]">/</code> or <code class="font-mono text-[13px]">.</code> to reach
+        nested namespaces — <code class="attr">live-scope="Invoice/ItemController"</code> resolves to
+        <code class="font-mono text-[13px]">App\Http\Controllers\Invoice\ItemController</code>. Both controller and action names are
+        validated with a strict whitelist regex before resolution, so arbitrary class names can never be dispatched.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-scope</code> — the request boundary</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Every element with a <code class="attr">live-*</code> trigger needs a <code class="attr">live-scope</code> ancestor. It does two
+        jobs at once: it tells LiveDomJS which controller to call, <em>and</em> it defines which inputs on the page are allowed to travel
+        with the request. Only <code class="font-mono text-[13px]">&lt;input&gt;/&lt;select&gt;/&lt;textarea&gt;</code> elements
+        inside the nearest <code class="attr">live-scope</code> ancestor are serialized — nothing outside that boundary leaks in.
+        This is what makes repeating rows (tables, line items) safe by default.
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">&lt;!-- Row 1 — only its own inputs are sent --&gt;</span>
+<span class="c-tag">&lt;tr</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Order/ItemController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;td&gt;&lt;input</span> name=<span class="c-str">"qty"</span><span class="c-tag">&gt;&lt;/td&gt;</span>
+  <span class="c-tag">&lt;td&gt;&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"update"</span><span class="c-tag">&gt;</span>Update<span class="c-tag">&lt;/button&gt;&lt;/td&gt;</span>
+<span class="c-tag">&lt;/tr&gt;</span>
+<span class="c-cmt">&lt;!-- Row 2 — completely isolated, even though it's the same controller --&gt;</span>
+<span class="c-tag">&lt;tr</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Order/ItemController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;td&gt;&lt;input</span> name=<span class="c-str">"qty"</span><span class="c-tag">&gt;&lt;/td&gt;</span>
+  <span class="c-tag">&lt;td&gt;&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"update"</span><span class="c-tag">&gt;</span>Update<span class="c-tag">&lt;/button&gt;&lt;/td&gt;</span>
+<span class="c-tag">&lt;/tr&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-dom</code> — how the response lands</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        By default a successful response replaces the target's <code class="font-mono text-[13px]">innerHTML</code> (or its
+        <code class="font-mono text-[13px]">value</code>, if the target is a form field). <code class="attr">live-dom</code> lets you
+        pick a different DOM action explicitly:
+      </p>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Value</th><th class="text-left px-4 py-2">Effect</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 font-mono text-[13px]">auto</td><td class="px-4 py-2 text-gray-600">Default. <code class="font-mono text-[12px]">value</code> for form fields, <code class="font-mono text-[12px]">innerHTML</code> otherwise.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">html</td><td class="px-4 py-2 text-gray-600">Replace <code class="font-mono text-[12px]">innerHTML</code>.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">text</td><td class="px-4 py-2 text-gray-600">Replace <code class="font-mono text-[12px]">textContent</code> (no HTML parsing).</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">value / val</td><td class="px-4 py-2 text-gray-600">Set an input's value and dispatch <code class="font-mono text-[12px]">change</code>/<code class="font-mono text-[12px]">input</code>.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">append / prepend</td><td class="px-4 py-2 text-gray-600">Insert HTML at the start/end of the target.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">before / after</td><td class="px-4 py-2 text-gray-600">Insert HTML as a sibling of the target.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">show / hide / toggle</td><td class="px-4 py-2 text-gray-600">Visibility only — ignores the response body (toggle uses response as truthy flag).</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">remove</td><td class="px-4 py-2 text-gray-600">Removes the target element(s) entirely.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-gray-600 text-sm">
+        You can combine several actions with several targets in one call: <code class="attr">live-target="#a, #b"</code> paired with
+        <code class="attr">live-dom="append, hide"</code> applies each action to its matching target by index.
+      </p>
+    </section>
+    <!-- INTERACTION ATTRIBUTES -->
+    <section id="interaction-attributes" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">04 — Interaction</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Trigger attributes</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Each of these binds a DOM event to one or more controller methods. All of them are delegated at the
+        document level, so they work on content that's injected later (AJAX responses, SPA navigation) without
+        any re-initialization step on your part.
+      </p>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Attribute</th><th class="text-left px-4 py-2">Fires on</th><th class="text-left px-4 py-2">Notes</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2"><code class="attr">live-click</code></td><td class="px-4 py-2 text-gray-600">click</td><td class="px-4 py-2 text-gray-600">Most common trigger.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-change</code></td><td class="px-4 py-2 text-gray-600">change</td><td class="px-4 py-2 text-gray-600">Selects, checkboxes, blur-commit fields.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-input</code></td><td class="px-4 py-2 text-gray-600">input (debounced)</td><td class="px-4 py-2 text-gray-600">400ms debounce per controller+method, shared with <code class="font-mono text-[12px]">live-keyup</code>.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-keyup</code></td><td class="px-4 py-2 text-gray-600">keyup (debounced)</td><td class="px-4 py-2 text-gray-600">Good for search-as-you-type.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-submit</code></td><td class="px-4 py-2 text-gray-600">form submit</td><td class="px-4 py-2 text-gray-600"><code class="font-mono text-[12px]">preventDefault()</code> is automatic.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-hover</code></td><td class="px-4 py-2 text-gray-600">mouseenter</td><td class="px-4 py-2 text-gray-600">Delegated hover (mouseover/mouseout + relatedTarget check), so it works on dynamic content too.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-poll</code></td><td class="px-4 py-2 text-gray-600">interval, in ms</td><td class="px-4 py-2 text-gray-600">Repeats a GET call to whatever method is set on <code class="font-mono text-[12px]">live-click</code> on the same element.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"store"</span><span class="c-tag">&gt;</span>Create<span class="c-tag">&lt;/button&gt;</span>
+<span class="c-tag">&lt;input</span> <span class="c-attrname">live-change</span>=<span class="c-str">"search"</span><span class="c-tag">&gt;</span>
+<span class="c-tag">&lt;form</span> <span class="c-attrname">live-submit</span>=<span class="c-str">"processForm"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;div</span> <span class="c-attrname">live-hover</span>=<span class="c-str">"preview"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;/form&gt;</span>
+<span class="c-tag">&lt;div</span> id=<span class="c-str">"ticker"</span> <span class="c-attrname">live-poll</span>=<span class="c-str">"5000"</span> <span class="c-attrname">live-click</span>=<span class="c-str">"refresh"</span><span class="c-tag">&gt;&lt;/div&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm">
+        <code class="attr">live-method</code> overrides the HTTP verb used for the request (defaults to <code class="font-mono text-[13px]">POST</code>,
+        or the enclosing <code class="font-mono text-[13px]">&lt;form method&gt;</code> for submits): <code class="attr">live-method="GET"</code>.
+      </p>
     </section>
 
-    <!-- Installation Section -->
-    <section id="installation" class="py-16 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Installation</h2>
-                <p class="text-lg md:text-xl text-gray-600">Start using LiveDomJS in minutes</p>
-            </div>
+    <!-- SENDING DATA -->
+    <section id="sending-data" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">05 — Interaction</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Sending data &amp; calling methods with arguments</h2>
 
-            <div class="max-w-4xl mx-auto space-y-8">
-                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
-                        <span
-                            class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">1</span>
-                        Via Composer (Laravel)
-                    </h3>
-                    <p class="text-gray-600 mb-6">If using Laravel, LiveDomJs can be installed directly through
-                        Packagist:</p>
+      <h3 class="font-display text-xl font-semibold mb-3">Default: everything in scope</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        With no extra configuration, LiveDomJS collects every named input inside the nearest
+        <code class="attr">live-scope</code> and sends it as <code class="font-mono text-[13px]">FormData</code> (files, checkboxes,
+        and radios are handled the same way a native form submit would).
+      </p>
 
-                    <div class="code-highlight rounded-lg p-4 md:p-6 mb-6">
-                        <pre class="text-sm responsive-text"><code><span class="syntax-comment"># Install package</span>
-<span class="syntax-php">composer require gadingrengga/livedomjs</span>
+      <h3 class="font-display text-xl font-semibold mb-3">Multiple methods, one element</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Comma-separate method calls inside a single <code class="attr">live-click</code> — each can carry its own arguments and,
+        paired with a comma-separated <code class="attr">live-target</code>, its own target:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;button</span>
+  <span class="c-attrname">live-click</span>=<span class="c-str">"logAction('viewed'), refreshPanel"</span>
+  <span class="c-attrname">live-target</span>=<span class="c-str">"#log, #panel"</span>
+<span class="c-tag">&gt;</span>View<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
 
-<span class="syntax-comment"># Run installation to publish assets and routes</span>
-<span class="syntax-php">php artisan livedomjs:install</span></code></pre>
-                    </div>
-                </div>
+      <h3 class="font-display text-xl font-semibold mb-3">Passing explicit arguments</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Call the method like a JS function directly in the attribute. Arguments are evaluated safely (not
+        <code class="font-mono text-[13px]">eval</code>'d against global scope) and sent as <code class="font-mono text-[13px]">data</code>
+        in the request body — single argument, array of arguments, selector string, or a plain object literal are all supported:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">&lt;!-- single scalar argument --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"deleteItem(42)"</span><span class="c-tag">&gt;</span>Delete<span class="c-tag">&lt;/button&gt;</span>
 
-                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
-                        <span
-                            class="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">2</span>
-                        Usage in Blade
-                    </h3>
-                    <p class="text-gray-600 mb-6">Add the following script to your Blade layout after jQuery:</p>
+<span class="c-cmt">&lt;!-- object literal --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"updateStatus({id: 42, status: 'done'})"</span><span class="c-tag">&gt;</span>Complete<span class="c-tag">&lt;/button&gt;</span>
 
-                    <div class="code-highlight rounded-lg p-4 md:p-6 mb-6">
-                        <pre
-                            class="text-sm responsive-text"><code><span class="syntax-html">&lt;script src="https://code.jquery.com/jquery-3.6.0.min.js"&gt;&lt;/script&gt;</span>
-<span class="syntax-html">&lt;script src="{{ asset('vendor/livedomjs/livedom.js') }}"&gt;&lt;/script&gt;</span></code></pre>
-                    </div>
+<span class="c-cmt">&lt;!-- 'this' refers to the triggering element --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"remove(this.dataset.id)"</span> data-id=<span class="c-str">"42"</span><span class="c-tag">&gt;</span>Remove<span class="c-tag">&lt;/button&gt;</span>
 
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p class="text-blue-800"><strong>Note:</strong> Make sure jQuery is loaded before LiveDomJS to
-                            avoid errors.</p>
-                    </div>
-                </div>
+<span class="c-cmt">&lt;!-- a #id/.class argument scopes data collection to THAT element instead --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"updateDimension('#tr-1')"</span><span class="c-tag">&gt;</span>Update row<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm mb-6">
+        Your controller receives whichever shape you sent under <code class="font-mono text-[13px]">$request->input('data')</code> when
+        args are used, or the raw named fields when the scope is serialized normally.
+      </p>
 
-                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
-                        <span
-                            class="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">3</span>
-                        CSRF Token Setup
-                    </h3>
-                    <p class="text-gray-600 mb-6">Add CSRF token in the head section of your template:</p>
-
-                    <div class="code-highlight rounded-lg p-4 md:p-6">
-                        <pre
-                            class="text-sm responsive-text"><code><span class="syntax-html">&lt;meta name="csrf-token" content="{{ csrf_token() }}"&gt;</span></code></pre>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-data</code> — static payload override</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        When you need to send a fixed value regardless of scope contents, <code class="attr">live-data</code> takes priority over
+        both scope serialization and inline arguments:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"archive"</span> <span class="c-attrname">live-data</span>=<span class="c-str">"archived"</span><span class="c-tag">&gt;</span>Archive<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
     </section>
 
-    <!-- Documentation Section -->
-    <section id="documentation" class="py-16 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Complete Documentation</h2>
-                <p class="text-lg md:text-xl text-gray-600">Comprehensive guide for all LiveDomJS features</p>
-            </div>
-
-            <!-- AJAX Dynamic -->
-            <div class="max-w-6xl mx-auto space-y-16">
-                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-6 md:p-8 border border-blue-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-blue-900">1. Dynamic AJAX</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatic AJAX system with simple HTML attributes
-                        for server interaction without page reload.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Main Attributes:</h4>
-                            <ul class="space-y-2 text-gray-700">
-                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-scope</code> - Defines controller
-                                </li>
-                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-click</code> - Method called on
-                                    click</li>
-                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-target</code> - Target element for
-                                    response</li>
-                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-method</code> - HTTP method
-                                    (GET/POST)</li>
-                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-loading</code> - Show loading
-                                    indicator</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Event Handlers:</h4>
-                            <ul class="space-y-2 text-gray-700">
-                                <li><code class="bg-green-100 px-2 py-1 rounded">live-submit</code> - Submit form via
-                                    AJAX</li>
-                                <li><code class="bg-green-100 px-2 py-1 rounded">live-change</code> - Trigger when value
-                                    changes</li>
-                                <li><code class="bg-green-100 px-2 py-1 rounded">live-keyup</code> - Trigger on keyup
-                                </li>
-                                <li><code class="bg-green-100 px-2 py-1 rounded">live-input</code> - Trigger on input
-                                </li>
-                                <li><code class="bg-green-100 px-2 py-1 rounded">live-hover</code> - Trigger on hover
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div class="mt-8">
-                        <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
-                        <div class="code-highlight rounded-lg p-4 md:p-6">
-                            <pre class="text-sm responsive-text"><code><span class="syntax-html">&lt;div live-scope="user"&gt;</span>
-    <span class="syntax-html">&lt;input name="name" type="text" placeholder="User Name"&gt;</span>
-    <span class="syntax-html">&lt;button live-click="save" live-target="#result" live-loading="true" live-loading-indicator&gt;</span>
-        <span class="syntax-html">Save User</span>
-    <span class="syntax-html">&lt;/button&gt;</span>
-    <span class="syntax-html">&lt;div id="result"&gt;&lt;/div&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Computation -->
-                <div
-                    class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-3xl p-6 md:p-8 border border-green-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-green-900">2. Live Computation</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Real-time calculation system with Excel-like
-                        formulas. Supports various mathematical and date functions.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
-                            <h4 class="font-semibold mb-3">Math Functions</h4>
-                            <ul class="text-sm space-y-1 text-gray-600">
-                                <li><code>sum(field)</code></li>
-                                <li><code>avg(field)</code></li>
-                                <li><code>min(field)</code></li>
-                                <li><code>max(field)</code></li>
-                                <li><code>count(field)</code></li>
-                                <li><code>sumif(range, criteria, sum_range)</code></li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
-                            <h4 class="font-semibold mb-3">Date Functions</h4>
-                            <ul class="text-sm space-y-1 text-gray-600">
-                                <li><code>rangeDate(start, end)</code></li>
-                                <li><code>rangeMonth(start, end)</code></li>
-                                <li><code>rangeYear(start, end)</code></li>
-                                <li><code>rangeWeek(start, end)</code></li>
-                            </ul>
-                        </div>
-                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
-                            <h4 class="font-semibold mb-3">Output Format</h4>
-                            <ul class="text-sm space-y-1 text-gray-600">
-                                <li><code>idr</code> - Rupiah Format</li>
-                                <li><code>currency</code> - Dollar Format</li>
-                                <li><code>decimal</code> - 2 Decimals</li>
-                                <li><code>percent</code> - Percentage</li>
-                                <li><code>days/months/years</code></li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
-                        <div class="code-highlight rounded-lg p-4 md:p-6">
-                            <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Automatic calculation --&gt;</span>
-<span class="syntax-html">&lt;input name="qty" type="number" value="10"&gt;</span>
-<span class="syntax-html">&lt;input name="price" type="number" value="5000"&gt;</span>
-<span class="syntax-html">&lt;input live-compute="qty * price" live-compute-format="idr" readonly&gt;</span>
-
-<span class="syntax-comment">&lt;!-- With manual control --&gt;</span>
-<span class="syntax-html">&lt;input name="subtotal" live-compute="sum(rows_?_qty * rows_?_price)" </span>
-<span class="syntax-html">       live-compute-format="idr" live-compute-skip="true"&gt;</span></code></pre>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Conditionals -->
-                <div
-                    class="bg-gradient-to-r from-purple-50 to-violet-50 rounded-3xl p-6 md:p-8 border border-purple-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-purple-900">3. Live Conditionals</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Control element visibility and styling based on
-                        input conditions in real-time.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Available Directives:</h4>
-                            <ul class="space-y-3">
-                                <li>
-                                    <code class="bg-purple-100 px-3 py-1 rounded">live-show</code>
-                                    <p class="text-sm text-gray-600 mt-1">Show/hide element based on condition</p>
-                                </li>
-                                <li>
-                                    <code class="bg-purple-100 px-3 py-1 rounded">live-class</code>
-                                    <p class="text-sm text-gray-600 mt-1">Add/remove CSS classes dynamically</p>
-                                </li>
-                                <li>
-                                    <code class="bg-purple-100 px-3 py-1 rounded">live-style</code>
-                                    <p class="text-sm text-gray-600 mt-1">Change inline styles dynamically</p>
-                                </li>
-                                <li>
-                                    <code class="bg-purple-100 px-3 py-1 rounded">live-attr</code>
-                                    <p class="text-sm text-gray-600 mt-1">Change element attributes dynamically</p>
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Condition Examples:</h4>
-                            <div class="code-highlight rounded-lg p-4">
-                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Show based on value --&gt;</span>
-<span class="syntax-html">&lt;div live-show="status == 'active'"&gt;</span>
-    <span class="syntax-html">Content for active status</span>
-<span class="syntax-html">&lt;/div&gt;</span>
-
-<span class="syntax-comment">&lt;!-- Class based on condition --&gt;</span>
-<span class="syntax-html">&lt;div live-class="price > 1000 ? 'text-red-500' : 'text-green-500'"&gt;</span>
-    <span class="syntax-html">Price changes color</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SPA Router -->
-                <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-3xl p-6 md:p-8 border border-orange-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-orange-900">4. SPA Router</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Single Page Application with automatic routing
-                        and smooth navigation without page reload.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">How It Works:</h4>
-                            <ul class="space-y-3 text-gray-700">
-                                <li>• Intercept all links and forms in SPA region</li>
-                                <li>• Load content via AJAX without reload</li>
-                                <li>• Update browser history automatically</li>
-                                <li>• Support browser back/forward buttons</li>
-                                <li>• Integrated error handling</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Configuration:</h4>
-                            <div class="code-highlight rounded-lg p-4">
-                                <pre class="text-sm responsive-text"><code><span class="syntax-js">window.liveDomConfig = {</span>
-    <span class="syntax-js">spaExcludePrefixes: [</span>
-        <span class="syntax-js">'/api/',</span>
-        <span class="syntax-js">'/download/',</span>
-        <span class="syntax-js">'/admin/export'</span>
-    <span class="syntax-js">]</span>
-<span class="syntax-js">};</span></code></pre>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-lg md:text-xl font-semibold mb-4">HTML Setup:</h4>
-                        <div class="code-highlight rounded-lg p-4 md:p-6">
-                            <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Layout with SPA regions --&gt;</span>
-<span class="syntax-html">&lt;div live-spa-region="header"&gt;</span>
-    <span class="syntax-html">&lt;nav&gt;...&lt;/nav&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span>
-
-<span class="syntax-html">&lt;div live-spa-region="main"&gt;</span>
-    <span class="syntax-html">&lt;!-- Main content to be updated --&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span>
-
-<span class="syntax-html">&lt;div live-spa-region="sidebar"&gt;</span>
-    <span class="syntax-html">&lt;!-- Sidebar that can be updated --&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Data Binding -->
-                <div class="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-3xl p-6 md:p-8 border border-teal-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-teal-900">5. Live Data Binding</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatic data synchronization between elements
-                        with easy-to-use two-way data binding.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Binding Features:</h4>
-                            <ul class="space-y-3 text-gray-700">
-                                <li>• Automatic sync based on name attribute</li>
-                                <li>• Support for input, select, textarea</li>
-                                <li>• Two-way binding with live-bind</li>
-                                <li>• Automatic event triggers (input, change)</li>
-                                <li>• Cross-element synchronization</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Implementation Example:</h4>
-                            <div class="code-highlight rounded-lg p-4">
-                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Input source --&gt;</span>
-<span class="syntax-html">&lt;input name="username" type="text"&gt;</span>
-
-<span class="syntax-comment">&lt;!-- Elements that will sync --&gt;</span>
-<span class="syntax-html">&lt;span live-bind="username"&gt;&lt;/span&gt;</span>
-<span class="syntax-html">&lt;input live-bind="username" readonly&gt;</span></code></pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Auto Polling -->
-                <div class="bg-gradient-to-r from-pink-50 to-rose-50 rounded-3xl p-6 md:p-8 border border-pink-100">
-                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-pink-900">6. Auto Polling</h3>
-                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatically refresh content periodically. Ideal
-                        for real-time dashboards, notifications, and monitoring.</p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">How It Works:</h4>
-                            <ul class="space-y-3 text-gray-700">
-                                <li>• Interval in milliseconds</li>
-                                <li>• Auto-abort previous requests</li>
-                                <li>• Automatic error handling</li>
-                                <li>• Good memory management</li>
-                                <li>• Stop polling when element is removed</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
-                            <div class="code-highlight rounded-lg p-4">
-                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Polling every 5 seconds --&gt;</span>
-<span class="syntax-html">&lt;div id="notifications" </span>
-<span class="syntax-html">     live-poll="5000" </span>
-<span class="syntax-html">     live-scope="dashboard" </span>
-<span class="syntax-html">     live-click="getNotifications"&gt;</span>
-    <span class="syntax-html">&lt;!-- Content will be updated automatically --&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- TARGETING -->
+    <section id="targeting" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">06 — Interaction</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Targeting the DOM</h2>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        <code class="attr">live-target</code> accepts a plain CSS selector (<code class="font-mono text-[13px]">#result</code>,
+        <code class="font-mono text-[13px]">.row</code>), or one of these relative traversal helpers — the DOM equivalent of
+        jQuery's <code class="font-mono text-[13px]">.closest()/.find()/.parent()</code> family, resolved from the triggering element:
+      </p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Syntax</th><th class="text-left px-4 py-2">Resolves to</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 font-mono text-[13px]">
+            <tr><td class="px-4 py-2">self</td><td class="px-4 py-2 font-body text-gray-600">the triggering element itself</td></tr>
+            <tr><td class="px-4 py-2">closest(selector)</td><td class="px-4 py-2 font-body text-gray-600">nearest matching ancestor</td></tr>
+            <tr><td class="px-4 py-2">find(selector)</td><td class="px-4 py-2 font-body text-gray-600">matching descendants</td></tr>
+            <tr><td class="px-4 py-2">parent</td><td class="px-4 py-2 font-body text-gray-600">direct parent element</td></tr>
+            <tr><td class="px-4 py-2">children(selector?)</td><td class="px-4 py-2 font-body text-gray-600">direct children, optionally filtered</td></tr>
+            <tr><td class="px-4 py-2">next(selector?)</td><td class="px-4 py-2 font-body text-gray-600">next sibling</td></tr>
+            <tr><td class="px-4 py-2">prev(selector?)</td><td class="px-4 py-2 font-body text-gray-600">previous sibling</td></tr>
+            <tr><td class="px-4 py-2">siblings(selector?)</td><td class="px-4 py-2 font-body text-gray-600">all siblings, optionally filtered</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;tr</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Order/ItemController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;td&gt;&lt;button</span>
+    <span class="c-attrname">live-click</span>=<span class="c-str">"remove"</span>
+    <span class="c-attrname">live-target</span>=<span class="c-str">"closest(tr)"</span>
+    <span class="c-attrname">live-dom</span>=<span class="c-str">"remove"</span>
+  <span class="c-tag">&gt;</span>×<span class="c-tag">&lt;/button&gt;&lt;/td&gt;</span>
+<span class="c-tag">&lt;/tr&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm">Multiple selectors can be comma-separated and are matched by index against a comma-separated <code class="attr">live-dom</code>.</p>
     </section>
 
-    <!-- Examples Section -->
-    <section id="examples" class="py-16 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Implementation Examples</h2>
-                <p class="text-lg md:text-xl text-gray-600">See LiveDomJS in action in various real-world scenarios</p>
-            </div>
+    <!-- LOADING & CALLBACKS -->
+    <section id="loading-callbacks" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">07 — Interaction</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Loading states &amp; callbacks</h2>
 
-            <div class="max-w-6xl mx-auto space-y-12">
-                <!-- Example 1: Form CRUD -->
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
-                        <h3 class="text-2xl font-bold text-white">Dynamic CRUD Form</h3>
-                        <p class="text-blue-100 mt-2">Create, Read, Update, Delete with AJAX without reload</p>
-                    </div>
-                    <div class="p-6 md:p-8">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">HTML Blade:</h4>
-                                <div class="code-highlight rounded-lg p-4 text-xs">
-                                    <pre><code><span class="syntax-html">&lt;div live-scope="UserController"&gt;</span>
-    <span class="syntax-html">&lt;form live-submit="store" live-target="#user-list"&gt;</span>
-        <span class="syntax-html">&lt;input type="text" name="name" placeholder="Name" required&gt;</span>
-        <span class="syntax-html">&lt;input type="email" name="email" placeholder="Email" required&gt;</span>
-        <span class="syntax-html">&lt;button type="submit" &gt;</span>
-            <span class="syntax-html">Save</span>
-        <span class="syntax-html">&lt;/button&gt;</span>
-    <span class="syntax-html">&lt;/form&gt;</span>
-    
-    <span class="syntax-html">&lt;div id="user-list"&gt;</span>
-        <span class="syntax-html">@include('users.list')</span>
-    <span class="syntax-html">&lt;/div&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">Laravel Controller:</h4>
-                                <div class="code-highlight rounded-lg p-4 text-xs">
-                                    <pre><code><span class="syntax-php">class UserController extends Controller</span>
-<span class="syntax-php">{</span>
-    <span class="syntax-php">public function store(Request $request)</span>
-    <span class="syntax-php">{</span>
-        <span class="syntax-php">$user = User::create($request->all());</span>
-        
-        <span class="syntax-php">return view('users.list')->render();</span>
-    <span class="syntax-php">}</span>
-<span class="syntax-php">}</span></code></pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-loading</code> / <code class="attr">live-loading-indicator</code></h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Both accept an element selector to show while the request is in flight, and hide once it settles.
+        Reference counting means two overlapping requests pointed at the same indicator never hide it prematurely.
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">&lt;!-- show/hide a specific element by selector --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"save"</span> <span class="c-attrname">live-loading</span>=<span class="c-str">"#save-spinner"</span><span class="c-tag">&gt;</span>Save<span class="c-tag">&lt;/button&gt;</span>
 
-                <!-- Example 2: Live Calculator -->
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 p-6">
-                        <h3 class="text-2xl font-bold text-white">Live Calculator</h3>
-                        <p class="text-green-100 mt-2">Real-time calculation with automatic formatting</p>
-                    </div>
-                    <div class="p-6 md:p-8">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">HTML Form:</h4>
-                                <div class="code-highlight rounded-lg p-4 text-xs">
-                                    <pre><code><span class="syntax-html">&lt;div live-scope="invoice"&gt;</span>
-    <span class="syntax-html">&lt;input name="qty" type="number" value="1"&gt;</span>
-    <span class="syntax-html">&lt;input name="price" type="number" value="100000"&gt;</span>
-    
-    <span class="syntax-comment">&lt;!-- Automatic subtotal --&gt;</span>
-    <span class="syntax-html">&lt;input name="subtotal" </span>
-           <span class="syntax-html">live-compute="qty * price"</span>
-           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
-    
-    <span class="syntax-comment">&lt;!-- 10% tax --&gt;</span>
-    <span class="syntax-html">&lt;input name="tax" </span>
-           <span class="syntax-html">live-compute="subtotal * 0.1"</span>
-           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
-    
-    <span class="syntax-comment">&lt;!-- Total --&gt;</span>
-    <span class="syntax-html">&lt;input name="total" </span>
-           <span class="syntax-html">live-compute="subtotal + tax"</span>
-           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">Result:</h4>
-                                <div class="bg-gray-50 rounded-lg p-6">
-                                    <div class="space-y-4">
-                                        <div class="flex justify-between items-center">
-                                            <label class="font-medium">Qty:</label>
-                                            <input type="number" value="2" class="border rounded px-3 py-1 w-20">
-                                        </div>
-                                        <div class="flex justify-between items-center">
-                                            <label class="font-medium">Price:</label>
-                                            <input type="number" value="150000" class="border rounded px-3 py-1 w-32">
-                                        </div>
-                                        <hr>
-                                        <div class="flex justify-between items-center">
-                                            <label class="font-medium">Subtotal:</label>
-                                            <span id="subtotal" class="font-bold">300.000</span>
-                                        </div>
-                                        <div class="flex justify-between items-center">
-                                            <label class="font-medium">Tax (10%):</label>
-                                            <span id="tax" class="font-bold">30.000</span>
-                                        </div>
-                                        <div class="flex justify-between items-center border-t pt-2">
-                                            <label class="font-bold">Total:</label>
-                                            <span class="font-bold text-green-600">330.000</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<span class="c-cmt">&lt;!-- live-loading="true" falls back to the global ".loading" overlay --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"save"</span> <span class="c-attrname">live-loading</span>=<span class="c-str">"true"</span><span class="c-tag">&gt;</span>Save<span class="c-tag">&lt;/button&gt;</span>
 
-                <!-- Example 3: Conditional UI -->
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div class="bg-gradient-to-r from-purple-600 to-violet-600 p-6">
-                        <h3 class="text-2xl font-bold text-white">Conditional UI</h3>
-                        <p class="text-purple-100 mt-2">Show/hide elements based on user input</p>
-                    </div>
-                    <div class="p-6 md:p-8">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">HTML with Conditions:</h4>
-                                <div class="code-highlight rounded-lg p-4 text-xs">
-                                    <pre><code><span class="syntax-html">&lt;div live-scope="form"&gt;</span>
-    <span class="syntax-html">&lt;select name="user_type"&gt;</span>
-        <span class="syntax-html">&lt;option value="personal"&gt;Personal&lt;/option&gt;</span>
-        <span class="syntax-html">&lt;option value="company"&gt;Company&lt;/option&gt;</span>
-    <span class="syntax-html">&lt;/select&gt;</span>
-    
-    <span class="syntax-comment">&lt;!-- Appears if company --&gt;</span>
-    <span class="syntax-html">&lt;div live-show="user_type == 'company'"&gt;</span>
-        <span class="syntax-html">&lt;input name="company_name" placeholder="Company Name"&gt;</span>
-        <span class="syntax-html">&lt;input name="tax_id" placeholder="Tax ID"&gt;</span>
-    <span class="syntax-html">&lt;/div&gt;</span>
-    
-    <span class="syntax-comment">&lt;!-- Dynamic class based on condition --&gt;</span>
-    <span class="syntax-html">&lt;div live-class="user_type == 'company' ? 'bg-blue-100' : 'bg-gray-100'"&gt;</span>
-        <span class="syntax-html">Additional info</span>
-    <span class="syntax-html">&lt;/div&gt;</span>
-<span class="syntax-html">&lt;/div&gt;</span></code></pre>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold mb-4">Interactive Demo:</h4>
-                                <div class="bg-gray-50 rounded-lg p-6">
-                                    <select class="border rounded px-3 py-2 mb-4 w-full">
-                                        <option>Personal</option>
-                                        <option>Company</option>
-                                    </select>
-                                    <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
-                                        <p class="text-sm text-blue-800 mb-3">Fields for Company:</p>
-                                        <input type="text" placeholder="Company Name"
-                                            class="border rounded px-3 py-2 w-full mb-2">
-                                        <input type="text" placeholder="Tax ID" class="border rounded px-3 py-2 w-full">
-                                    </div>
-                                    <div class="bg-blue-100 rounded p-3">
-                                        <p class="text-sm">Additional info (background changes automatically)</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<span class="c-cmt">&lt;!-- live-loading-indicator (no value) toggles itself --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"save"</span> <span class="c-attrname">live-loading-indicator</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;span</span> class=<span class="c-str">"spinner"</span><span class="c-tag">&gt;&lt;/span&gt;</span> Saving…
+<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm mb-6">A page-wide progress bar (fixed to the top of the viewport) also animates automatically on every SPA navigation, independent of these attributes.</p>
+
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-callback-before</code></h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Runs before the request fires. Return (or resolve, for async/Promise-returning callbacks) <code class="font-mono text-[13px]">false</code>
+        to cancel — perfect for confirmation dialogs:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"deleteUser"</span> <span class="c-attrname">live-callback-before</span>=<span class="c-str">"confirmDelete"</span><span class="c-tag">&gt;</span>Delete<span class="c-tag">&lt;/button&gt;</span>
+
+<span class="c-tag">&lt;script&gt;</span>
+  function confirmDelete(el) {
+    return confirm('Are you sure?'); <span class="c-cmt">// false cancels the request entirely</span>
+  }
+<span class="c-tag">&lt;/script&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="attr">live-callback-after</code></h3>
+      <p class="text-gray-600 leading-relaxed mb-4">Runs once the response has landed, receiving the triggering element and the raw response:</p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"save"</span> <span class="c-attrname">live-callback-after</span>=<span class="c-str">"onSaved"</span><span class="c-tag">&gt;</span>Save<span class="c-tag">&lt;/button&gt;</span>
+
+<span class="c-tag">&lt;script&gt;</span>
+  function onSaved(el, response) {
+    toast('Saved!');
+  }
+<span class="c-tag">&lt;/script&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm">
+        On <code class="attr">live-submit</code> forms specifically, both callbacks can also be written as inline expressions
+        (anything containing a <code class="font-mono text-[13px]">(</code>) instead of a bare function name.
+      </p>
+    </section>
+    <!-- LIVE COMPUTE -->
+    <section id="live-compute" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">08 — Reactivity</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Live Compute — a spreadsheet inside your HTML</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        <code class="attr">live-compute</code> evaluates a formula entirely in the browser, reading every named input
+        currently on the page — no server round-trip, no network latency. It re-evaluates on every keystroke across
+        a convergence loop (up to 10 iterations, batched within a 16ms time budget) so chains of dependent formulas
+        settle correctly even with 1000+ inputs on a page.
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;input</span> name=<span class="c-str">"qty"</span> value=<span class="c-str">"10"</span><span class="c-tag">&gt;</span>
+<span class="c-tag">&lt;input</span> name=<span class="c-str">"price"</span> value=<span class="c-str">"25000"</span><span class="c-tag">&gt;</span>
+<span class="c-tag">&lt;input</span> name=<span class="c-str">"discount"</span> value=<span class="c-str">"10"</span><span class="c-tag">&gt;</span>
+
+<span class="c-tag">&lt;input</span>
+  <span class="c-attrname">live-compute</span>=<span class="c-str">"qty * price * (1 - discount / 100)"</span>
+  <span class="c-attrname">live-compute-format</span>=<span class="c-str">"idr"</span>
+  readonly
+<span class="c-tag">&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Number formats</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        <code class="attr">live-compute-format</code> controls both how existing values are <em>parsed</em> (so
+        <code class="font-mono text-[13px]">1.234,56</code> is read correctly as an IDR-formatted number) and how the
+        computed result is <em>displayed</em>. Built-in formats:
+      </p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Key</th><th class="text-left px-4 py-2">Example output</th><th class="text-left px-4 py-2">Default decimals</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 font-mono text-[13px]">
+            <tr><td class="px-4 py-2">idr</td><td class="px-4 py-2">1.000.000</td><td class="px-4 py-2 font-body text-gray-600">0</td></tr>
+            <tr><td class="px-4 py-2">usd</td><td class="px-4 py-2">1,000,000.00</td><td class="px-4 py-2 font-body text-gray-600">2</td></tr>
+            <tr><td class="px-4 py-2">jpy</td><td class="px-4 py-2">1,000,000</td><td class="px-4 py-2 font-body text-gray-600">0</td></tr>
+            <tr><td class="px-4 py-2">eur</td><td class="px-4 py-2">1.000.000,00</td><td class="px-4 py-2 font-body text-gray-600">2</td></tr>
+            <tr><td class="px-4 py-2">percent</td><td class="px-4 py-2">12.5%</td><td class="px-4 py-2 font-body text-gray-600">1</td></tr>
+            <tr><td class="px-4 py-2">plain</td><td class="px-4 py-2">1,000,000</td><td class="px-4 py-2 font-body text-gray-600">0</td></tr>
+            <tr><td class="px-4 py-2">auto</td><td class="px-4 py-2 font-body text-gray-600" colspan="2">Follows the current global currency — see below.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Omit <code class="attr">live-compute-format</code> entirely and the element is <strong>never</strong> formatted — this is what
+        keeps plain numeric outputs (row indices, counts) safe from being mangled into currency notation. Use
+        <code class="attr">live-decimal-max</code> to override the decimal count for a single element regardless of format default.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Global currency switching</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Elements pinned to a literal format (<code class="font-mono text-[13px]">idr</code>, <code class="font-mono text-[13px]">usd</code>…)
+        never change on their own. Elements that opt in with <code class="attr">live-compute-format="auto"</code> instantly
+        re-render (never re-converting the underlying value) whenever you call:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;script&gt;</span>
+  LiveDom.setCurrency('usd');            <span class="c-cmt">// only "auto" elements react</span>
+
+  LiveDom.registerFormat('gbp', {        <span class="c-cmt">// register a custom currency/format</span>
+    kind: 'currency', locale: 'en-GB',
+    thousandSep: ',', decimalSep: '.', defaultDecimals: 2
+  });
+
+  LiveDom.unpin(document.querySelector('#price')); <span class="c-cmt">// drop a pinned format, fall back to "auto"</span>
+<span class="c-tag">&lt;/script&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm mb-6">
+        Every switch dispatches a <code class="font-mono text-[13px]">livedom:currencychange</code> <code class="font-mono text-[13px]">CustomEvent</code>
+        on <code class="font-mono text-[13px]">document</code> with <code class="font-mono text-[13px]">{ from, to }</code> in
+        <code class="font-mono text-[13px]">detail</code>, so you can sync a currency picker UI elsewhere on the page.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Aggregate functions</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Six spreadsheet-style functions work inside any <code class="attr">live-compute</code> expression. Use a
+        <code class="font-mono text-[13px]">?</code> wildcard in the field name to aggregate across repeated rows — LiveDomJS scans the
+        page for every input whose name matches the wildcard pattern.
+      </p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Function</th><th class="text-left px-4 py-2">Example</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 font-mono text-[13px]">
+            <tr><td class="px-4 py-2">sum</td><td class="px-4 py-2">sum(subtotal_?)</td></tr>
+            <tr><td class="px-4 py-2">avg</td><td class="px-4 py-2">avg(price_?)</td></tr>
+            <tr><td class="px-4 py-2">min / max</td><td class="px-4 py-2">max(price_?)</td></tr>
+            <tr><td class="px-4 py-2">count</td><td class="px-4 py-2">count(qty_?)</td></tr>
+            <tr><td class="px-4 py-2">sumif</td><td class="px-4 py-2">sumif(status_?, 'paid', total_?)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">&lt;!-- Aggregate across all rows sharing the "subtotal_?" pattern --&gt;</span>
+<span class="c-tag">&lt;input</span> <span class="c-attrname">live-compute</span>=<span class="c-str">"sum(subtotal_?)"</span> <span class="c-attrname">live-compute-format</span>=<span class="c-str">"idr"</span> readonly<span class="c-tag">&gt;</span>
+
+<span class="c-cmt">&lt;!-- Only sum rows where status_? equals 'paid' --&gt;</span>
+<span class="c-tag">&lt;input</span> <span class="c-attrname">live-compute</span>=<span class="c-str">"sumif(status_?, 'paid', total_?)"</span> readonly<span class="c-tag">&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Fine-tuning evaluation</h3>
+      <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div class="border border-gray-200 rounded-xl p-5">
+          <code class="attr mb-2 inline-block">live-compute-init="false"</code>
+          <p class="text-sm text-gray-600 mt-2">Locks an output element out of the initial calculation pass — it stays untouched until the
+            user actually edits a related input, then unlocks permanently for that page view. Useful for outputs that should keep a
+            server-rendered value until the user interacts.</p>
         </div>
+        <div class="border border-gray-200 rounded-xl p-5">
+          <code class="attr mb-2 inline-block">live-compute-skip="true"</code>
+          <p class="text-sm text-gray-600 mt-2">Excludes an element from being read as a formula <em>input</em>, even though it still has a name — handy
+            for a field you want visible/serialized but not part of anyone's formula dependency graph.</p>
+        </div>
+        <div class="border border-gray-200 rounded-xl p-5">
+          <code class="attr mb-2 inline-block">live-compute-trigger="qty, price"</code>
+          <p class="text-sm text-gray-600 mt-2">Restricts which named fields force this specific element to recompute, instead of any
+            input on the page. Useful when a formula is expensive or has side effects you want minimized.</p>
+        </div>
+        <div class="border border-gray-200 rounded-xl p-5">
+          <code class="attr mb-2 inline-block">live-decimal-max="2"</code>
+          <p class="text-sm text-gray-600 mt-2">Overrides the number of decimals shown, independent of the format's own default —
+            e.g. show 2 decimals on an otherwise zero-decimal <code class="font-mono text-[12px]">idr</code> field.</p>
+        </div>
+      </div>
+      <p class="text-gray-600 text-sm">
+        Masked inputs (any <code class="font-mono text-[13px]">&lt;input&gt;</code> carrying <code class="attr">live-compute-format</code>)
+        re-format live while typing, without ever losing cursor position — the caret is repositioned by digit count, not character
+        index, so inserting a thousands separator mid-keystroke never jumps the cursor.
+      </p>
+    </section>
+    <!-- REACTIVE DIRECTIVES -->
+    <section id="reactive-directives" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">09 — Reactivity</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Reactive directives</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        These re-evaluate whenever an input inside the enclosing <code class="attr">live-scope</code> changes (debounced 200ms).
+        Expressions run against every named input in that scope as variables — checkbox names resolve to their value only when
+        checked, and bracketed names like <code class="font-mono text-[13px]">discount[1]</code> become <code class="font-mono text-[13px]">discount_1</code>
+        inside the expression.
+      </p>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Attribute</th><th class="text-left px-4 py-2">Effect</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2"><code class="attr">live-show</code></td><td class="px-4 py-2 text-gray-600">Shows/hides the element based on a truthy expression.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-class</code></td><td class="px-4 py-2 text-gray-600">Appends the expression's string result to <code class="font-mono text-[12px]">class-base</code> (a separate attribute holding the element's permanent classes).</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-style</code></td><td class="px-4 py-2 text-gray-600">Sets the element's <code class="font-mono text-[12px]">style</code> attribute from the expression's string result.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-attr</code></td><td class="px-4 py-2 text-gray-600">Sets/removes one or more arbitrary attributes: <code class="font-mono text-[12px]">attr:expr, attr2:expr2</code>.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-bind</code></td><td class="px-4 py-2 text-gray-600">Two-way mirror: any input named <code class="font-mono text-[12px]">X</code> pushes its value live into every element with <code class="font-mono text-[12px]">live-bind="X"</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;div</span> <span class="c-attrname">live-show</span>=<span class="c-str">"qty &gt; 0"</span><span class="c-tag">&gt;</span>In stock<span class="c-tag">&lt;/div&gt;</span>
+
+<span class="c-tag">&lt;div</span> class-base=<span class="c-str">"font-bold"</span> <span class="c-attrname">live-class</span>=<span class="c-str">"total &gt; 1000000 ? 'text-green-500' : 'text-red-500'"</span><span class="c-tag">&gt;</span>
+  Total
+<span class="c-tag">&lt;/div&gt;</span>
+
+<span class="c-tag">&lt;div</span> <span class="c-attrname">live-style</span>=<span class="c-str">"'opacity:' + (qty &gt; 0 ? 1 : 0.4)"</span><span class="c-tag">&gt;</span>Preview<span class="c-tag">&lt;/div&gt;</span>
+
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-attr</span>=<span class="c-str">"disabled: qty &lt; 1"</span><span class="c-tag">&gt;</span>Checkout<span class="c-tag">&lt;/button&gt;</span>
+
+<span class="c-cmt">&lt;!-- live-bind: type in one, see it mirrored anywhere --&gt;</span>
+<span class="c-tag">&lt;input</span> name=<span class="c-str">"username"</span><span class="c-tag">&gt;</span>
+<span class="c-tag">&lt;span</span> <span class="c-attrname">live-bind</span>=<span class="c-str">"username"</span><span class="c-tag">&gt;&lt;/span&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm">
+        Expressions are evaluated with <code class="font-mono text-[13px]">Function('ctx', 'with(ctx){ return (...) }')</code> against
+        a scoped object built only from that particular <code class="attr">live-scope</code>'s inputs — never against
+        <code class="font-mono text-[13px]">window</code> — so a broken formula fails safely (logs a warning in debug mode, returns
+        <code class="font-mono text-[13px]">null</code>) instead of throwing.
+      </p>
+    </section>
+    <!-- REALTIME -->
+    <section id="realtime" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">10 — Real-time &amp; SPA</div>
+      <h2 class="font-display text-3xl font-bold mb-5"><code class="attr">live-realtime</code> — WebSocket broadcasting in one attribute</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Add <code class="attr">live-realtime="true"</code> to any trigger attribute and the request no longer just updates
+        the caller's own DOM — it asks the server to broadcast the update, via Laravel Reverb, to every open page that has a
+        matching <code class="attr">live-scope</code>. Each recipient independently re-fetches and re-renders; nobody polls.
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-cmt">&lt;!-- without live-realtime: a normal AJAX request, only this page updates --&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"refreshMetrics"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"#metrics-panel"</span><span class="c-tag">&gt;</span>Refresh<span class="c-tag">&lt;/button&gt;</span>
+
+<span class="c-cmt">&lt;!-- with live-realtime: broadcasts to every open dashboard --&gt;</span>
+<span class="c-tag">&lt;button</span>
+  <span class="c-attrname">live-click</span>=<span class="c-str">"refreshMetrics"</span>
+  <span class="c-attrname">live-realtime</span>=<span class="c-str">"true"</span>
+  <span class="c-attrname">live-target</span>=<span class="c-str">"#metrics-panel"</span>
+<span class="c-tag">&gt;</span>Sync All<span class="c-tag">&lt;/button&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">What happens under the hood</h3>
+      <div class="codeblock p-5 my-5 text-[13px]">
+<pre>Client sends X-Live-Reverb: true + realtime: true
+    │
+    ▼
+AjaxController detects the realtime flag → does NOT run the render-and-return path
+    │
+    ▼
+reverbDynamic($controller, $action, $target, ...) dispatches DynamicBroadcastEvent (ShouldBroadcast)
+    │
+    ▼
+Laravel Reverb pushes to the channel over WebSocket
+    │
+    ▼
+dynamic-broadcast.js on every subscribed page matches [live-scope] containing $controller
+    │
+    ▼
+Each page independently re-calls the same controller/action via GET and re-renders its own DOM</pre>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Because every recipient re-fetches independently rather than receiving pre-rendered HTML in the broadcast payload,
+        each client always gets output rendered with its <em>own</em> auth/session/locale context.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Broadcasting to specific users (server-side)</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Call the <code class="font-mono text-[13px]">reverbDynamic()</code> global helper directly from anywhere in your backend
+        (a job, an observer, another controller) to push an update proactively, not just in response to a client request:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-kw">reverbDynamic</span>(
+    controller: <span class="c-str">'Dashboard/MetricsController'</span>,
+    function: <span class="c-str">'refreshMetrics'</span>,
+    target: <span class="c-str">'#metrics-panel'</span>,
+    data: <span class="c-kw">null</span>,
+    typeChannel: <span class="c-str">'private'</span>,          <span class="c-cmt">// 'public' | 'private' | 'presence'</span>
+    recipients: [<span class="c-str">$user->id</span>],
+    eventName: <span class="c-str">'html-render'</span>,
+);</pre>
+      </div>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">typeChannel</th><th class="text-left px-4 py-2">Resulting channel</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 font-mono text-[13px]">
+            <tr><td class="px-4 py-2">public</td><td class="px-4 py-2">public-{recipient} (defaults to <span class="font-body">realtime-updates</span> if recipients omitted)</td></tr>
+            <tr><td class="px-4 py-2">private</td><td class="px-4 py-2">private-user.{recipient}</td></tr>
+            <tr><td class="px-4 py-2">presence</td><td class="px-4 py-2">presence-{recipient}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-gray-600 text-sm">
+        On the client, every page subscribes automatically to <code class="font-mono text-[13px]">public-realtime-updates</code> and,
+        if a user is authenticated, to <code class="font-mono text-[13px]">private-user.{id}</code> — this is wired up for you inside
+        <code class="attr">dynamic-broadcast.js</code>, injected automatically once Reverb is detected.
+      </p>
     </section>
 
-    <!-- Advanced Features -->
-    <section class="py-16 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Advanced Features</h2>
-                <p class="text-lg md:text-xl text-gray-600">Advanced capabilities for complex applications</p>
-            </div>
+    <!-- SPA -->
+    <section id="spa" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">11 — Real-time &amp; SPA</div>
+      <h2 class="font-display text-3xl font-bold mb-5">SPA navigation</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Wrap any container in <code class="attr">live-spa-region="name"</code> to turn it into an SPA outlet. Links and forms
+        inside it are intercepted automatically — no router configuration, no client-side route table.
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;main</span> <span class="c-attrname">live-spa-region</span>=<span class="c-str">"main"</span><span class="c-tag">&gt;</span>
+  <span class="c-cmt">&lt;!-- every &lt;a href&gt; and &lt;form&gt; in here becomes SPA navigation --&gt;</span>
+<span class="c-tag">&lt;/main&gt;</span></pre>
+      </div>
 
-            <div class="max-w-6xl mx-auto space-y-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                    <!-- Callbacks -->
-                    <div
-                        class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 md:p-8 rounded-2xl border border-indigo-200">
-                        <h3 class="text-xl md:text-2xl font-bold mb-4 text-indigo-900">Callback Functions</h3>
-                        <p class="text-gray-700 mb-6">Execute functions before and after AJAX requests for more detailed
-                            control.</p>
+      <h3 class="font-display text-xl font-semibold mb-3">What gets intercepted</h3>
+      <ul class="space-y-2 text-gray-700 mb-6 list-disc pl-5">
+        <li><code class="font-mono text-[13px]">&lt;a href&gt;</code> — fetched via GET, response parsed, matching <code class="attr">live-spa-region</code> elements swapped by name, history pushed.</li>
+        <li><code class="font-mono text-[13px]">&lt;form&gt;</code> GET — query string built from form fields, fetched, region swapped, history <em>replaced</em>.</li>
+        <li><code class="font-mono text-[13px]">&lt;form&gt;</code> POST — submitted via AJAX; a JSON <code class="font-mono text-[13px]">redirect</code> key triggers a follow-up GET automatically; a 422 response renders field errors inline (<code class="font-mono text-[12px]">.is-invalid</code> / <code class="font-mono text-[12px]">.invalid-feedback</code>) instead of navigating.</li>
+        <li>Browser back/forward (<code class="font-mono text-[13px]">popstate</code>) — replays the stored URL through the same SPA loader.</li>
+      </ul>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Any <code class="font-mono text-[13px]">&lt;script&gt;</code> tag inside a freshly swapped region is re-executed
+        (external scripts once per <code class="font-mono text-[13px]">src</code>, inline scripts every time, each isolated in an IIFE) —
+        so page-specific initialization code keeps working after navigation exactly like a full page load.
+      </p>
 
-                        <div class="code-highlight rounded-lg p-4 text-sm">
-                            <pre><code><span class="syntax-html">&lt;button live-click="save"</span>
-        <span class="syntax-html">live-callback-before="beforeSave"</span>
-        <span class="syntax-html">live-callback-after="afterSave"&gt;</span>
-    <span class="syntax-html">Save Data</span>
-<span class="syntax-html">&lt;/button&gt;</span>
+      <h3 class="font-display text-xl font-semibold mb-3">Excluding URLs from SPA handling</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Set <code class="font-mono text-[13px]">window.liveDomConfig.spaExcludePrefixes</code> before LiveDomJS initializes to let
+        specific paths fall through to a normal full-page navigation (e.g. a download link or an external auth redirect):
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;script&gt;</span>
+  window.liveDomConfig = { spaExcludePrefixes: ['/downloads', '/logout'] };
+<span class="c-tag">&lt;/script&gt;</span></pre>
+      </div>
 
-<span class="syntax-js">function beforeSave(element) {</span>
-    <span class="syntax-js">// Validation or confirmation</span>
-    <span class="syntax-js">return confirm('Are you sure you want to save?');</span>
-<span class="syntax-js">}</span></code></pre>
-                        </div>
-                    </div>
-
-                    <!-- Target Selectors -->
-                    <div
-                        class="bg-gradient-to-br from-green-50 to-teal-50 p-6 md:p-8 rounded-2xl border border-green-200">
-                        <h3 class="text-xl md:text-2xl font-bold mb-4 text-green-900">Advanced Targeting</h3>
-                        <p class="text-gray-700 mb-6">Target elements with flexible jQuery selectors for precise DOM
-                            manipulation.</p>
-
-                        <div class="code-highlight rounded-lg p-4 text-sm">
-                            <pre><code><span class="syntax-comment">&lt;!-- Target multiple with selector --&gt;</span>
-<span class="syntax-html">&lt;button live-click="update"</span>
-        <span class="syntax-html">live-target="closest(.card), next(.info)"&gt;</span>
-    <span class="syntax-html">Update</span>
-<span class="syntax-html">&lt;/button&gt;</span>
-
-<span class="syntax-comment">&lt;!-- Various DOM actions --&gt;</span>
-<span class="syntax-html">&lt;button live-click="add"</span>
-        <span class="syntax-html">live-dom="append,show"</span>
-        <span class="syntax-html">live-target="#list,#notification"&gt;</span>
-    <span class="syntax-html">Add Item</span>
-<span class="syntax-html">&lt;/button&gt;</span></code></pre>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Method Arguments -->
-                <div
-                    class="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 md:p-8 rounded-2xl border border-yellow-200">
-                    <h3 class="text-xl md:text-2xl font-bold mb-6 text-orange-900">Method with Arguments</h3>
-                    <p class="text-gray-700 mb-6">Send specific arguments to controller methods for more dynamic logic.
-                    </p>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        <div>
-                            <h4 class="text-lg font-semibold mb-4">HTML:</h4>
-                            <div class="code-highlight rounded-lg p-4 text-sm">
-                                <pre><code><span class="syntax-comment">&lt;!-- Single argument --&gt;</span>
-<span class="syntax-html">&lt;button live-click="updateStatus('active')"&gt;</span>
-    <span class="syntax-html">Activate</span>
-<span class="syntax-html">&lt;/button&gt;</span>
-
-<span class="syntax-comment">&lt;!-- Multiple arguments --&gt;</span>
-<span class="syntax-html">&lt;button live-click="setPrice(100000, 'idr')"&gt;</span>
-    <span class="syntax-html">Set Price</span>
-<span class="syntax-html">&lt;/button&gt;</span>
-
-<span class="syntax-comment">&lt;!-- Dynamic with element value --&gt;</span>
-<span class="syntax-html">&lt;button live-click="calculate(this.dataset.id, qty)"&gt;</span>
-    <span class="syntax-html">Calculate</span>
-<span class="syntax-html">&lt;/button&gt;</span></code></pre>
-                            </div>
-                        </div>
-                        <div>
-                            <h4 class="text-lg font-semibold mb-4">Controller:</h4>
-                            <div class="code-highlight rounded-lg p-4 text-sm">
-                                <pre><code><span class="syntax-php">public function updateStatus($status)</span>
-<span class="syntax-php">{</span>
-    <span class="syntax-php">// $status contains 'active'</span>
-    <span class="syntax-php">$model->status = $status;</span>
-    <span class="syntax-php">$model->save();</span>
-<span class="syntax-php">}</span>
-
-<span class="syntax-php">public function setPrice($amount, $currency)</span>
-<span class="syntax-php">{</span>
-    <span class="syntax-php">// Handle price with currency</span>
-    <span class="syntax-php">return response()->json([</span>
-        <span class="syntax-php">'success' => true,</span>
-        <span class="syntax-php">'data' => "Price set to {$amount} {$currency}"</span>
-    <span class="syntax-php">]);</span>
-<span class="syntax-php">}</span></code></pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+      <h3 class="font-display text-xl font-semibold mb-3">Lifecycle events</h3>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Event</th><th class="text-left px-4 py-2">Fires</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 font-mono text-[13px]">live-dom:init</td><td class="px-4 py-2 text-gray-600">Once, after LiveDomJS finishes its own initial bootstrap.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">live-dom:afterUpdate</td><td class="px-4 py-2 text-gray-600">After any AJAX-driven DOM update (rebinds all delegated handlers, safe to listen to for custom widgets).</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">live-dom:afterSpa</td><td class="px-4 py-2 text-gray-600">After an SPA region swap, with <code class="font-mono text-[12px]">detail.url</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;script&gt;</span>
+  document.addEventListener('live-dom:afterSpa', (e) => {
+    console.log('Navigated to', e.detail.url);
+  });
+<span class="c-tag">&lt;/script&gt;</span></pre>
+      </div>
+    </section>
+    <!-- ERRORS & DEBUGGING -->
+    <section id="errors-debugging" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">12 — Platform</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Errors &amp; debugging</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        LiveDomJS reads Laravel's own <code class="font-mono text-[13px]">app.debug</code> flag (surfaced to the browser as
+        a <code class="font-mono text-[13px]">&lt;meta name="app-debug"&gt;</code> tag) to decide how failures are shown, and
+        keeps an in-memory history of every error it has displayed during the session.
+      </p>
+      <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div class="border border-gray-200 rounded-xl p-5">
+          <div class="text-xs font-mono text-gray-500 mb-2">app.debug = true</div>
+          <p class="text-sm text-gray-700">A detailed modal appears with the exception message, file, line, and trace — parsed from
+            either a Laravel Ignition HTML page or a JSON exception payload. It includes quick "copy" and "copy prompt for AI" actions
+            for pasting into an assistant.</p>
         </div>
+        <div class="border border-gray-200 rounded-xl p-5">
+          <div class="text-xs font-mono text-gray-500 mb-2">app.debug = false</div>
+          <p class="text-sm text-gray-700">A clean, dismissible toast shows a generic message — no stack trace, file paths, or
+            internal detail ever reaches production users.</p>
+        </div>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Laravel validation errors (HTTP 422 with a JSON <code class="font-mono text-[13px]">errors</code> object) are handled
+        specially on SPA form submits: each field gets an <code class="font-mono text-[13px]">.is-invalid</code> class and an inline
+        <code class="font-mono text-[13px]">.invalid-feedback</code> message next to it, instead of triggering the generic error
+        modal.
+      </p>
+      <p class="text-gray-600 text-sm">
+        Every AJAX request also auto-cancels its predecessor sharing the same target — clicking "search" three times fast only
+        ever renders the last response, never a stale one that happened to resolve out of order.
+      </p>
     </section>
 
-    <!-- Tips & Best Practices -->
-    <section class="py-16 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Tips & Best Practices</h2>
-                <p class="text-lg md:text-xl text-gray-600">Guide for using LiveDomJS optimally</p>
-            </div>
-
-            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                <div class="space-y-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-xl font-bold mb-3 text-green-600">✅ What You Should Do</h3>
-                        <ul class="space-y-2 text-gray-700">
-                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-scope</code> for good
-                                organization</li>
-                            <li>• Implement error handling in controller</li>
-                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-loading</code> for good UX</li>
-                            <li>• Server-side input validation is still needed</li>
-                            <li>• Use callbacks for complex logic</li>
-                            <li>• Test with various browsers and devices</li>
-                        </ul>
-                    </div>
-
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-xl font-bold mb-3 text-blue-600">💡 Optimization Tips</h3>
-                        <ul class="space-y-2 text-gray-700">
-                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-compute-skip</code> for manual
-                                inputs</li>
-                            <li>• Limit polling frequency for performance</li>
-                            <li>• Use debouncing for real-time inputs</li>
-                            <li>• Cache responses when possible</li>
-                            <li>• Minimize unnecessary DOM manipulation</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-xl font-bold mb-3 text-red-600">❌ What to Avoid</h3>
-                        <ul class="space-y-2 text-gray-700">
-                            <li>• Don't forget to include jQuery before LiveDomJS</li>
-                            <li>• Avoid complex nested live-scope</li>
-                            <li>• Don't use polling for rarely changing data</li>
-                            <li>• Avoid live-compute for heavy calculations</li>
-                            <li>• Don't ignore CSRF protection</li>
-                            <li>• Avoid circular dependency in computation</li>
-                        </ul>
-                    </div>
-
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-xl font-bold mb-3 text-purple-600">🔧 Troubleshooting</h3>
-                        <ul class="space-y-2 text-gray-700">
-                            <li>• Check browser console for JavaScript errors</li>
-                            <li>• Check Network tab for failed requests</li>
-                            <li>• Ensure controller method exists and is accessible</li>
-                            <li>• Check response JSON format from server</li>
-                            <li>• Verify CSRF token is correct</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- CONFIGURATION -->
+    <section id="configuration" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">13 — Platform</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Configuration reference</h2>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Publish <code class="font-mono text-[13px]">config/livedomjs.php</code> with <code class="attr">php artisan livedomjs:install --publish</code> to edit any of these:
+      </p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">Key</th><th class="text-left px-4 py-2">Default</th><th class="text-left px-4 py-2">Purpose</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 font-mono text-[13px]">route_prefix</td><td class="px-4 py-2 font-mono text-[13px]">ajax</td><td class="px-4 py-2 text-gray-600">The dynamic endpoint becomes <code class="font-mono text-[12px]">/{prefix}/{controller}/{action}</code>.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">route_middleware</td><td class="px-4 py-2 font-mono text-[13px]">['web']</td><td class="px-4 py-2 text-gray-600">Middleware stack applied to the dynamic AJAX route.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">auto_inject</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">Auto-injects jQuery + <code class="font-mono text-[12px]">livedom.js</code> before <code class="font-mono text-[12px]">&lt;/body&gt;</code> on every HTML response.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">auto_inject_realtime</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">When true <em>and</em> a Reverb key is configured, also injects the CSRF meta tag, <code class="font-mono text-[12px]">window.userGlobal</code>, Echo, and <code class="font-mono text-[12px]">dynamic-broadcast.js</code>.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">pusher_cdn</td><td class="px-4 py-2 font-mono text-[13px]">pusher-js 8.4.0 CDN</td><td class="px-4 py-2 text-gray-600">Reverb speaks the Pusher protocol, so the client library is pusher-js.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">echo_cdn</td><td class="px-4 py-2 font-mono text-[13px]">laravel-echo 1.16.1 CDN</td><td class="px-4 py-2 text-gray-600">Set either CDN key to <code class="font-mono text-[12px]">null</code> if you bundle your own via Vite.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">serve_assets</td><td class="px-4 py-2 font-mono text-[13px]">true</td><td class="px-4 py-2 text-gray-600">Serves <code class="font-mono text-[12px]">livedom.js</code>/<code class="font-mono text-[12px]">dynamic-broadcast.js</code> from the package directly, no <code class="font-mono text-[12px]">vendor:publish</code> required. Published files in <code class="font-mono text-[12px]">public/</code> always take priority.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="bg-gray-900 text-white py-12">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div>
-                    <div class="flex items-center space-x-3 mb-4">
-                        <div class="logo-container w-10 h-10 text-lg">LD</div>
-                        <span class="text-xl font-bold">LiveDomJS</span>
-                    </div>
-                    <p class="text-gray-400">Modern HTML - REACTIVE Laravel Library for faster and more efficient web
-                        development.</p>
-                </div>
-                <div>
-                    <h4 class="text-lg font-semibold mb-4">Resources</h4>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="#documentation" class="hover:text-white transition-colors">Documentation</a></li>
-                        <li><a href="#examples" class="hover:text-white transition-colors">Examples</a></li>
-                        <li><a href="#installation" class="hover:text-white transition-colors">Installation</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="text-lg font-semibold mb-4">Support</h4>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="https://github.com/gadingrengga/livedomjs"
-                                class="hover:text-white transition-colors">GitHub</a></li>
-                        <li><a href="https://packagist.org/packages/gadingrengga/livedomjs"
-                                class="hover:text-white transition-colors">Packagist</a></li>
-                        <li><a href="mailto:gading.rengga@gmail.com" class="hover:text-white transition-colors">Email
-                                Support</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-                <p>&copy; 2025 LiveDomJS. Developed with ❤️ for the Laravel Indonesia community.</p>
-            </div>
+    <!-- JS API -->
+    <section id="js-api" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">14 — Platform</div>
+      <h2 class="font-display text-3xl font-bold mb-5">JavaScript API</h2>
+      <p class="text-gray-600 leading-relaxed mb-4">These are exposed globally for cases the declarative attributes don't cover.</p>
+      <div class="overflow-x-auto mb-6">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2">API</th><th class="text-left px-4 py-2">Purpose</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 font-mono text-[13px]">LiveDom.setCurrency(code)</td><td class="px-4 py-2 text-gray-600">Switches the global "auto" number format instantly, no re-conversion of values.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">LiveDom.registerFormat(key, cfg)</td><td class="px-4 py-2 text-gray-600">Registers a new named format/currency (or overrides a built-in one).</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">LiveDom.unpin(el)</td><td class="px-4 py-2 text-gray-600">Removes a literal <code class="font-mono text-[12px]">live-compute-format</code> from an element so it follows the global "auto" format.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">LiveDom.config.currency</td><td class="px-4 py-2 text-gray-600">Read-only view of the currently active global currency key.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">runAjaxRequest(...)</td><td class="px-4 py-2 text-gray-600">Same request pipeline the attribute engine uses internally — call it directly from your own JS for advanced flows.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">debouncedAjaxDynamic(...)</td><td class="px-4 py-2 text-gray-600">Debounced wrapper around the core AJAX call, keyed per controller+method.</td></tr>
+            <tr><td class="px-4 py-2 font-mono text-[13px]">autoBindDomFromResponse(data)</td><td class="px-4 py-2 text-gray-600">Given a plain object response, writes each key into any matching <code class="font-mono text-[12px]">#id</code>/<code class="font-mono text-[12px]">.class</code> on the page (camelCase, kebab-case, and snake_case are all matched).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PHP API -->
+    <section id="php-api" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">15 — Platform</div>
+      <h2 class="font-display text-3xl font-bold mb-5">PHP API</h2>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Controller name resolution</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        <code class="attr">live-scope</code> values map to <code class="font-mono text-[13px]">App\Http\Controllers\*</code> by splitting on
+        <code class="font-mono text-[13px]">/</code> or <code class="font-mono text-[13px]">.</code> and ucfirst-ing each segment:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre>live-scope="Invoice/ItemController"   →  App\Http\Controllers\Invoice\ItemController
+live-scope="UserController"           →  App\Http\Controllers\UserController</pre>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        Both segments are validated with a whitelist regex (<code class="font-mono text-[13px]">/^[a-zA-Z0-9\/\.]+$/</code> for the
+        controller, <code class="font-mono text-[13px]">/^[a-zA-Z0-9]+$/</code> for the action) before the class is even referenced.
+        A missing class or method returns a clean 404 JSON response rather than a fatal error.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3"><code class="font-mono">reverbDynamic()</code></h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-kw">function</span> reverbDynamic(
+    string $controller,
+    string $function,
+    string $target,
+    $data = <span class="c-kw">null</span>,
+    string $typeChannel = <span class="c-str">'public'</span>,
+    array $recipients = [],
+    string $eventName = <span class="c-str">'html-render'</span>,
+): void</pre>
+      </div>
+      <p class="text-gray-600 leading-relaxed mb-6">
+        Globally available (autoloaded via <code class="font-mono text-[13px]">composer.json</code>'s <code class="font-mono text-[13px]">files</code> section) —
+        call it from anywhere in your app, not only from within an <code class="attr">live-realtime</code> request cycle.
+      </p>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Blade component</h3>
+      <p class="text-gray-600 leading-relaxed mb-4">
+        If you ever set <code class="font-mono text-[13px]">auto_inject</code> to <code class="font-mono text-[13px]">false</code>
+        for manual control, drop this into your layout instead:
+      </p>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;x-livedomjs::livedom-scripts</span> <span class="c-tag">/&gt;</span></pre>
+      </div>
+    </section>
+    <!-- FULL ATTRIBUTE REFERENCE -->
+    <section id="attribute-reference" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">16 — Reference</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Full attribute reference</h2>
+      <p class="text-gray-600 leading-relaxed mb-6">Every <code class="font-mono text-[13px]">live-*</code> attribute LiveDomJS understands, in one table.</p>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">Structure &amp; scope</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-scope</code></td><td class="px-4 py-2 text-gray-600">Controller path + request/data boundary.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-target</code></td><td class="px-4 py-2 text-gray-600">Where the response is applied — selector or traversal DSL.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-dom</code></td><td class="px-4 py-2 text-gray-600">How the response is applied (html, append, value, remove, …).</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-data</code></td><td class="px-4 py-2 text-gray-600">Fixed payload, overrides scope serialization.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-method</code></td><td class="px-4 py-2 text-gray-600">Override HTTP verb (GET/POST/PUT/DELETE…).</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">Interaction triggers</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-click</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on click.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-change</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on change.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-input</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on input, debounced.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-keyup</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on keyup, debounced.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-submit</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on form submit (auto-prevents default).</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-hover</code></td><td class="px-4 py-2 text-gray-600">Call method(s) on delegated mouseenter.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-poll</code></td><td class="px-4 py-2 text-gray-600">Repeat the element's <code class="font-mono text-[12px]">live-click</code> method every N ms.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">Feedback &amp; lifecycle</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-loading</code></td><td class="px-4 py-2 text-gray-600">Selector (or "true") to show/hide while the request is in flight.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-loading-indicator</code></td><td class="px-4 py-2 text-gray-600">Same as above, defaults to the triggering element itself.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-callback-before</code></td><td class="px-4 py-2 text-gray-600">Runs before the request; returning/resolving <code class="font-mono text-[12px]">false</code> cancels it.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-callback-after</code></td><td class="px-4 py-2 text-gray-600">Runs after the response lands, receives (element, response).</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-realtime</code></td><td class="px-4 py-2 text-gray-600">Broadcast this action to every matching open page via Reverb.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">Live Compute</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-compute</code></td><td class="px-4 py-2 text-gray-600">Client-side formula, re-evaluated live.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-compute-format</code></td><td class="px-4 py-2 text-gray-600">Number format for parsing &amp; display (idr, usd, jpy, eur, percent, plain, auto, or custom).</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-decimal-max</code></td><td class="px-4 py-2 text-gray-600">Overrides decimal places for this element only.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-compute-init</code></td><td class="px-4 py-2 text-gray-600"><code class="font-mono text-[12px]">"false"</code> skips the initial calculation pass until the user edits something.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-compute-skip</code></td><td class="px-4 py-2 text-gray-600"><code class="font-mono text-[12px]">"true"</code> excludes this field from being read as a formula input.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-compute-trigger</code></td><td class="px-4 py-2 text-gray-600">Comma-separated field names that force this element to recompute.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">Reactive directives</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-show</code></td><td class="px-4 py-2 text-gray-600">Toggle visibility from an expression.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-class</code></td><td class="px-4 py-2 text-gray-600">Append a dynamic class from an expression.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-style</code></td><td class="px-4 py-2 text-gray-600">Set inline style from an expression.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-attr</code></td><td class="px-4 py-2 text-gray-600">Set/remove one or more attributes from expressions.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-bind</code></td><td class="px-4 py-2 text-gray-600">Mirror an input's value into any element bound to its name.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="font-display text-lg font-semibold mb-3 text-liveDim">SPA</h3>
+      <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <tbody class="divide-y divide-gray-100">
+            <tr><td class="px-4 py-2 w-56"><code class="attr">live-spa-region</code></td><td class="px-4 py-2 text-gray-600">Named SPA outlet — links/forms inside it navigate without a full reload.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <!-- RECIPES -->
+    <section id="recipes" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">17 — Reference</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Recipes</h2>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Invoice with auto-calculation</h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;div</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Invoice/ItemController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;table&gt;</span>
+    <span class="c-tag">&lt;tr&gt;</span>
+      <span class="c-tag">&lt;td&gt;&lt;input</span> name=<span class="c-str">"qty"</span> value=<span class="c-str">"1"</span><span class="c-tag">&gt;&lt;/td&gt;</span>
+      <span class="c-tag">&lt;td&gt;&lt;input</span> name=<span class="c-str">"price"</span> value=<span class="c-str">"150000"</span><span class="c-tag">&gt;&lt;/td&gt;</span>
+      <span class="c-tag">&lt;td&gt;&lt;input</span> name=<span class="c-str">"discount"</span> value=<span class="c-str">"0"</span><span class="c-tag">&gt;&lt;/td&gt;</span>
+      <span class="c-tag">&lt;td&gt;&lt;input</span>
+        <span class="c-attrname">live-compute</span>=<span class="c-str">"qty * price * (1 - discount / 100)"</span>
+        <span class="c-attrname">live-compute-format</span>=<span class="c-str">"idr"</span> readonly<span class="c-tag">&gt;&lt;/td&gt;</span>
+      <span class="c-tag">&lt;td&gt;&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"removeItem"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"closest(tr)"</span> <span class="c-attrname">live-dom</span>=<span class="c-str">"remove"</span><span class="c-tag">&gt;</span>×<span class="c-tag">&lt;/button&gt;&lt;/td&gt;</span>
+    <span class="c-tag">&lt;/tr&gt;</span>
+  <span class="c-tag">&lt;/table&gt;</span>
+
+  <span class="c-tag">&lt;div&gt;</span>Total:
+    <span class="c-tag">&lt;input</span> <span class="c-attrname">live-compute</span>=<span class="c-str">"sum(subtotal_?)"</span> <span class="c-attrname">live-compute-format</span>=<span class="c-str">"idr"</span> readonly<span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;/div&gt;</span>
+
+  <span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"submit"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"#response"</span><span class="c-tag">&gt;</span>Submit Invoice<span class="c-tag">&lt;/button&gt;</span>
+  <span class="c-tag">&lt;div</span> id=<span class="c-str">"response"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;/div&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Debounced search-as-you-type</h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;div</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Catalog/ProductController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;input</span> name=<span class="c-str">"q"</span> <span class="c-attrname">live-input</span>=<span class="c-str">"search"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"#results"</span> placeholder=<span class="c-str">"Search products…"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;div</span> id=<span class="c-str">"results"</span><span class="c-tag">&gt;&lt;/div&gt;</span>
+<span class="c-tag">&lt;/div&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Real-time collaborative dashboard</h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;div</span> <span class="c-attrname">live-scope</span>=<span class="c-str">"Dashboard/MetricsController"</span><span class="c-tag">&gt;</span>
+  <span class="c-tag">&lt;div</span> id=<span class="c-str">"metrics-panel"</span><span class="c-tag">&gt;</span>{{-- server-rendered on load --}}<span class="c-tag">&lt;/div&gt;</span>
+  <span class="c-tag">&lt;button</span> <span class="c-attrname">live-click</span>=<span class="c-str">"refreshMetrics"</span> <span class="c-attrname">live-realtime</span>=<span class="c-str">"true"</span> <span class="c-attrname">live-target</span>=<span class="c-str">"#metrics-panel"</span><span class="c-tag">&gt;</span>
+    Sync All
+  <span class="c-tag">&lt;/button&gt;</span>
+<span class="c-tag">&lt;/div&gt;</span></pre>
+      </div>
+
+      <h3 class="font-display text-xl font-semibold mb-3">SPA app shell</h3>
+      <div class="codeblock p-5 my-5">
+<pre><span class="c-tag">&lt;body&gt;</span>
+  <span class="c-tag">&lt;nav&gt;</span>
+    <span class="c-tag">&lt;a</span> href=<span class="c-str">"/dashboard"</span><span class="c-tag">&gt;</span>Dashboard<span class="c-tag">&lt;/a&gt;</span>
+    <span class="c-tag">&lt;a</span> href=<span class="c-str">"/reports"</span><span class="c-tag">&gt;</span>Reports<span class="c-tag">&lt;/a&gt;</span>
+  <span class="c-tag">&lt;/nav&gt;</span>
+
+  <span class="c-tag">&lt;main</span> <span class="c-attrname">live-spa-region</span>=<span class="c-str">"main"</span><span class="c-tag">&gt;</span>
+    @yield(<span class="c-str">'content'</span>)
+  <span class="c-tag">&lt;/main&gt;</span>
+<span class="c-tag">&lt;/body&gt;</span></pre>
+      </div>
+      <p class="text-gray-600 text-sm">As long as every page you navigate to also renders a <code class="attr">live-spa-region="main"</code> wrapper with the same name, back/forward and direct links all keep working — no client-side route table to maintain.</p>
+    </section>
+
+    <!-- TROUBLESHOOTING -->
+    <section id="troubleshooting" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">18 — Reference</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Troubleshooting</h2>
+      <div class="space-y-4">
+        <details class="border border-gray-200 rounded-lg p-4 open:bg-gray-50">
+          <summary class="font-semibold cursor-pointer text-sm">"Element with live-click needs a live-scope attribute on an ancestor"</summary>
+          <p class="text-sm text-gray-600 mt-2">Every trigger attribute that calls a controller method needs a <code class="attr">live-scope</code> somewhere above it in the DOM. If the element only performs a local DOM action (no method name), you can omit <code class="font-mono text-[12px]">live-scope</code> entirely — pass an empty <code class="attr">live-click</code> to trigger <code class="attr">live-dom</code>/<code class="attr">live-target</code> without a server call.</p>
+        </details>
+        <details class="border border-gray-200 rounded-lg p-4 open:bg-gray-50">
+          <summary class="font-semibold cursor-pointer text-sm">My aggregate formula always returns 0</summary>
+          <p class="text-sm text-gray-600 mt-2">Aggregate functions take exactly one field pattern — <code class="font-mono text-[12px]">sum(a, b)</code> is read as a single (nonexistent) field named literally "a, b", not two fields added together. Use the wildcard pattern instead: <code class="font-mono text-[12px]">sum(price_?)</code> against fields named <code class="font-mono text-[12px]">price_1</code>, <code class="font-mono text-[12px]">price_2</code>, etc. In debug mode, a console warning flags this exact mistake.</p>
+        </details>
+        <details class="border border-gray-200 rounded-lg p-4 open:bg-gray-50">
+          <summary class="font-semibold cursor-pointer text-sm"><code class="font-mono text-[12px]">live-realtime</code> does nothing</summary>
+          <p class="text-sm text-gray-600 mt-2">Real-time is silently inactive until Laravel Reverb (or another broadcasting driver populating <code class="font-mono text-[12px]">config('broadcasting.connections.reverb.key')</code>) is configured — this is intentional, so projects that don't need it never see an "Echo is not defined" error. Run <code class="font-mono text-[12px]">php artisan install:broadcasting</code> (Laravel 11/12) and keep <code class="font-mono text-[12px]">reverb:start</code> + <code class="font-mono text-[12px]">queue:work</code> running.</p>
+        </details>
+        <details class="border border-gray-200 rounded-lg p-4 open:bg-gray-50">
+          <summary class="font-semibold cursor-pointer text-sm">A field outside my table row leaked into the request</summary>
+          <p class="text-sm text-gray-600 mt-2">Check that each repeating unit (row, card) has its own <code class="attr">live-scope</code>. Only inputs inside the <em>nearest</em> <code class="attr">live-scope</code> ancestor of the trigger are serialized — a shared outer scope will pull in every row's inputs at once.</p>
+        </details>
+        <details class="border border-gray-200 rounded-lg p-4 open:bg-gray-50">
+          <summary class="font-semibold cursor-pointer text-sm">A currency-formatted input shows the wrong number after typing</summary>
+          <p class="text-sm text-gray-600 mt-2">Make sure <code class="attr">live-compute-format</code> matches how the value was already written into the page (server-rendered or otherwise) — the parser trusts the format you declare to know which character is the decimal separator versus the thousands separator.</p>
+        </details>
+      </div>
+    </section>
+    <!-- COMPARISON -->
+    <section id="comparison" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">19 — Reference</div>
+      <h2 class="font-display text-3xl font-bold mb-5">How it compares</h2>
+      <div class="overflow-x-auto mb-4">
+        <table class="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr><th class="text-left px-4 py-2"></th><th class="text-left px-4 py-2">LiveDomJS</th><th class="text-left px-4 py-2">Livewire</th><th class="text-left px-4 py-2">HTMX</th></tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 text-gray-700">
+            <tr><td class="px-4 py-2">New files per feature</td><td class="px-4 py-2 font-semibold text-liveDim">0</td><td class="px-4 py-2">2+ (PHP class + Blade)</td><td class="px-4 py-2">0</td></tr>
+            <tr><td class="px-4 py-2">Route registration required</td><td class="px-4 py-2 font-semibold text-liveDim">No</td><td class="px-4 py-2">No</td><td class="px-4 py-2">Yes</td></tr>
+            <tr><td class="px-4 py-2">Client-side calculations</td><td class="px-4 py-2 font-semibold text-liveDim">Built-in</td><td class="px-4 py-2">Server round-trip</td><td class="px-4 py-2">Manual JS</td></tr>
+            <tr><td class="px-4 py-2">Real-time (WebSocket)</td><td class="px-4 py-2 font-semibold text-liveDim">One attribute</td><td class="px-4 py-2">Complex setup</td><td class="px-4 py-2">Extension required</td></tr>
+            <tr><td class="px-4 py-2">Laravel-native</td><td class="px-4 py-2 font-semibold text-liveDim">Yes</td><td class="px-4 py-2">Yes</td><td class="px-4 py-2">No</td></tr>
+            <tr><td class="px-4 py-2">Build step required</td><td class="px-4 py-2 font-semibold text-liveDim">No</td><td class="px-4 py-2">No</td><td class="px-4 py-2">No</td></tr>
+            <tr><td class="px-4 py-2">jQuery dependency</td><td class="px-4 py-2">No</td><td class="px-4 py-2">No</td><td class="px-4 py-2">No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-gray-500 text-sm">Best fit: data-heavy Laravel apps (ERP, CRM, admin panels, internal tools) that want reactive UI without adopting a full component framework.</p>
+    </section>
+
+    <!-- CHANGELOG / ROADMAP -->
+    <section id="changelog" class="scroll-mt-20">
+      <div class="section-eyebrow mb-3">20 — Reference</div>
+      <h2 class="font-display text-3xl font-bold mb-5">Changelog &amp; roadmap</h2>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Recent since the last docs pass</h3>
+      <ul class="space-y-2 text-gray-700 mb-8 list-disc pl-5 text-sm">
+        <li>Global currency switching — <code class="font-mono text-[12px]">LiveDom.setCurrency()</code>, <code class="font-mono text-[12px]">registerFormat()</code>, <code class="font-mono text-[12px]">unpin()</code>, and the <code class="font-mono text-[12px]">"auto"</code> format.</li>
+        <li>Cursor-safe live input masking for currency-formatted fields while typing.</li>
+        <li><code class="attr">live-decimal-max</code>, <code class="attr">live-compute-skip</code>, and <code class="attr">live-compute-trigger</code> for fine-grained control over the compute engine.</li>
+        <li>Unified, abortable SPA request pipeline — GET navigation, form GET, and form POST now share one controller, so a stale in-flight navigation can never render over a newer one.</li>
+        <li>Redesigned dev-mode error modal with copy/AI-prompt actions and an in-session error history.</li>
+        <li>Reference-counted <code class="attr">live-loading</code> / <code class="attr">live-loading-indicator</code>, safe for overlapping requests.</li>
+        <li>Laravel 11/12 "slim skeleton" support — real-time detection no longer assumes <code class="font-mono text-[12px]">config/broadcasting.php</code> exists.</li>
+      </ul>
+
+      <h3 class="font-display text-xl font-semibold mb-3">Shipped foundation</h3>
+      <ul class="space-y-2 text-gray-700 mb-8 list-disc pl-5 text-sm">
+        <li>✅ Attribute-driven AJAX interactions (click, change, input, keyup, submit, hover, poll)</li>
+        <li>✅ Scope-based data isolation (<code class="attr">live-scope</code>)</li>
+        <li>✅ Live compute with aggregate functions (sum, avg, min, max, count, sumif)</li>
+        <li>✅ Real-time broadcasting via Laravel Reverb</li>
+        <li>✅ SPA navigation with pushState/popstate support</li>
+        <li>✅ Reactive directives (show, class, style, attr, bind)</li>
+        <li>✅ Remove the jQuery dependency</li>
+      </ul>
+
+      <h3 class="font-display text-xl font-semibold mb-3">On the roadmap</h3>
+      <ul class="space-y-2 text-gray-700 list-disc pl-5 text-sm">
+        <li>⬜ DevTools browser extension</li>
+        <li>⬜ VS Code extension for attribute autocomplete</li>
+        <li>⬜ Official testing utilities</li>
+      </ul>
+    </section>
+
+    <!-- CONTRIBUTING / AUTHOR -->
+    <section class="border-t border-gray-200 pt-10">
+      <div class="grid sm:grid-cols-2 gap-8 text-sm text-gray-600">
+        <div>
+          <h4 class="font-display font-semibold text-gray-900 mb-2">Contributing</h4>
+          <p class="mb-3">Bug reports and feature suggestions are welcome. Before submitting changes, be ready to explain what you're changing, what could break, and how it affects the framework's long-term direction.</p>
+          <div class="codeblock p-4 text-[12.5px]">
+<pre>git clone https://github.com/GadingRengga/LiveDomJs
+cd LiveDomJs
+git checkout -b feature/your-feature-name</pre>
+          </div>
         </div>
-    </footer>
+        <div>
+          <h4 class="font-display font-semibold text-gray-900 mb-2">Author</h4>
+          <p>Gading Rengga</p>
+          <p><a href="https://github.com/GadingRengga" class="underline" target="_blank">github.com/GadingRengga</a></p>
+          <p><a href="mailto:gading.rengga@gmail.com" class="underline">gading.rengga@gmail.com</a></p>
+          <p class="mt-3 text-xs text-gray-400">Licensed under the MIT License. Free for personal and commercial use.</p>
+        </div>
+      </div>
+    </section>
 
-    <script>
-        // Mobile menu toggle
-        const mobileMenuButton = document.getElementById('mobile-menu-button');
-        const mobileMenu = document.getElementById('mobile-menu');
+  </main>
+</div>
 
-        if (mobileMenuButton && mobileMenu) {
-            mobileMenuButton.addEventListener('click', function () {
-                mobileMenu.classList.toggle('open');
-            });
-        }
+<footer class="bg-ink text-gray-400 text-sm py-10 mt-10">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between gap-4">
+    <div class="flex items-center gap-2">
+      <span class="pulse-dot"></span>
+      <span class="font-display text-white font-semibold">LiveDomJS</span>
+      <span class="text-gray-500">— HTML-native reactivity for Laravel</span>
+    </div>
+    <div class="flex gap-6">
+      <a href="https://github.com/GadingRengga/LiveDomJs" class="hover:text-white" target="_blank">GitHub</a>
+      <a href="https://packagist.org/packages/gadingrengga/livedomjs" class="hover:text-white" target="_blank">Packagist</a>
+      <a href="https://github.com/GadingRengga/LiveDomJs/issues" class="hover:text-white" target="_blank">Issues</a>
+    </div>
+  </div>
+</footer>
 
-        // Smooth scrolling untuk navigation links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
+<script>
+  const btn = document.getElementById('mobile-nav-toggle');
+  // Mobile: simple in-page anchor list toggled from the top bar
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const existing = document.getElementById('mobile-drawer');
+      if (existing) { existing.remove(); return; }
+      const drawer = document.createElement('div');
+      drawer.id = 'mobile-drawer';
+      drawer.className = 'md:hidden fixed inset-x-0 top-14 bg-white border-b border-gray-200 z-40 p-4 space-y-1 text-sm shadow-lg';
+      drawer.innerHTML = `
+        <a href="#getting-started" class="block py-2">Getting started</a>
+        <a href="#attribute-reference" class="block py-2">Attributes</a>
+        <a href="#live-compute" class="block py-2">Live Compute</a>
+        <a href="#realtime" class="block py-2">Real-time</a>
+        <a href="#spa" class="block py-2">SPA navigation</a>
+        <a href="#recipes" class="block py-2">Recipes</a>
+        <a href="https://github.com/GadingRengga/LiveDomJs" target="_blank" class="block py-2">GitHub ↗</a>
+      `;
+      document.body.appendChild(drawer);
+      drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', () => drawer.remove()));
+    });
+  }
 
-                    // Close mobile menu if open
-                    if (mobileMenu && mobileMenu.classList.contains('open')) {
-                        mobileMenu.classList.remove('open');
-                    }
-                }
-            });
-        });
+  // Sidebar active-section highlighting
+  const navLinks = Array.from(document.querySelectorAll('.doc-nav-link'));
+  const targets = navLinks
+    .map(a => document.querySelector(a.getAttribute('href')))
+    .filter(Boolean);
 
-        // Navbar background change on scroll
-        window.addEventListener('scroll', function () {
-            const navbar = document.querySelector('nav');
-            if (window.scrollY > 50) {
-                navbar.classList.add('shadow-md');
-            } else {
-                navbar.classList.remove('shadow-md');
-            }
-        });
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const id = '#' + entry.target.id;
+      const link = navLinks.find(a => a.getAttribute('href') === id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
 
-        // Format number to Indonesian currency format
-        function formatRupiah(angka) {
-            return new Intl.NumberFormat('id-ID').format(angka);
-        }
+  targets.forEach(t => observer.observe(t));
+</script>
 
-        // Demo interactivity untuk contoh section
-        document.addEventListener('DOMContentLoaded', function () {
-            // Demo kalkulator
-            const demoCalculator = document.querySelector('#examples');
-            if (demoCalculator) {
-                const qtyInput = demoCalculator.querySelector('input[value="2"]');
-                const priceInput = demoCalculator.querySelector('input[value="150000"]');
-
-                if (qtyInput && priceInput) {
-                    const updateDemoCalc = () => {
-                        const qty = parseInt(qtyInput.value) || 0;
-                        const price = parseInt(priceInput.value) || 0;
-                        const subtotal = qty * price;
-                        const tax = Math.round(subtotal * 0.1);
-                        const total = subtotal + tax;
-
-                        const subtotalEl = demoCalculator.querySelector('#subtotal');
-                        const taxEl = demoCalculator.querySelector('#tax');
-                        const totalEl = demoCalculator.querySelector('.text-green-600');
-
-                        if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
-                        if (taxEl) taxEl.textContent = formatRupiah(tax);
-                        if (totalEl) totalEl.textContent = formatRupiah(total);
-                    };
-
-                    qtyInput.addEventListener('input', updateDemoCalc);
-                    priceInput.addEventListener('input', updateDemoCalc);
-
-                    // Initialize calculation
-                    updateDemoCalc();
-                }
-            }
-
-            // Demo conditional UI
-            const demoConditional = demoCalculator?.querySelector('select');
-            if (demoConditional) {
-                demoConditional.addEventListener('change', function () {
-                    const companyFields = demoCalculator.querySelector('.bg-blue-50');
-                    const infoBox = demoCalculator.querySelector('.bg-blue-100');
-
-                    if (this.value === 'Company') {
-                        companyFields.classList.remove('hidden');
-                        infoBox.classList.add('bg-blue-100');
-                        infoBox.classList.remove('bg-gray-100');
-                    } else {
-                        companyFields.classList.add('hidden');
-                        infoBox.classList.remove('bg-blue-100');
-                        infoBox.classList.add('bg-gray-100');
-                    }
-                });
-
-                // Initialize conditional UI
-                demoConditional.value = 'Personal';
-                demoConditional.dispatchEvent(new Event('change'));
-            }
-        });
-    </script>
 </body>
-
 </html>

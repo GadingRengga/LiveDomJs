@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveDomJs – Reactive HTML Framework for Laravel</title>
+    <meta name="description"
+        content="LiveDomJs is a lightweight Reactive HTML framework for Laravel that enables reactive DOM manipulation directly from Blade without needing a frontend framework. Fast, simple, and efficient.">
+    <meta name="keywords"
+        content="LiveDomJs, reactive html, laravel reactive, livedom, reactive blade, laravel spa, ajax laravel, reactive dom, frontendless laravel, javascript laravel">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://gadingrengga.github.io/LiveDomJs/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="LiveDomJs – Reactive HTML Framework for Laravel">
+    <meta property="og:description"
+        content="Lightweight Reactive HTML framework for Laravel. DOM manipulation directly from Blade without frontend framework.">
+    <meta property="og:url" content="https://gadingrengga.github.io/LiveDomJs/">
+    <meta property="og:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="LiveDomJs – Reactive HTML Framework for Laravel">
+    <meta name="twitter:description" content="Lightweight Reactive HTML for Laravel without frontend complexity.">
+    <meta name="twitter:image" content="https://gadingrengga.github.io/LiveDomJs/assets/cover.png">
+
+    <!-- Schema.org JSON-LD -->
+    <script type="application/ld+json">
+        {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "LiveDomJs",
+        "url": "https://gadingrengga.github.io/LiveDomJs/",
+        "applicationCategory": "Web Development Framework",
+        "operatingSystem": "Any",
+        "programmingLanguage": ["JavaScript", "PHP"],
+        "creator": {
+            "@type": "Person",
+            "name": "Gading Rengga"
+        },
+        "license": "MIT",
+        "description": "Reactive HTML framework for Laravel, enabling DOM manipulation directly from Blade without frontend complexity.",
+        "keywords": ["LiveDomJs", "Laravel reactive", "Reactive HTML", "Blade framework", "Frontendless Laravel"]
+        }
+    </script>
+
+
+
+    <!-- Favicon -->
+    <link rel="icon" href="https://gadingrengga.github.io/LiveDomJs/assets/favicon.ico" type="image/x-icon">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .code-highlight {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+
+        .syntax-php {
+            color: #81E6D9;
+        }
+
+        .syntax-html {
+            color: #FEB2B2;
+        }
+
+        .syntax-js {
+            color: #F6E05E;
+        }
+
+        .syntax-comment {
+            color: #A0AEC0;
+        }
+
+        .feature-card {
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .navbar-blur {
+            backdrop-filter: blur(20px);
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .logo-container {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        /* Mobile menu styles */
+        .mobile-menu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .mobile-menu.open {
+            max-height: 300px;
+        }
+
+        /* Responsive table styles */
+        .responsive-table {
+            overflow-x: auto;
+        }
+
+        /* Improve code block responsiveness */
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Responsive text sizing */
+        @media (max-width: 640px) {
+            .responsive-text {
+                font-size: 0.875rem;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-900">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 navbar-blur border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-4">
+                    <div class="logo-container">LD</div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">LiveDomJS</h1>
+                        <p class="text-xs text-gray-500">Modern HTML - REACTIVE Laravel Library</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#installation" class="text-gray-600 hover:text-blue-600 transition-colors">Installation</a>
+                    <a href="#features" class="text-gray-600 hover:text-blue-600 transition-colors">Features</a>
+                    <a href="#documentation"
+                        class="text-gray-600 hover:text-blue-600 transition-colors">Documentation</a>
+                    <a href="#examples" class="text-gray-600 hover:text-blue-600 transition-colors">Examples</a>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="text-gray-600 hover:text-blue-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Mobile Menu -->
+            <div id="mobile-menu" class="mobile-menu md:hidden bg-white border-t border-gray-200">
+                <div class="py-2 space-y-1">
+                    <a href="#installation"
+                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Installation</a>
+                    <a href="#features"
+                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Features</a>
+                    <a href="#documentation"
+                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Documentation</a>
+                    <a href="#examples"
+                        class="block px-4 py-2 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors">Examples</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-gradient pt-24 pb-16 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="logo-container mx-auto mb-6 w-20 h-20 text-3xl">LD</div>
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">LiveDomJS</h1>
+            <p class="text-lg md:text-xl lg:text-2xl mb-8 text-blue-100">Modern HTML - REACTIVE Laravel Library for
+                Faster Web Development</p>
+            <p class="text-base md:text-lg mb-12 text-blue-100 max-w-3xl mx-auto">
+                A comprehensive solution for dynamic interactions, SPA routing, Excel-like form computation, and much
+                more. Enhance user experience easily without excessive JavaScript complexity.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#installation"
+                    class="bg-white text-blue-600 px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center">
+                    Get Started
+                </a>
+                <a href="#documentation"
+                    class="border-2 border-white text-white px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors text-center">
+                    View Documentation
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Overview -->
+    <section id="features" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">LiveDomJS Key Features</h2>
+                <p class="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
+                    All-in-one library providing a modern web development experience with Laravel
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                <div
+                    class="feature-card bg-gradient-to-br from-blue-50 to-indigo-100 p-6 md:p-8 rounded-2xl border border-blue-200">
+                    <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Dynamic AJAX</h3>
+                    <p class="text-gray-600">Automatic AJAX system with simple HTML attributes. No need to write manual
+                        JavaScript.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-green-50 to-emerald-100 p-6 md:p-8 rounded-2xl border border-green-200">
+                    <div class="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Computation</h3>
+                    <p class="text-gray-600">Automatic real-time calculations with Excel-like formulas. Supports SUM,
+                        AVG, SUMIF and date functions.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-purple-50 to-violet-100 p-6 md:p-8 rounded-2xl border border-purple-200">
+                    <div class="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">SPA Router</h3>
+                    <p class="text-gray-600">Single Page Application with automatic routing. Smooth navigation without
+                        page reload.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-orange-50 to-red-100 p-6 md:p-8 rounded-2xl border border-orange-200">
+                    <div class="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Conditionals</h3>
+                    <p class="text-gray-600">Show/hide elements dynamically based on input conditions. Reactive UI
+                        without complex JavaScript.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-teal-50 to-cyan-100 p-6 md:p-8 rounded-2xl border border-teal-200">
+                    <div class="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Auto Polling</h3>
+                    <p class="text-gray-600">Automatically refresh content periodically. Ideal for real-time dashboards
+                        and notifications.</p>
+                </div>
+
+                <div
+                    class="feature-card bg-gradient-to-br from-pink-50 to-rose-100 p-6 md:p-8 rounded-2xl border border-pink-200">
+                    <div class="w-12 h-12 bg-pink-600 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Live Data Binding</h3>
+                    <p class="text-gray-600">Automatic data synchronization between elements. Easy-to-use two-way data
+                        binding.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section id="installation" class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Installation</h2>
+                <p class="text-lg md:text-xl text-gray-600">Start using LiveDomJS in minutes</p>
+            </div>
+
+            <div class="max-w-4xl mx-auto space-y-8">
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">1</span>
+                        Via Composer (Laravel)
+                    </h3>
+                    <p class="text-gray-600 mb-6">If using Laravel, LiveDomJs can be installed directly through
+                        Packagist:</p>
+
+                    <div class="code-highlight rounded-lg p-4 md:p-6 mb-6">
+                        <pre class="text-sm responsive-text"><code><span class="syntax-comment"># Install package</span>
+<span class="syntax-php">composer require gadingrengga/livedomjs</span>
+
+<span class="syntax-comment"># Run installation to publish assets and routes</span>
+<span class="syntax-php">php artisan livedomjs:install</span></code></pre>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">2</span>
+                        Usage in Blade
+                    </h3>
+                    <p class="text-gray-600 mb-6">Add the following script to your Blade layout after jQuery:</p>
+
+                    <div class="code-highlight rounded-lg p-4 md:p-6 mb-6">
+                        <pre
+                            class="text-sm responsive-text"><code><span class="syntax-html">&lt;script src="https://code.jquery.com/jquery-3.6.0.min.js"&gt;&lt;/script&gt;</span>
+<span class="syntax-html">&lt;script src="{{ asset('vendor/livedomjs/livedom.js') }}"&gt;&lt;/script&gt;</span></code></pre>
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p class="text-blue-800"><strong>Note:</strong> Make sure jQuery is loaded before LiveDomJS to
+                            avoid errors.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                    <h3 class="text-xl md:text-2xl font-bold mb-6 flex items-center">
+                        <span
+                            class="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">3</span>
+                        CSRF Token Setup
+                    </h3>
+                    <p class="text-gray-600 mb-6">Add CSRF token in the head section of your template:</p>
+
+                    <div class="code-highlight rounded-lg p-4 md:p-6">
+                        <pre
+                            class="text-sm responsive-text"><code><span class="syntax-html">&lt;meta name="csrf-token" content="{{ csrf_token() }}"&gt;</span></code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Section -->
+    <section id="documentation" class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Complete Documentation</h2>
+                <p class="text-lg md:text-xl text-gray-600">Comprehensive guide for all LiveDomJS features</p>
+            </div>
+
+            <!-- AJAX Dynamic -->
+            <div class="max-w-6xl mx-auto space-y-16">
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-6 md:p-8 border border-blue-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-blue-900">1. Dynamic AJAX</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatic AJAX system with simple HTML attributes
+                        for server interaction without page reload.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Main Attributes:</h4>
+                            <ul class="space-y-2 text-gray-700">
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-scope</code> - Defines controller
+                                </li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-click</code> - Method called on
+                                    click</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-target</code> - Target element for
+                                    response</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-method</code> - HTTP method
+                                    (GET/POST)</li>
+                                <li><code class="bg-blue-100 px-2 py-1 rounded">live-loading</code> - Show loading
+                                    indicator</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Event Handlers:</h4>
+                            <ul class="space-y-2 text-gray-700">
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-submit</code> - Submit form via
+                                    AJAX</li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-change</code> - Trigger when value
+                                    changes</li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-keyup</code> - Trigger on keyup
+                                </li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-input</code> - Trigger on input
+                                </li>
+                                <li><code class="bg-green-100 px-2 py-1 rounded">live-hover</code> - Trigger on hover
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
+                        <div class="code-highlight rounded-lg p-4 md:p-6">
+                            <pre class="text-sm responsive-text"><code><span class="syntax-html">&lt;div live-scope="user"&gt;</span>
+    <span class="syntax-html">&lt;input name="name" type="text" placeholder="User Name"&gt;</span>
+    <span class="syntax-html">&lt;button live-click="save" live-target="#result" live-loading="true" live-loading-indicator&gt;</span>
+        <span class="syntax-html">Save User</span>
+    <span class="syntax-html">&lt;/button&gt;</span>
+    <span class="syntax-html">&lt;div id="result"&gt;&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Computation -->
+                <div
+                    class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-3xl p-6 md:p-8 border border-green-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-green-900">2. Live Computation</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Real-time calculation system with Excel-like
+                        formulas. Supports various mathematical and date functions.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Math Functions</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>sum(field)</code></li>
+                                <li><code>avg(field)</code></li>
+                                <li><code>min(field)</code></li>
+                                <li><code>max(field)</code></li>
+                                <li><code>count(field)</code></li>
+                                <li><code>sumif(range, criteria, sum_range)</code></li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Date Functions</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>rangeDate(start, end)</code></li>
+                                <li><code>rangeMonth(start, end)</code></li>
+                                <li><code>rangeYear(start, end)</code></li>
+                                <li><code>rangeWeek(start, end)</code></li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-4 md:p-6 rounded-lg border border-green-200">
+                            <h4 class="font-semibold mb-3">Output Format</h4>
+                            <ul class="text-sm space-y-1 text-gray-600">
+                                <li><code>idr</code> - Rupiah Format</li>
+                                <li><code>currency</code> - Dollar Format</li>
+                                <li><code>decimal</code> - 2 Decimals</li>
+                                <li><code>percent</code> - Percentage</li>
+                                <li><code>days/months/years</code></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
+                        <div class="code-highlight rounded-lg p-4 md:p-6">
+                            <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Automatic calculation --&gt;</span>
+<span class="syntax-html">&lt;input name="qty" type="number" value="10"&gt;</span>
+<span class="syntax-html">&lt;input name="price" type="number" value="5000"&gt;</span>
+<span class="syntax-html">&lt;input live-compute="qty * price" live-compute-format="idr" readonly&gt;</span>
+
+<span class="syntax-comment">&lt;!-- With manual control --&gt;</span>
+<span class="syntax-html">&lt;input name="subtotal" live-compute="sum(rows_?_qty * rows_?_price)" </span>
+<span class="syntax-html">       live-compute-format="idr" live-compute-skip="true"&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Conditionals -->
+                <div
+                    class="bg-gradient-to-r from-purple-50 to-violet-50 rounded-3xl p-6 md:p-8 border border-purple-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-purple-900">3. Live Conditionals</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Control element visibility and styling based on
+                        input conditions in real-time.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Available Directives:</h4>
+                            <ul class="space-y-3">
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-show</code>
+                                    <p class="text-sm text-gray-600 mt-1">Show/hide element based on condition</p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-class</code>
+                                    <p class="text-sm text-gray-600 mt-1">Add/remove CSS classes dynamically</p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-style</code>
+                                    <p class="text-sm text-gray-600 mt-1">Change inline styles dynamically</p>
+                                </li>
+                                <li>
+                                    <code class="bg-purple-100 px-3 py-1 rounded">live-attr</code>
+                                    <p class="text-sm text-gray-600 mt-1">Change element attributes dynamically</p>
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Condition Examples:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Show based on value --&gt;</span>
+<span class="syntax-html">&lt;div live-show="status == 'active'"&gt;</span>
+    <span class="syntax-html">Content for active status</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Class based on condition --&gt;</span>
+<span class="syntax-html">&lt;div live-class="price > 1000 ? 'text-red-500' : 'text-green-500'"&gt;</span>
+    <span class="syntax-html">Price changes color</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SPA Router -->
+                <div class="bg-gradient-to-r from-orange-50 to-red-50 rounded-3xl p-6 md:p-8 border border-orange-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-orange-900">4. SPA Router</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Single Page Application with automatic routing
+                        and smooth navigation without page reload.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">How It Works:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Intercept all links and forms in SPA region</li>
+                                <li>• Load content via AJAX without reload</li>
+                                <li>• Update browser history automatically</li>
+                                <li>• Support browser back/forward buttons</li>
+                                <li>• Integrated error handling</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Configuration:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm responsive-text"><code><span class="syntax-js">window.liveDomConfig = {</span>
+    <span class="syntax-js">spaExcludePrefixes: [</span>
+        <span class="syntax-js">'/api/',</span>
+        <span class="syntax-js">'/download/',</span>
+        <span class="syntax-js">'/admin/export'</span>
+    <span class="syntax-js">]</span>
+<span class="syntax-js">};</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-lg md:text-xl font-semibold mb-4">HTML Setup:</h4>
+                        <div class="code-highlight rounded-lg p-4 md:p-6">
+                            <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Layout with SPA regions --&gt;</span>
+<span class="syntax-html">&lt;div live-spa-region="header"&gt;</span>
+    <span class="syntax-html">&lt;nav&gt;...&lt;/nav&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-html">&lt;div live-spa-region="main"&gt;</span>
+    <span class="syntax-html">&lt;!-- Main content to be updated --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span>
+
+<span class="syntax-html">&lt;div live-spa-region="sidebar"&gt;</span>
+    <span class="syntax-html">&lt;!-- Sidebar that can be updated --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Data Binding -->
+                <div class="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-3xl p-6 md:p-8 border border-teal-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-teal-900">5. Live Data Binding</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatic data synchronization between elements
+                        with easy-to-use two-way data binding.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Binding Features:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Automatic sync based on name attribute</li>
+                                <li>• Support for input, select, textarea</li>
+                                <li>• Two-way binding with live-bind</li>
+                                <li>• Automatic event triggers (input, change)</li>
+                                <li>• Cross-element synchronization</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Implementation Example:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Input source --&gt;</span>
+<span class="syntax-html">&lt;input name="username" type="text"&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Elements that will sync --&gt;</span>
+<span class="syntax-html">&lt;span live-bind="username"&gt;&lt;/span&gt;</span>
+<span class="syntax-html">&lt;input live-bind="username" readonly&gt;</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auto Polling -->
+                <div class="bg-gradient-to-r from-pink-50 to-rose-50 rounded-3xl p-6 md:p-8 border border-pink-100">
+                    <h3 class="text-2xl md:text-3xl font-bold mb-6 text-pink-900">6. Auto Polling</h3>
+                    <p class="text-base md:text-lg text-gray-700 mb-8">Automatically refresh content periodically. Ideal
+                        for real-time dashboards, notifications, and monitoring.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8">
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">How It Works:</h4>
+                            <ul class="space-y-3 text-gray-700">
+                                <li>• Interval in milliseconds</li>
+                                <li>• Auto-abort previous requests</li>
+                                <li>• Automatic error handling</li>
+                                <li>• Good memory management</li>
+                                <li>• Stop polling when element is removed</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-lg md:text-xl font-semibold mb-4">Usage Example:</h4>
+                            <div class="code-highlight rounded-lg p-4">
+                                <pre class="text-sm responsive-text"><code><span class="syntax-comment">&lt;!-- Polling every 5 seconds --&gt;</span>
+<span class="syntax-html">&lt;div id="notifications" </span>
+<span class="syntax-html">     live-poll="5000" </span>
+<span class="syntax-html">     live-scope="dashboard" </span>
+<span class="syntax-html">     live-click="getNotifications"&gt;</span>
+    <span class="syntax-html">&lt;!-- Content will be updated automatically --&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Examples Section -->
+    <section id="examples" class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Implementation Examples</h2>
+                <p class="text-lg md:text-xl text-gray-600">See LiveDomJS in action in various real-world scenarios</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto space-y-12">
+                <!-- Example 1: Form CRUD -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">Dynamic CRUD Form</h3>
+                        <p class="text-blue-100 mt-2">Create, Read, Update, Delete with AJAX without reload</p>
+                    </div>
+                    <div class="p-6 md:p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML Blade:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="UserController"&gt;</span>
+    <span class="syntax-html">&lt;form live-submit="store" live-target="#user-list"&gt;</span>
+        <span class="syntax-html">&lt;input type="text" name="name" placeholder="Name" required&gt;</span>
+        <span class="syntax-html">&lt;input type="email" name="email" placeholder="Email" required&gt;</span>
+        <span class="syntax-html">&lt;button type="submit" &gt;</span>
+            <span class="syntax-html">Save</span>
+        <span class="syntax-html">&lt;/button&gt;</span>
+    <span class="syntax-html">&lt;/form&gt;</span>
+    
+    <span class="syntax-html">&lt;div id="user-list"&gt;</span>
+        <span class="syntax-html">@include('users.list')</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Laravel Controller:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-php">class UserController extends Controller</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">public function store(Request $request)</span>
+    <span class="syntax-php">{</span>
+        <span class="syntax-php">$user = User::create($request->all());</span>
+        
+        <span class="syntax-php">return view('users.list')->render();</span>
+    <span class="syntax-php">}</span>
+<span class="syntax-php">}</span></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 2: Live Calculator -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-green-600 to-emerald-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">Live Calculator</h3>
+                        <p class="text-green-100 mt-2">Real-time calculation with automatic formatting</p>
+                    </div>
+                    <div class="p-6 md:p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML Form:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="invoice"&gt;</span>
+    <span class="syntax-html">&lt;input name="qty" type="number" value="1"&gt;</span>
+    <span class="syntax-html">&lt;input name="price" type="number" value="100000"&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Automatic subtotal --&gt;</span>
+    <span class="syntax-html">&lt;input name="subtotal" </span>
+           <span class="syntax-html">live-compute="qty * price"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- 10% tax --&gt;</span>
+    <span class="syntax-html">&lt;input name="tax" </span>
+           <span class="syntax-html">live-compute="subtotal * 0.1"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Total --&gt;</span>
+    <span class="syntax-html">&lt;input name="total" </span>
+           <span class="syntax-html">live-compute="subtotal + tax"</span>
+           <span class="syntax-html">live-compute-format="idr" readonly&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Result:</h4>
+                                <div class="bg-gray-50 rounded-lg p-6">
+                                    <div class="space-y-4">
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Qty:</label>
+                                            <input type="number" value="2" class="border rounded px-3 py-1 w-20">
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Price:</label>
+                                            <input type="number" value="150000" class="border rounded px-3 py-1 w-32">
+                                        </div>
+                                        <hr>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Subtotal:</label>
+                                            <span id="subtotal" class="font-bold">300.000</span>
+                                        </div>
+                                        <div class="flex justify-between items-center">
+                                            <label class="font-medium">Tax (10%):</label>
+                                            <span id="tax" class="font-bold">30.000</span>
+                                        </div>
+                                        <div class="flex justify-between items-center border-t pt-2">
+                                            <label class="font-bold">Total:</label>
+                                            <span class="font-bold text-green-600">330.000</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example 3: Conditional UI -->
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-purple-600 to-violet-600 p-6">
+                        <h3 class="text-2xl font-bold text-white">Conditional UI</h3>
+                        <p class="text-purple-100 mt-2">Show/hide elements based on user input</p>
+                    </div>
+                    <div class="p-6 md:p-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">HTML with Conditions:</h4>
+                                <div class="code-highlight rounded-lg p-4 text-xs">
+                                    <pre><code><span class="syntax-html">&lt;div live-scope="form"&gt;</span>
+    <span class="syntax-html">&lt;select name="user_type"&gt;</span>
+        <span class="syntax-html">&lt;option value="personal"&gt;Personal&lt;/option&gt;</span>
+        <span class="syntax-html">&lt;option value="company"&gt;Company&lt;/option&gt;</span>
+    <span class="syntax-html">&lt;/select&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Appears if company --&gt;</span>
+    <span class="syntax-html">&lt;div live-show="user_type == 'company'"&gt;</span>
+        <span class="syntax-html">&lt;input name="company_name" placeholder="Company Name"&gt;</span>
+        <span class="syntax-html">&lt;input name="tax_id" placeholder="Tax ID"&gt;</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+    
+    <span class="syntax-comment">&lt;!-- Dynamic class based on condition --&gt;</span>
+    <span class="syntax-html">&lt;div live-class="user_type == 'company' ? 'bg-blue-100' : 'bg-gray-100'"&gt;</span>
+        <span class="syntax-html">Additional info</span>
+    <span class="syntax-html">&lt;/div&gt;</span>
+<span class="syntax-html">&lt;/div&gt;</span></code></pre>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold mb-4">Interactive Demo:</h4>
+                                <div class="bg-gray-50 rounded-lg p-6">
+                                    <select class="border rounded px-3 py-2 mb-4 w-full">
+                                        <option>Personal</option>
+                                        <option>Company</option>
+                                    </select>
+                                    <div class="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+                                        <p class="text-sm text-blue-800 mb-3">Fields for Company:</p>
+                                        <input type="text" placeholder="Company Name"
+                                            class="border rounded px-3 py-2 w-full mb-2">
+                                        <input type="text" placeholder="Tax ID" class="border rounded px-3 py-2 w-full">
+                                    </div>
+                                    <div class="bg-blue-100 rounded p-3">
+                                        <p class="text-sm">Additional info (background changes automatically)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advanced Features -->
+    <section class="py-16 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Advanced Features</h2>
+                <p class="text-lg md:text-xl text-gray-600">Advanced capabilities for complex applications</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                    <!-- Callbacks -->
+                    <div
+                        class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 md:p-8 rounded-2xl border border-indigo-200">
+                        <h3 class="text-xl md:text-2xl font-bold mb-4 text-indigo-900">Callback Functions</h3>
+                        <p class="text-gray-700 mb-6">Execute functions before and after AJAX requests for more detailed
+                            control.</p>
+
+                        <div class="code-highlight rounded-lg p-4 text-sm">
+                            <pre><code><span class="syntax-html">&lt;button live-click="save"</span>
+        <span class="syntax-html">live-callback-before="beforeSave"</span>
+        <span class="syntax-html">live-callback-after="afterSave"&gt;</span>
+    <span class="syntax-html">Save Data</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-js">function beforeSave(element) {</span>
+    <span class="syntax-js">// Validation or confirmation</span>
+    <span class="syntax-js">return confirm('Are you sure you want to save?');</span>
+<span class="syntax-js">}</span></code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Target Selectors -->
+                    <div
+                        class="bg-gradient-to-br from-green-50 to-teal-50 p-6 md:p-8 rounded-2xl border border-green-200">
+                        <h3 class="text-xl md:text-2xl font-bold mb-4 text-green-900">Advanced Targeting</h3>
+                        <p class="text-gray-700 mb-6">Target elements with flexible jQuery selectors for precise DOM
+                            manipulation.</p>
+
+                        <div class="code-highlight rounded-lg p-4 text-sm">
+                            <pre><code><span class="syntax-comment">&lt;!-- Target multiple with selector --&gt;</span>
+<span class="syntax-html">&lt;button live-click="update"</span>
+        <span class="syntax-html">live-target="closest(.card), next(.info)"&gt;</span>
+    <span class="syntax-html">Update</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Various DOM actions --&gt;</span>
+<span class="syntax-html">&lt;button live-click="add"</span>
+        <span class="syntax-html">live-dom="append,show"</span>
+        <span class="syntax-html">live-target="#list,#notification"&gt;</span>
+    <span class="syntax-html">Add Item</span>
+<span class="syntax-html">&lt;/button&gt;</span></code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Method Arguments -->
+                <div
+                    class="bg-gradient-to-r from-yellow-50 to-orange-50 p-6 md:p-8 rounded-2xl border border-yellow-200">
+                    <h3 class="text-xl md:text-2xl font-bold mb-6 text-orange-900">Method with Arguments</h3>
+                    <p class="text-gray-700 mb-6">Send specific arguments to controller methods for more dynamic logic.
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        <div>
+                            <h4 class="text-lg font-semibold mb-4">HTML:</h4>
+                            <div class="code-highlight rounded-lg p-4 text-sm">
+                                <pre><code><span class="syntax-comment">&lt;!-- Single argument --&gt;</span>
+<span class="syntax-html">&lt;button live-click="updateStatus('active')"&gt;</span>
+    <span class="syntax-html">Activate</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Multiple arguments --&gt;</span>
+<span class="syntax-html">&lt;button live-click="setPrice(100000, 'idr')"&gt;</span>
+    <span class="syntax-html">Set Price</span>
+<span class="syntax-html">&lt;/button&gt;</span>
+
+<span class="syntax-comment">&lt;!-- Dynamic with element value --&gt;</span>
+<span class="syntax-html">&lt;button live-click="calculate(this.dataset.id, qty)"&gt;</span>
+    <span class="syntax-html">Calculate</span>
+<span class="syntax-html">&lt;/button&gt;</span></code></pre>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold mb-4">Controller:</h4>
+                            <div class="code-highlight rounded-lg p-4 text-sm">
+                                <pre><code><span class="syntax-php">public function updateStatus($status)</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">// $status contains 'active'</span>
+    <span class="syntax-php">$model->status = $status;</span>
+    <span class="syntax-php">$model->save();</span>
+<span class="syntax-php">}</span>
+
+<span class="syntax-php">public function setPrice($amount, $currency)</span>
+<span class="syntax-php">{</span>
+    <span class="syntax-php">// Handle price with currency</span>
+    <span class="syntax-php">return response()->json([</span>
+        <span class="syntax-php">'success' => true,</span>
+        <span class="syntax-php">'data' => "Price set to {$amount} {$currency}"</span>
+    <span class="syntax-php">]);</span>
+<span class="syntax-php">}</span></code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tips & Best Practices -->
+    <section class="py-16 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Tips & Best Practices</h2>
+                <p class="text-lg md:text-xl text-gray-600">Guide for using LiveDomJS optimally</p>
+            </div>
+
+            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-green-600">✅ What You Should Do</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-scope</code> for good
+                                organization</li>
+                            <li>• Implement error handling in controller</li>
+                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-loading</code> for good UX</li>
+                            <li>• Server-side input validation is still needed</li>
+                            <li>• Use callbacks for complex logic</li>
+                            <li>• Test with various browsers and devices</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-blue-600">💡 Optimization Tips</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Use <code class="bg-gray-100 px-2 py-1 rounded">live-compute-skip</code> for manual
+                                inputs</li>
+                            <li>• Limit polling frequency for performance</li>
+                            <li>• Use debouncing for real-time inputs</li>
+                            <li>• Cache responses when possible</li>
+                            <li>• Minimize unnecessary DOM manipulation</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-red-600">❌ What to Avoid</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Don't forget to include jQuery before LiveDomJS</li>
+                            <li>• Avoid complex nested live-scope</li>
+                            <li>• Don't use polling for rarely changing data</li>
+                            <li>• Avoid live-compute for heavy calculations</li>
+                            <li>• Don't ignore CSRF protection</li>
+                            <li>• Avoid circular dependency in computation</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-purple-600">🔧 Troubleshooting</h3>
+                        <ul class="space-y-2 text-gray-700">
+                            <li>• Check browser console for JavaScript errors</li>
+                            <li>• Check Network tab for failed requests</li>
+                            <li>• Ensure controller method exists and is accessible</li>
+                            <li>• Check response JSON format from server</li>
+                            <li>• Verify CSRF token is correct</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="logo-container w-10 h-10 text-lg">LD</div>
+                        <span class="text-xl font-bold">LiveDomJS</span>
+                    </div>
+                    <p class="text-gray-400">Modern HTML - REACTIVE Laravel Library for faster and more efficient web
+                        development.</p>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#documentation" class="hover:text-white transition-colors">Documentation</a></li>
+                        <li><a href="#examples" class="hover:text-white transition-colors">Examples</a></li>
+                        <li><a href="#installation" class="hover:text-white transition-colors">Installation</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Support</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="https://github.com/gadingrengga/livedomjs"
+                                class="hover:text-white transition-colors">GitHub</a></li>
+                        <li><a href="https://packagist.org/packages/gadingrengga/livedomjs"
+                                class="hover:text-white transition-colors">Packagist</a></li>
+                        <li><a href="mailto:gading.rengga@gmail.com" class="hover:text-white transition-colors">Email
+                                Support</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 LiveDomJS. Developed with ❤️ for the Laravel Indonesia community.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile menu toggle
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        if (mobileMenuButton && mobileMenu) {
+            mobileMenuButton.addEventListener('click', function () {
+                mobileMenu.classList.toggle('open');
+            });
+        }
+
+        // Smooth scrolling untuk navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+
+                    // Close mobile menu if open
+                    if (mobileMenu && mobileMenu.classList.contains('open')) {
+                        mobileMenu.classList.remove('open');
+                    }
+                }
+            });
+        });
+
+        // Navbar background change on scroll
+        window.addEventListener('scroll', function () {
+            const navbar = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                navbar.classList.add('shadow-md');
+            } else {
+                navbar.classList.remove('shadow-md');
+            }
+        });
+
+        // Format number to Indonesian currency format
+        function formatRupiah(angka) {
+            return new Intl.NumberFormat('id-ID').format(angka);
+        }
+
+        // Demo interactivity untuk contoh section
+        document.addEventListener('DOMContentLoaded', function () {
+            // Demo kalkulator
+            const demoCalculator = document.querySelector('#examples');
+            if (demoCalculator) {
+                const qtyInput = demoCalculator.querySelector('input[value="2"]');
+                const priceInput = demoCalculator.querySelector('input[value="150000"]');
+
+                if (qtyInput && priceInput) {
+                    const updateDemoCalc = () => {
+                        const qty = parseInt(qtyInput.value) || 0;
+                        const price = parseInt(priceInput.value) || 0;
+                        const subtotal = qty * price;
+                        const tax = Math.round(subtotal * 0.1);
+                        const total = subtotal + tax;
+
+                        const subtotalEl = demoCalculator.querySelector('#subtotal');
+                        const taxEl = demoCalculator.querySelector('#tax');
+                        const totalEl = demoCalculator.querySelector('.text-green-600');
+
+                        if (subtotalEl) subtotalEl.textContent = formatRupiah(subtotal);
+                        if (taxEl) taxEl.textContent = formatRupiah(tax);
+                        if (totalEl) totalEl.textContent = formatRupiah(total);
+                    };
+
+                    qtyInput.addEventListener('input', updateDemoCalc);
+                    priceInput.addEventListener('input', updateDemoCalc);
+
+                    // Initialize calculation
+                    updateDemoCalc();
+                }
+            }
+
+            // Demo conditional UI
+            const demoConditional = demoCalculator?.querySelector('select');
+            if (demoConditional) {
+                demoConditional.addEventListener('change', function () {
+                    const companyFields = demoCalculator.querySelector('.bg-blue-50');
+                    const infoBox = demoCalculator.querySelector('.bg-blue-100');
+
+                    if (this.value === 'Company') {
+                        companyFields.classList.remove('hidden');
+                        infoBox.classList.add('bg-blue-100');
+                        infoBox.classList.remove('bg-gray-100');
+                    } else {
+                        companyFields.classList.add('hidden');
+                        infoBox.classList.remove('bg-blue-100');
+                        infoBox.classList.add('bg-gray-100');
+                    }
+                });
+
+                // Initialize conditional UI
+                demoConditional.value = 'Personal';
+                demoConditional.dispatchEvent(new Event('change'));
+            }
+        });
+    </script>
+</body>
+
+</html>
