@@ -8,7 +8,7 @@ if (!function_exists('reverbDynamic')) {
      *
      * @param string $controller   Controller path as used by AjaxController (e.g. "User/ProfileController")
      * @param string $function     Method name to call on the controller when clients re-fetch
-     * @param string $target       jQuery selector target on the client (e.g. '#result', 'auto')
+     * @param string $target       CSS selector target on the client (e.g. '#result', 'auto')
      * @param mixed  $data         Extra payload sent along with the broadcast
      * @param string $typeChannel  'public' | 'private' | 'presence'
      * @param array  $recipients   e.g. [1, 2, 3] or ['chatroom.5']. Defaults to ['realtime-updates'] for public channel.

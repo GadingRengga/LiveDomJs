@@ -95,8 +95,8 @@ class LiveDomServiceProvider extends ServiceProvider
     }
 
     /**
-     * Pasang middleware yang otomatis menyisipkan <script> jQuery +
-     * livedom.js ke setiap response HTML. Developer tidak perlu edit
+     * Pasang middleware yang otomatis menyisipkan <script> livedom.js
+     * (vanilla JS) ke setiap response HTML. Developer tidak perlu edit
      * Blade layout untuk mulai memakai LiveDomJS.
      */
     protected function registerAutoInjectMiddleware(): void

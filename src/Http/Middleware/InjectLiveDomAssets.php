@@ -9,10 +9,11 @@ use Symfony\Component\HttpFoundation\Response;
 class InjectLiveDomAssets
 {
     /**
-     * Sisipkan <script> jQuery + livedom.js (dan, jika Reverb terkonfigurasi,
-     * juga stack realtime: CSRF meta tag, window.userGlobal, Echo/Reverb
-     * client, dynamic-broadcast.js) ke response HTML sebelum </body>,
-     * supaya developer tidak perlu edit Blade layout sama sekali.
+     * Sisipkan <script> livedom.js (vanilla JS, tanpa dependency jQuery) —
+     * dan, jika Reverb terkonfigurasi, juga stack realtime: CSRF meta tag,
+     * window.userGlobal, Echo/Reverb client, dynamic-broadcast.js — ke
+     * response HTML sebelum </body>, supaya developer tidak perlu edit
+     * Blade layout sama sekali.
      */
     public function handle(Request $request, Closure $next)
     {
@@ -63,6 +64,11 @@ class InjectLiveDomAssets
     {
         $tags = '';
 
+        // NOTE: livedom.js sudah 100% vanilla JS sejak versi terbaru —
+        // jQuery TIDAK lagi dibutuhkan untuk fitur dasar. Config
+        // 'jquery_cdn' dipertahankan (default null) hanya untuk kompatibilitas
+        // mundur bagi project yang masih punya kode custom lain yang
+        // butuh jQuery global; set manual di config kalau memang perlu.
         $jqueryCdn = config('livedomjs.jquery_cdn');
         if ($jqueryCdn && !$this->assumeJqueryPresent()) {
             $tags .= "<script src=\"{$jqueryCdn}\"></script>\n";
@@ -80,8 +86,9 @@ class InjectLiveDomAssets
 
     /**
      * Placeholder hook — bisa dikembangkan untuk deteksi jQuery yang sudah
-     * di-load manual oleh developer. Untuk saat ini selalu inject kecuali
-     * jquery_cdn di-set null di config.
+     * di-load manual oleh developer. livedom.js sendiri tidak butuh jQuery;
+     * ini hanya relevan kalau developer set 'jquery_cdn' di config karena
+     * ada kode custom lain di project yang masih bergantung pada jQuery.
      */
     protected function assumeJqueryPresent(): bool
     {

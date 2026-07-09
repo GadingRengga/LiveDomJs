@@ -23,10 +23,11 @@ return [
      |--------------------------------------------------------------------
      | Auto Inject Assets
      |--------------------------------------------------------------------
-     | Jika true, package otomatis menyisipkan <script> jQuery + livedom.js
-     | ke setiap response HTML sebelum </body>. Developer tidak perlu edit
-     | Blade layout sama sekali. Set false jika ingin kontrol manual
-     | (misal lewat <x-livedomjs::livedom-scripts />).
+     | Jika true, package otomatis menyisipkan <script> livedom.js
+     | (vanilla JS, tanpa dependency jQuery) ke setiap response HTML
+     | sebelum </body>. Developer tidak perlu edit Blade layout sama
+     | sekali. Set false jika ingin kontrol manual (misal lewat
+     | <x-livedomjs::livedom-scripts />).
      */
     'auto_inject' => true,
 
@@ -45,13 +46,15 @@ return [
 
     /*
      |--------------------------------------------------------------------
-     | jQuery Source
+     | jQuery Source (opsional — TIDAK dibutuhkan oleh LiveDomJS)
      |--------------------------------------------------------------------
-     | LiveDomJS bergantung pada jQuery. Default pakai CDN supaya tidak
-     | perlu build step. Ganti null jika project sudah punya jQuery sendiri
-     | (auto-inject akan skip jQuery, tapi tetap inject livedom.js).
+     | LiveDomJS (livedom.js & dynamic-broadcast.js) sudah 100% vanilla JS,
+     | jQuery TIDAK lagi menjadi dependency. Default-nya null (tidak
+     | inject apa pun). Isi dengan URL CDN hanya jika project Anda punya
+     | kode custom LAIN (di luar package ini) yang masih butuh jQuery
+     | global tersedia di halaman.
      */
-    'jquery_cdn' => 'https://code.jquery.com/jquery-3.6.0.min.js',
+    'jquery_cdn' => null,
 
     /*
      |--------------------------------------------------------------------

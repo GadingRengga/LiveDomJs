@@ -167,7 +167,7 @@ composer require gadingrengga/livedomjs
 That's it — genuinely. No `artisan install` step, no editing `routes/web.php`, no touching your Blade layout. As soon as the package is required:
 
 - The `/ajax/{controller}/{action}` route is registered automatically.
-- `jquery` + `livedom.js` are automatically injected into every HTML response.
+- `livedom.js` (vanilla JS, no jQuery required) is automatically injected into every HTML response.
 - Assets are served directly from the package — no `vendor:publish` needed to get started.
 
 No webpack. No npm. No build step. No manual wiring.
@@ -332,7 +332,7 @@ public function checkAvailability(Request $request)
 | Real-time (WebSocket)       | **One attribute** | Complex setup          | Extension required |
 | Laravel-native              | **Yes**           | Yes                    | No                 |
 | Build step required         | **No**            | No                     | No                 |
-| jQuery dependency           | Yes               | No                     | No                 |
+| jQuery dependency           | **No**            | No                     | No                 |
 
 > **When to choose LiveDomJS:** Data-heavy Laravel applications (ERP, CRM, admin panels) where you want reactive UIs without the overhead of a component-based framework.
 
@@ -400,7 +400,7 @@ LiveDomJs/
 - [x] SPA navigation with pushState
 - [x] Reactive directives (show, class, style, attr)
 - [ ] DevTools browser extension
-- [ ] Remove jQuery dependency
+- [x] Remove jQuery dependency
 - [ ] VSCode extension for attribute autocomplete
 - [ ] Official testing utilities
 

@@ -30,6 +30,24 @@ window.addEventListener("load", function () {
         setTimeout(() => fetchingKeys.delete(key), FETCH_DEBOUNCE_MS);
     }
 
+    // FIX (vanilla): dulu pakai $('[live-scope]').filter(...).first(), yang
+    // hasilnya (objek jQuery) langsung dilempar ke runAjaxRequest() sebagai
+    // targetEls. Tapi toElements() di livedom.js (vanilla) HANYA mengenali
+    // Element / NodeList / Array / selector string — objek jQuery tidak
+    // masuk kategori manapun, jadi diam-diam selalu resolve ke [] dan DOM
+    // tidak pernah ter-update. Sekarang cari Element aslinya langsung
+    // dengan querySelectorAll + Array#find (setara .filter().first()).
+    function findScopeContaining(controller) {
+        const candidates = document.querySelectorAll('[live-scope]');
+        for (const el of candidates) {
+            const scope = el.getAttribute('live-scope');
+            if (scope && scope.includes(controller)) {
+                return el;
+            }
+        }
+        return null;
+    }
+
     channelsToSubscribe.forEach(channelName => {
         subscribeChannel(channelName).listen('.livedom-realtime', function (e) {
             const controller = e.controller;
@@ -37,12 +55,9 @@ window.addEventListener("load", function () {
             const data = e.data;
 
             // Cek apakah ada container live-scope yang mengandung controller
-            const $targetScope = $('[live-scope]').filter(function () {
-                const scope = $(this).attr('live-scope');
-                return scope && scope.includes(controller);
-            }).first();
+            const targetScope = findScopeContaining(controller);
 
-            if (!$targetScope.length) return; // tidak ada yang cocok → skip
+            if (!targetScope) return; // tidak ada yang cocok → skip
 
             // FIX: key per controller+func, bukan flag global
             const fetchKey = `livedom-realtime::${controller}::${func}`;
@@ -55,7 +70,7 @@ window.addEventListener("load", function () {
                 func,
                 { data: data, fetch: true },
                 'html',
-                $targetScope,
+                targetScope,
                 false
             );
         });
@@ -71,8 +86,10 @@ window.addEventListener("load", function () {
             if (isFetching(fetchKey)) return;
             markFetching(fetchKey);
 
-            const $target = $(target);
-
+            // FIX (vanilla): `target` sudah berupa selector string (dikirim
+            // dari reverbDynamic() di sisi PHP) — toElements() di
+            // runAjaxRequest() sudah bisa terima string selector langsung,
+            // jadi tidak perlu dibungkus $(target) lagi.
             runAjaxRequest(
                 'GET',
                 controller,
@@ -82,7 +99,7 @@ window.addEventListener("load", function () {
                     fetch: true
                 },
                 'html',
-                $target,
+                target,
                 false
             );
         });
