@@ -106,7 +106,25 @@ Reactive calculations that run entirely in the browser — no server round trips
 <input live-compute="sum(subtotal_?)" live-compute-format="idr" readonly />
 ```
 
-Supports: `sum()`, `avg()`, `min()`, `max()`, `count()`, `sumif()` — and both IDR (`1.000.000,00`) and USD (`1,000,000.00`) number formats.
+Supports: `sum()`, `avg()`, `min()`, `max()`, `count()`, `sumif()` — and multiple number formats:
+
+| Format key | Output example | Description |
+|-----------|---------------|-------------|
+| `idr`     | `1.000.000`   | Indonesian Rupiah (period thousands, comma decimal) |
+| `usd`     | `1,000,000.00`| US Dollar |
+| `jpy`     | `1,000,000`   | Japanese Yen (no decimals) |
+| `eur`     | `1.000.000,00`| Euro |
+| `percent` | `12.5%`       | Percentage |
+| `plain`   | `1,000,000`   | Plain number, en-US grouping |
+| `auto`    | —             | Follows `LiveDom.setCurrency()` at runtime |
+
+Custom formats can be registered at runtime:
+```js
+window.LiveDom.registerFormat('myr', {
+    kind: 'currency', locale: 'ms-MY',
+    thousandSep: ',', decimalSep: '.', defaultDecimals: 2
+});
+```
 
 ### ⚡ Real-Time Updates — One Attribute
 
@@ -132,6 +150,11 @@ Reactively control visibility, classes, styles, and attributes based on input va
   Total
 </div>
 <div live-style="opacity: qty > 0 ? 1 : 0.4">Preview</div>
+
+<!-- Multiple attributes at once, expressions can contain commas safely -->
+<button live-attr="disabled:qty < 1, title:qty < 1 ? 'Out of stock' : 'Add to cart'">
+  Add to cart
+</button>
 ```
 
 ### 🗺️ SPA Navigation
@@ -151,7 +174,7 @@ Turn any region into a Single Page Application area. Links and forms inside `liv
 - Automatic request cancellation — no stale responses
 - Single-use response caching
 - Debounced requests for `live-input` and `live-keyup`
-- `live-poll` for automatic polling at any interval
+- `live-poll` for automatic polling at any interval (intervals are automatically cleaned up on SPA navigation)
 - Detailed error modals in development, clean toasts in production
 
 ---
@@ -302,14 +325,14 @@ public function checkAvailability(Request $request)
 
 ### Reactive Directives
 
-| Attribute      | Function                | Example                                |
-| -------------- | ----------------------- | -------------------------------------- |
-| `live-compute` | Client-side calculation | `live-compute="qty * price"`           |
-| `live-show`    | Conditional visibility  | `live-show="stock > 0"`                |
-| `live-class`   | Dynamic class           | `live-class="valid ? 'green' : 'red'"` |
-| `live-style`   | Dynamic style           | `live-style="opacity: active ? 1 : 0"` |
-| `live-attr`    | Dynamic attribute       | `live-attr="disabled: qty < 1"`        |
-| `live-bind`    | Two-way binding         | `live-bind="username"`                 |
+| Attribute      | Function                | Example                                                          |
+| -------------- | ----------------------- | ---------------------------------------------------------------- |
+| `live-compute` | Client-side calculation | `live-compute="qty * price"`                                     |
+| `live-show`    | Conditional visibility  | `live-show="stock > 0"`                                          |
+| `live-class`   | Dynamic class           | `live-class="valid ? 'green' : 'red'"`                           |
+| `live-style`   | Dynamic style           | `live-style="opacity: active ? 1 : 0"`                           |
+| `live-attr`    | Dynamic attribute(s)    | `live-attr="disabled:qty<1, title:qty<1?'empty':'add'"`          |
+| `live-bind`    | One-way input mirror    | `live-bind="username"`                                           |
 
 ### Target & Scope Attributes
 
@@ -395,12 +418,14 @@ LiveDomJs/
 
 - [x] Attribute-driven AJAX interactions
 - [x] Scope-based data isolation
-- [x] Live compute with aggregate functions
+- [x] Live compute with aggregate functions and multi-currency formats
 - [x] Real-time broadcasting via Laravel Reverb
 - [x] SPA navigation with pushState
-- [x] Reactive directives (show, class, style, attr)
-- [ ] DevTools browser extension
+- [x] Reactive directives (show, class, style, attr, bind)
 - [x] Remove jQuery dependency
+- [x] live-poll SPA cleanup (intervals cleared on navigation)
+- [x] live-attr depth-aware expression parser
+- [ ] DevTools browser extension
 - [ ] VSCode extension for attribute autocomplete
 - [ ] Official testing utilities
 

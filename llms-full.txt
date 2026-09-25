@@ -1,0 +1,356 @@
+# LiveDomJS — Full AI Reference
+
+> This is the extended version of llms.txt. For a quick summary, see llms.txt.
+
+**Package:** `gadingrengga/livedomjs`  
+**GitHub:** https://github.com/GadingRengga/LiveDomJs  
+**Docs:** https://gadingrengga.github.io/LiveDomJs  
+**Author:** Gading Rengga
+
+---
+
+## Mental Model
+
+LiveDomJS turns Laravel controllers into reactive UI endpoints using only HTML attributes.
+
+```
+[HTML Element with live-scope + live-click]
+        ↓  (user interaction)
+[livedom.js serializes inputs within scope]
+        ↓
+POST /ajax/{Controller}/{action}
+        ↓
+[AjaxController dispatches to App\Http\Controllers\{Controller}@{action}]
+        ↓
+[Controller returns JSON {success, message, data} or a View]
+        ↓
+[livedom.js injects response into live-target element]
+```
+
+No routes to write. No JS to write. No component classes to create.
+
+---
+
+## Complete Attribute Reference
+
+### live-scope
+Defines the request boundary. Only inputs inside this element are sent.
+Maps directly to a Laravel controller class.
+
+```html
+<div live-scope="UserController">              <!-- App\Http\Controllers\UserController -->
+<div live-scope="Admin/UserController">        <!-- App\Http\Controllers\Admin\UserController -->
+<div live-scope="Invoice.ItemController">      <!-- App\Http\Controllers\Invoice\ItemController -->
+```
+
+### live-click / live-change / live-input / live-keyup / live-submit / live-hover
+Binds a DOM event to a controller action.
+
+```html
+<button live-click="store">Save</button>
+<select live-change="filterByCategory">...</select>
+<input live-input="search" />           <!-- debounced -->
+<input live-keyup="suggest" />
+<form live-submit="processOrder">...</form>
+<div live-hover="loadPreview">Hover me</div>
+```
+
+### live-target
+CSS selector for where the response HTML is injected.
+
+```html
+<button live-click="load" live-target="#result">Load</button>
+<div id="result"></div>
+```
+
+### live-poll
+Automatically triggers an action on an interval (milliseconds).
+
+```html
+<div live-poll="5000" live-click="refresh" live-target="#feed" live-scope="FeedController" id="feed-panel">
+  Auto-refreshes every 5 seconds
+</div>
+```
+
+**SPA cleanup:** Intervals are automatically cleared when the element leaves the DOM during SPA navigation (`live-dom:afterSpa`). No manual cleanup needed.
+
+**Note:** `live-poll` requires the element to have an `id` attribute — the target defaults to `#id` of the element.
+
+### live-compute
+Client-side reactive expression. Re-evaluates whenever any named input in the scope changes.
+
+```html
+<input name="qty" value="5" />
+<input name="price" value="30000" />
+<input name="discount" value="10" />
+
+<!-- Updates instantly as user types — no server call -->
+<input live-compute="qty * price * (1 - discount / 100)"
+       live-compute-format="idr"
+       readonly />
+```
+
+Supported aggregate functions:
+```html
+<input live-compute="sum(subtotal)" />          <!-- all inputs named "subtotal" -->
+<input live-compute="sum(subtotal_?)" />        <!-- subtotal_1, subtotal_2, ... -->
+<input live-compute="avg(score)" />
+<input live-compute="min(price)" />
+<input live-compute="max(price)" />
+<input live-compute="count(item)" />
+<input live-compute="sumif(category_?, 'A', amount_?)" />  <!-- sum amount_? where category_? == 'A' -->
+```
+
+Built-in format registry:
+
+| Key       | Output example  | Notes                              |
+|-----------|-----------------|------------------------------------|
+| `idr`     | `1.000.000`     | Indonesian Rupiah                  |
+| `usd`     | `1,000,000.00`  | US Dollar                          |
+| `jpy`     | `1,000,000`     | Japanese Yen (no decimals)         |
+| `eur`     | `1.000.000,00`  | Euro                               |
+| `percent` | `12.5%`         | Percentage                         |
+| `plain`   | `1,000,000`     | Plain number, en-US grouping       |
+| `auto`    | —               | Follows `LiveDom.setCurrency()`    |
+
+Advanced options:
+```html
+<!-- Skip initial calculation; compute only after user first types -->
+<input live-compute="qty * price" live-compute-init="false" readonly />
+
+<!-- Only recalculate when specific inputs change (1500ms window) -->
+<input live-compute="dpp * tax_rate" live-compute-trigger="dpp,tax_rate" readonly />
+
+<!-- Skip computation when this element is focused (prevents fighting user input) -->
+<input live-compute="qty * price" live-compute-skip="true" />
+
+<!-- Max decimal places -->
+<input live-compute="total / qty" live-decimal-max="4" readonly />
+
+<!-- Auto-follow global currency — reacts to LiveDom.setCurrency() -->
+<input live-compute="subtotal * 1.11" live-compute-format="auto" readonly />
+```
+
+Custom format registration:
+```js
+window.LiveDom.registerFormat('myr', {
+    kind: 'currency', locale: 'ms-MY',
+    thousandSep: ',', decimalSep: '.', defaultDecimals: 2
+});
+window.LiveDom.setCurrency('myr');  // all live-compute-format="auto" elements react
+```
+
+### live-show / live-class / live-style / live-attr
+Reactive DOM directives driven by input values in the same scope.
+
+```html
+<div live-show="qty > 0">Only visible when qty > 0</div>
+
+<span live-class="total > 1000000 ? 'text-green-500' : 'text-red-500'">
+  Dynamic class
+</span>
+
+<div live-style="opacity: active ? 1 : 0.4; font-weight: vip ? 'bold' : 'normal'">
+  Dynamic style
+</div>
+
+<!-- live-attr: comma-separated attr:expression pairs.
+     Parser is depth-aware — commas inside (), [], {}, or strings are safe.
+     Colons inside expressions (ternary, URLs) are also handled correctly. -->
+<button live-attr="disabled:qty<1, title:qty<1?'Out of stock':'Add to cart'">
+  Add to cart
+</button>
+
+<!-- false/null removes the attribute; true sets it to its own name (boolean attrs) -->
+<input live-attr="required:is_required, readonly:is_locked, disabled:is_locked">
+```
+
+### live-bind
+Two-way data binding between inputs.
+
+```html
+<input name="username" live-bind="username" />
+<span live-bind="username">Will mirror the input value</span>
+```
+
+### live-realtime
+Broadcasts the action via Laravel Reverb to all users who have the same `live-scope` open.
+
+```html
+<button live-click="refresh"
+        live-realtime="true"
+        live-target="#panel">
+  Sync All Users
+</button>
+```
+
+### live-spa-region
+Converts a region to Single Page App. All links/forms inside are intercepted.
+
+```html
+<main live-spa-region="main">
+  <!-- Navigation handled by pushState -->
+  <!-- Browser back/forward work correctly -->
+  <!-- Inline scripts re-execute on each navigation -->
+</main>
+```
+
+---
+
+## Controller Examples
+
+### Basic AJAX
+```php
+// No new routes, no traits, no base class needed
+public function checkAvailability(Request $request): \Illuminate\Http\JsonResponse
+{
+    $exists = User::where('username', $request->username)->exists();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $exists
+            ? '<span class="text-red-500">Username taken</span>'
+            : '<span class="text-green-500">Available</span>',
+    ]);
+}
+```
+
+### Returning a View
+```php
+public function loadTable(Request $request)
+{
+    $items = Item::where('category', $request->category)->get();
+    return view('partials.items-table', compact('items'));
+    // AjaxController auto-renders and wraps in JSON
+}
+```
+
+### View with Error or Success Message
+AjaxController inspects view data for `error` and `success` keys:
+```php
+// success:false + message from view data
+return view('partials.result', ['error' => 'Record not found']);
+
+// success:true + custom message from view data
+return view('partials.result', compact('items') + ['success' => 'Items loaded']);
+```
+
+### Validation Error Pattern
+```php
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'name'  => 'required|string|max:255',
+        'price' => 'required|numeric|min:0',
+    ]);
+
+    $item = Item::create($validated);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Item saved',
+        'data'    => view('partials.item-row', compact('item'))->render(),
+    ]);
+}
+```
+
+---
+
+## Real-Time Setup
+
+### Requirements
+- Laravel Reverb installed and configured
+- Queue worker running (`php artisan queue:work`)
+- `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_APP_ID` in `.env`
+- On Laravel 11/12: `php artisan install:broadcasting` first
+
+### Auto-Detection
+`InjectLiveDomAssets` middleware checks `config('broadcasting.connections.reverb.key')`.
+If set → auto-injects CSRF meta, `window.userGlobal`, Pusher-JS, Laravel Echo, and `dynamic-broadcast.js`.
+If not set → silently skips (no JS errors, no "Echo is not defined").
+
+### Manual Broadcast from PHP
+```php
+reverbDynamic(
+    controller:  'Dashboard/MetricsController',
+    function:    'getMetrics',
+    target:      '#dashboard-panel',
+    data:        [],
+    typeChannel: 'public',
+    recipients:  ['realtime-updates']
+);
+```
+
+Channel name construction:
+- `'public'` + recipient `'realtime-updates'` → channel `public-realtime-updates`
+- `'private'` + recipient `5` (user ID)       → channel `private-user.5`
+- `'presence'` + recipient `'room.1'`         → channel `presence-room.1`
+
+---
+
+## Installation & Config
+
+### Minimal Setup
+```bash
+composer require gadingrengga/livedomjs
+# Done. Works immediately.
+```
+
+### Optional Publish
+```bash
+php artisan livedomjs:install --publish
+# Publishes config/livedomjs.php and public/vendor/livedomjs/
+```
+
+### Config Reference
+```php
+// config/livedomjs.php
+return [
+    'route_prefix'         => 'ajax',      // /ajax/{controller}/{action}
+    'route_middleware'     => ['web'],      // applied to AJAX route
+    'auto_inject'          => true,         // auto-inject livedom.js
+    'auto_inject_realtime' => true,         // auto-inject Echo/Reverb if configured
+    'jquery_cdn'           => null,         // null = not injected (livedom.js doesn't need it)
+    'pusher_cdn'           => 'https://js.pusher.com/8.4.0/pusher.min.js',
+    'echo_cdn'             => 'https://unpkg.com/laravel-echo@1.16.1/dist/echo.iife.js',
+    'serve_assets'         => true,         // serve JS from package without vendor:publish
+];
+```
+
+---
+
+## Package Structure
+```
+LiveDomJs/
+├── config/livedomjs.php
+├── resources/
+│   ├── js/
+│   │   ├── livedom.js                          # Core engine, vanilla JS
+│   │   └── dynamic-broadcast.js                # Realtime Echo listener
+│   └── views/components/
+│       └── livedom-scripts.blade.php           # <x-livedomjs::livedom-scripts />
+└── src/
+    ├── Console/InstallCommand.php              # artisan livedomjs:install
+    ├── Events/DynamicBroadcastEvent.php        # Reverb broadcast event
+    ├── Helpers/BroadcastHelper.php             # reverbDynamic() global helper
+    ├── Http/
+    │   ├── Controllers/AjaxController.php      # Dynamic dispatcher
+    │   └── Middleware/InjectLiveDomAssets.php  # Auto-inject assets
+    └── Providers/LiveDomServiceProvider.php    # Registers everything
+```
+
+---
+
+## Comparison with Similar Tools
+
+| Feature                      | LiveDomJS      | Livewire        | HTMX           |
+|------------------------------|----------------|-----------------|----------------|
+| New PHP files per feature    | **0**          | 1 component     | 0              |
+| New routes per feature       | **0**          | 0               | Yes            |
+| Client-side calculations     | **Built-in**   | Server only     | Manual JS      |
+| Real-time WebSocket          | **1 attribute**| Complex setup   | Extension      |
+| Build step required          | **No**         | No              | No             |
+| jQuery dependency            | **No**         | No              | No             |
+| Works with existing routes   | **Yes**        | Yes             | Yes            |
+
+**Best use case:** Data-heavy Laravel applications (ERP, CRM, admin panels, invoicing) where you want reactive UIs without the overhead of a JS framework or Livewire's component model.
