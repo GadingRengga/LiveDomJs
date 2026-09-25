@@ -293,10 +293,8 @@
             never knows it was called this way.</p>
         </div>
         <div class="border border-gray-200 rounded-xl p-5">
-          <div class="text-liveDim font-mono text-xs mb-2">// no jQuery in your code</div>
-          <p class="text-sm text-gray-700">LiveDomJS still bundles jQuery internally today (see
-            <a href="#comparison" class="underline">roadmap</a>), but you never write jQuery yourself — every
-            selector, event binding, and DOM patch is generated from the attributes you declare.</p>
+          <div class="text-liveDim font-mono text-xs mb-2">// no jQuery anywhere</div>
+          <p class="text-sm text-gray-700">LiveDomJS is 100% vanilla JS — no jQuery dependency anywhere in the runtime. Every selector, event binding, and DOM patch is generated from the attributes you declare.</p>
         </div>
       </div>
     </section>
@@ -481,7 +479,7 @@ Rendered into [live-target="#result"]     ← or passed to a callback / autoBind
             <tr><td class="px-4 py-2"><code class="attr">live-keyup</code></td><td class="px-4 py-2 text-gray-600">keyup (debounced)</td><td class="px-4 py-2 text-gray-600">Good for search-as-you-type.</td></tr>
             <tr><td class="px-4 py-2"><code class="attr">live-submit</code></td><td class="px-4 py-2 text-gray-600">form submit</td><td class="px-4 py-2 text-gray-600"><code class="font-mono text-[12px]">preventDefault()</code> is automatic.</td></tr>
             <tr><td class="px-4 py-2"><code class="attr">live-hover</code></td><td class="px-4 py-2 text-gray-600">mouseenter</td><td class="px-4 py-2 text-gray-600">Delegated hover (mouseover/mouseout + relatedTarget check), so it works on dynamic content too.</td></tr>
-            <tr><td class="px-4 py-2"><code class="attr">live-poll</code></td><td class="px-4 py-2 text-gray-600">interval, in ms</td><td class="px-4 py-2 text-gray-600">Repeats a GET call to whatever method is set on <code class="font-mono text-[12px]">live-click</code> on the same element.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-poll</code></td><td class="px-4 py-2 text-gray-600">interval, in ms</td><td class="px-4 py-2 text-gray-600">Repeats a GET call to whatever method is set on <code class="font-mono text-[12px]">live-click</code> on the same element. Intervals are automatically cleared when the element leaves the DOM on SPA navigation.</td></tr>
           </tbody>
         </table>
       </div>
@@ -802,8 +800,8 @@ Rendered into [live-target="#result"]     ← or passed to a callback / autoBind
             <tr><td class="px-4 py-2"><code class="attr">live-show</code></td><td class="px-4 py-2 text-gray-600">Shows/hides the element based on a truthy expression.</td></tr>
             <tr><td class="px-4 py-2"><code class="attr">live-class</code></td><td class="px-4 py-2 text-gray-600">Appends the expression's string result to <code class="font-mono text-[12px]">class-base</code> (a separate attribute holding the element's permanent classes).</td></tr>
             <tr><td class="px-4 py-2"><code class="attr">live-style</code></td><td class="px-4 py-2 text-gray-600">Sets the element's <code class="font-mono text-[12px]">style</code> attribute from the expression's string result.</td></tr>
-            <tr><td class="px-4 py-2"><code class="attr">live-attr</code></td><td class="px-4 py-2 text-gray-600">Sets/removes one or more arbitrary attributes: <code class="font-mono text-[12px]">attr:expr, attr2:expr2</code>.</td></tr>
-            <tr><td class="px-4 py-2"><code class="attr">live-bind</code></td><td class="px-4 py-2 text-gray-600">Two-way mirror: any input named <code class="font-mono text-[12px]">X</code> pushes its value live into every element with <code class="font-mono text-[12px]">live-bind="X"</code>.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-attr</code></td><td class="px-4 py-2 text-gray-600">Sets/removes one or more arbitrary attributes: <code class="font-mono text-[12px]">attr:expr, attr2:expr2</code>. Parser is depth-aware — commas and colons inside expressions are handled correctly.</td></tr>
+            <tr><td class="px-4 py-2"><code class="attr">live-bind</code></td><td class="px-4 py-2 text-gray-600">One-way mirror: any input named <code class="font-mono text-[12px]">X</code> pushes its value live into every element with <code class="font-mono text-[12px]">live-bind="X"</code>. Editing the target does not update the source.</td></tr>
           </tbody>
         </table>
       </div>
@@ -817,7 +815,7 @@ Rendered into [live-target="#result"]     ← or passed to a callback / autoBind
 
 <span class="c-tag">&lt;div</span> <span class="c-attrname">live-style</span>=<span class="c-str">"'opacity:' + (qty &gt; 0 ? 1 : 0.4)"</span><span class="c-tag">&gt;</span>Preview<span class="c-tag">&lt;/div&gt;</span>
 
-<span class="c-tag">&lt;button</span> <span class="c-attrname">live-attr</span>=<span class="c-str">"disabled: qty &lt; 1"</span><span class="c-tag">&gt;</span>Checkout<span class="c-tag">&lt;/button&gt;</span>
+<span class="c-tag">&lt;button</span> <span class="c-attrname">live-attr</span>=<span class="c-str">"disabled:qty &lt; 1, title:qty &lt; 1 ? 'Out of stock' : 'Checkout'"</span><span class="c-tag">&gt;</span>Checkout<span class="c-tag">&lt;/button&gt;</span>
 
 <span class="c-cmt">&lt;!-- live-bind: type in one, see it mirrored anywhere --&gt;</span>
 <span class="c-tag">&lt;input</span> name=<span class="c-str">"username"</span><span class="c-tag">&gt;</span>
@@ -1308,17 +1306,24 @@ live-scope="UserController"           →  App\Http\Controllers\UserController</
         <li>Redesigned dev-mode error modal with copy/AI-prompt actions and an in-session error history.</li>
         <li>Reference-counted <code class="attr">live-loading</code> / <code class="attr">live-loading-indicator</code>, safe for overlapping requests.</li>
         <li>Laravel 11/12 "slim skeleton" support — real-time detection no longer assumes <code class="font-mono text-[12px]">config/broadcasting.php</code> exists.</li>
+        <li><strong>live-poll SPA cleanup</strong> — intervals are now automatically cleared on <code class="font-mono text-[12px]">live-dom:afterSpa</code> so stale polls never fire on the next page after SPA navigation.</li>
+        <li><strong>live-attr depth-aware parser</strong> — commas and colons inside expressions (ternary, strings, function calls) are no longer misread as pair separators. Multiple attributes like <code class="font-mono text-[12px]">disabled:qty&lt;1, title:qty&lt;1?'Out':'Add'</code> now parse correctly.</li>
+        <li><strong>Production console cleanup</strong> — all debug <code class="font-mono text-[12px]">console.log</code> calls are now guarded by <code class="font-mono text-[12px]">IS_DEBUG</code> (from <code class="font-mono text-[12px]">&lt;meta name="app-debug"&gt;</code>). Production console is clean.</li>
+        <li>Remove the jQuery dependency — <code class="font-mono text-[12px]">livedom.js</code> is now 100% vanilla JS.</li>
       </ul>
 
       <h3 class="font-display text-xl font-semibold mb-3">Shipped foundation</h3>
       <ul class="space-y-2 text-gray-700 mb-8 list-disc pl-5 text-sm">
         <li>✅ Attribute-driven AJAX interactions (click, change, input, keyup, submit, hover, poll)</li>
         <li>✅ Scope-based data isolation (<code class="attr">live-scope</code>)</li>
-        <li>✅ Live compute with aggregate functions (sum, avg, min, max, count, sumif)</li>
+        <li>✅ Live compute with aggregate functions (sum, avg, min, max, count, sumif) and multi-currency formats (idr, usd, jpy, eur, percent, plain, auto)</li>
         <li>✅ Real-time broadcasting via Laravel Reverb</li>
         <li>✅ SPA navigation with pushState/popstate support</li>
         <li>✅ Reactive directives (show, class, style, attr, bind)</li>
-        <li>✅ Remove the jQuery dependency</li>
+        <li>✅ 100% vanilla JS — no jQuery dependency</li>
+        <li>✅ live-poll SPA cleanup (intervals cleared on navigation)</li>
+        <li>✅ live-attr depth-aware parser (multi-attribute, complex expressions)</li>
+        <li>✅ Production-clean console (all debug logs guarded by IS_DEBUG)</li>
       </ul>
 
       <h3 class="font-display text-xl font-semibold mb-3">On the roadmap</h3>
