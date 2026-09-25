@@ -261,7 +261,7 @@
             fetchOptions.body = JSON.stringify(data);
         }
 
-        console.log("🚀 Sending fetch to", url);
+        if (IS_DEBUG) console.log("🚀 Sending fetch to", url);
 
         fetch(url, fetchOptions)
             .then(async (res) => {
@@ -288,7 +288,7 @@
                     throw err;
                 }
 
-                console.log("✅ SUCCESS fired", parsed);
+                if (IS_DEBUG) console.log("✅ SUCCESS fired", parsed);
                 delete ajaxDynamicControllers[key];
                 if (useCache) ajaxCache.set(key, parsed);
 
@@ -299,7 +299,7 @@
                     ) ||
                     parsed?.realtime === true
                 ) {
-                    console.log(
+                    if (IS_DEBUG) console.log(
                         "[ReverbDynamic] Broadcasted realtime — skip local DOM update.",
                     );
                     return;
@@ -649,10 +649,29 @@
         }
         const expr = el.getAttribute("live-attr");
         if (!expr) return [];
-        const parsed = expr.split(",").map((pair) => {
-            const [attr, js] = pair.split(":");
-            return { attr: attr.trim(), js: js.trim() };
-        });
+
+        // Depth-aware split by "," — tidak memotong di dalam (), [], {}, '', ""
+        // Contoh: "disabled:qty==0, placeholder:qty>0?'A':'B'" tetap 2 pair
+        const pairs = [];
+        let depth = 0, current = "", inStr = false, strChar = "";
+        for (const c of expr) {
+            if (!inStr && (c === '"' || c === "'")) { inStr = true; strChar = c; }
+            else if (inStr && c === strChar)         { inStr = false; }
+            else if (!inStr && "([{".includes(c))    depth++;
+            else if (!inStr && ")]}".includes(c))    depth--;
+            if (!inStr && depth === 0 && c === ",")  { pairs.push(current.trim()); current = ""; }
+            else current += c;
+        }
+        if (current.trim()) pairs.push(current.trim());
+
+        // Split attr:expression — pakai indexOf bukan split(":") karena
+        // expression bisa mengandung ":" (ternary, URL, dsb.)
+        const parsed = pairs.map((pair) => {
+            const idx = pair.indexOf(":");
+            if (idx === -1) return null;
+            return { attr: pair.slice(0, idx).trim(), js: pair.slice(idx + 1).trim() };
+        }).filter((p) => p && p.attr && p.js);
+
         liveAttrCache.set(el, parsed);
         return parsed;
     }
@@ -1239,7 +1258,16 @@
     /**
      * Initializes polling for elements with 'live-poll' attribute.
      */
-    const pollIntervalStore = new WeakMap();
+    const pollIntervalStore = new Map();
+
+    function cleanupDisconnectedPollers() {
+        for (const [el, intervalId] of pollIntervalStore) {
+            if (!el.isConnected) {
+                clearInterval(intervalId);
+                pollIntervalStore.delete(el);
+            }
+        }
+    }
 
     function handlePollers() {
         qsa("[live-poll]").forEach((el) => {
@@ -2763,9 +2791,10 @@
             })
             .catch((error) => {
                 if (error.name === "AbortError") {
-                    console.log("[SPA] Request dibatalkan:", url);
+                    if (IS_DEBUG) console.log("[SPA] Request dibatalkan:", url);
                     return;
                 }
+
                 console.error("ajaxSpa error:", error);
                 errorCallback?.(error);
             })
@@ -2919,7 +2948,7 @@
         runBeforeCallback()
             .then((result) => {
                 if (result === false) {
-                    console.log(
+                    if (IS_DEBUG) console.log(
                         "Form submit cancelled by live-callback-before.",
                     );
                     return;
@@ -2998,7 +3027,7 @@
                     })
                     .catch((error) => {
                         if (error.name === "AbortError") {
-                            console.log(
+                            if (IS_DEBUG) console.log(
                                 "[SPA] Form submit dibatalkan:",
                                 url,
                             );
@@ -4088,9 +4117,9 @@
                         typeof response === "object" &&
                         response.redirect
                     ) {
-                        console.log("SPA redirect handled.");
+                        if (IS_DEBUG) console.log("SPA redirect handled.");
                     } else {
-                        console.log(
+                        if (IS_DEBUG) console.log(
                             "Form SPA submit success (non-redirect):",
                             response,
                         );
@@ -4140,6 +4169,7 @@
 
     // Event listener after SPA content loads
     document.addEventListener("live-dom:afterSpa", function () {
+        cleanupDisconnectedPollers();
         initLiveDom();
     });
 

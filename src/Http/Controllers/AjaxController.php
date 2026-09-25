@@ -130,6 +130,17 @@ class AjaxController extends Controller
         ];
 
         if ($result instanceof View) {
+            $viewData = $result->getData();
+
+            if (!empty($viewData['error'] ?? null)) {
+                // View di-render dengan renderPanel(error: '...') -> anggap gagal
+                $response['success'] = false;
+                $response['message'] = $viewData['error'];
+            } elseif (!empty($viewData['success'] ?? null) && is_string($viewData['success'])) {
+                // View di-render dengan renderPanel(success: '...') -> pesan sukses spesifik
+                $response['message'] = $viewData['success'];
+            }
+
             $response['data'] = $result->render();
             $response['is_view'] = true;
         } else {
