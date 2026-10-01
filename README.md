@@ -1,6 +1,8 @@
 <div align="center">
 
-<h1>⚡ LiveDomJS</h1>
+<img src="docs/images/livedom-logo.png" alt="LiveDomJS Logo" width="80" />
+
+<h1>LiveDomJS</h1>
 
 <p><strong>HTML-native reactivity for Laravel — no build tools, no boilerplate, no learning curve.</strong></p>
 
@@ -19,6 +21,8 @@
 </p>
 
 <br/>
+
+<img src="docs/images/banner-livedom-js.png" alt="LiveDomJS Banner" width="100%" />
 
 ```html
 <!-- Before LiveDomJS: write controllers, register routes, set up components, manage state... -->
